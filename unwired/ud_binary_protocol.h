@@ -96,7 +96,7 @@
 #define DEVICE_ABILITY_GAS_SENSOR                               11
 #define DEVICE_ABILITY_POWER_METER                              12
 #define DEVICE_ABILITY_RADIATION_METER                          13
-#define DEVICE_ABILITY_RESERVED3                                14
+#define DEVICE_ABILITY_WATER_METER                              14
 #define DEVICE_ABILITY_RESERVED4                                15
 #define DEVICE_ABILITY_RESERVED5                                16
 
@@ -109,7 +109,7 @@
 #define DEVICE_ABILITY_RESERVED10                               23
 #define DEVICE_ABILITY_LED                                      24
 
-#define DEVICE_ABILITY_OTA                                      25 //использовать для определения поддержки OTA
+#define DEVICE_ABILITY_RESERVED11                               25
 #define DEVICE_ABILITY_RESERVED12                               26
 #define DEVICE_ABILITY_RESERVED13                               27
 #define DEVICE_ABILITY_RESERVED14                               28
@@ -206,6 +206,7 @@
 #define DEVICE_MESSAGE_OTA_UPDATE_SUCCESS                       0x0C
 #define DEVICE_MESSAGE_OTA_NONCORRECT_UUID                      0x0D
 #define DEVICE_MESSAGE_TIMESYNC_STATUS                          0x0E //Статус синхронизации времени
+#define DEVICE_MESSAGE_FREE_DATA                                0x0E //Произвольные данные
 
 /* UART Binary data */
 #define UART_PROTOCOL_VERSION_V1                                0x01

@@ -177,11 +177,29 @@ void dag_root_raw_print(const uip_ip6addr_t *addr, const uint8_t *data, const ui
    printf("RAWEND   \n");
 }
 
+void free_data_raw_print(const uip_ip6addr_t *addr, const uint8_t *data, const uint16_t length)
+{
+   if (addr == NULL || data == NULL)
+      return;
+
+   u8_u32_t water_counter;
+   water_counter.u8[0] = data[4];
+   water_counter.u8[1] = data[5];
+   water_counter.u8[2] = data[6];
+   water_counter.u8[3] = data[7];
+
+   printf("New message from address ");
+   uip_debug_ipaddr_print(addr);
+   printf(": counter %"PRIu32"\n", water_counter.u32);
+}
+
+
 /*---------------------------------------------------------------------------*/
 
 void decrypted_data_processed(const uip_ip6addr_t *sender_addr, const uint8_t *data, uint16_t datalen)
 {
    uint8_t packet_type = data[2];
+   uint8_t packet_subtype = data[3];
 
    if (packet_type == DATA_TYPE_JOIN)
    {
@@ -193,9 +211,15 @@ void decrypted_data_processed(const uip_ip6addr_t *sender_addr, const uint8_t *d
       send_pong_packet(sender_addr);
    }
 
-   else if (packet_type == DATA_TYPE_SET_TIME && data[3] == DATA_TYPE_SET_TIME_REQUEST)
+   else if (packet_type == DATA_TYPE_SET_TIME && packet_subtype == DATA_TYPE_SET_TIME_REQUEST)
    {
       send_time_sync_resp_packet(sender_addr, data, datalen);
+      return;
+   }
+
+   else if (packet_type == DATA_TYPE_MESSAGE && packet_subtype == DEVICE_MESSAGE_FREE_DATA)
+   {
+      free_data_raw_print(sender_addr, data, datalen);
       return;
    }
 

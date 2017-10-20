@@ -1,0 +1,25 @@
+all: root
+
+ifndef POWER_CLASS
+  ${error Not POWER_CLASS define}
+endif
+
+ifndef IF_UD_H_FILE_MAIN
+  ${error Not IF_UD_H_FILE define}
+endif
+
+PROJECTDIRS += $(VARIANT) ..
+PROJECT_SOURCEFILES += root-node.c crypto-common.c rtc-common.c  system-common.c
+
+DEFINES+=IF_UD_H_FILE=$(IF_UD_H_FILE_MAIN)
+ifeq ($(POWER_CLASS),0x0B)
+	DEFINES+=PROJECT_CONF_H=\"project-conf-class-b.h\"
+else
+	DEFINES+=PROJECT_CONF_H=\"project-conf-class-c.h\"
+endif
+DEFINES+=CLASS=$(POWER_CLASS)
+
+CONTIKI = ../..
+CONTIKI_WITH_IPV6 = 1
+include $(CONTIKI)/Makefile.include
+include $(CONTIKI)/Makefile_git_version.include

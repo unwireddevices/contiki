@@ -97,6 +97,9 @@
 #endif
 
 #include "../fake_headers.h" //no move up! not "krasivo"!
+#ifdef IF_UD_WMETER
+#  include "water-meter/wmeter.h"
+#endif
 
 #define MAINTENANCE_INTERVAL            (10 * 60 * CLOCK_SECOND)
 #define SHORT_STATUS_INTERVAL           (10 * 60 * CLOCK_SECOND)
