@@ -27,41 +27,23 @@
 /*---------------------------------------------------------------------------*/
 /**
  * \file
- *         Header file for system functions
+ *         Config file for b-clacc devices(battery-powered)
  * \author
  *         Vladislav Zaytsev vvzvlad@gmail.com vz@unwds.com
  */
 /*---------------------------------------------------------------------------*/
+#include "project-conf.h"
 
-#include "contiki.h"
-#include "ud_binary_protocol.h"
+/* Net tune option */
+#undef UIP_DS6_CONF_PERIOD
+#define UIP_DS6_CONF_PERIOD                      (CLOCK_SECOND) //Проверить потребление!
 
-/*---------------------------------------------------------------------------*/
+/* RPL tune option */
+#undef RPL_CONF_LEAF_ONLY
+#define RPL_CONF_LEAF_ONLY                       1
 
-#define PT_MESSAGE_PONG_RECIEVED 0x10
+#undef RPL_CONF_DIO_INTERVAL_MIN
+#define RPL_CONF_DIO_INTERVAL_MIN                12 //2^X ms, 12(2^12 = 4.096s) default. The DIO interval (n) represents
 
-/*---------------------------------------------------------------------------*/
-
-typedef union u8_u16_t
-{
-   uint16_t u16;
-   uint8_t u8[2];
-} u8_u16_t;
-
-typedef union u8_i16_t
-{
-   int16_t i16;
-   uint8_t u8[2];
-} u8_i16_t;
-
-typedef union u8_u32_t
-{
-   uint32_t u32;
-   uint8_t u8[4];
-} u8_u32_t;
-
-void hexraw_print(uint32_t flash_length, uint8_t *flash_read_data_buffer);
-void hexview_print(uint32_t flash_length, uint8_t *flash_read_data_buffer, uint32_t offset);
-
-/*---------------------------------------------------------------------------*/
-
+#undef RPL_CONF_DIO_INTERVAL_DOUBLINGS
+#define RPL_CONF_DIO_INTERVAL_DOUBLINGS          8 // RPL_CONF_DIO_INTERVAL_MIN + RPL_CONF_DIO_INTERVAL_DOUBLINGS <= 20

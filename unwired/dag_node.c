@@ -100,6 +100,14 @@
 #  include "water-meter/wmeter.h"
 #endif
 
+#ifdef IF_UD_FIREBUTTON
+#  include "r-smarthome/firebutton.h"
+#endif
+
+#ifdef IF_UD_SMOKESENSOR
+#  include "r-smarthome/smokesensor.h"
+#endif
+
 #define MAINTENANCE_INTERVAL            (10 * 60 * CLOCK_SECOND)
 #define SHORT_STATUS_INTERVAL           (10 * 60 * CLOCK_SECOND)
 #define LONG_STATUS_INTERVAL            (20 * 60 * CLOCK_SECOND)
@@ -110,12 +118,6 @@
 
 #define FALSE                                   0x00
 #define TRUE                                    0x01
-
-#define LED_OFF                                 0x00
-#define LED_ON                                  0x01
-#define LED_FLASH                               0x02
-#define LED_SLOW_BLINK                          0x03
-#define LED_FAST_BLINK                          0x04
 
 #define MAX_NON_ANSWERED_PINGS                  3
 
@@ -131,7 +133,6 @@ volatile uint8_t node_mode;
 volatile uint8_t spi_status;
 
 volatile uint8_t led_mode;
-static void led_mode_set(uint8_t mode);
 
 volatile uint8_t non_answered_packet = 0;
 volatile uip_ipaddr_t root_addr;
@@ -147,6 +148,8 @@ volatile uint8_t fw_error_counter = 0;
 uint32_t ota_image_current_offset = 0;
 
 rpl_dag_t *rpl_probing_dag;
+
+volatile uint8_t process_message = 0;
 
 /*---------------------------------------------------------------------------*/
 
@@ -415,6 +418,8 @@ static void pong_handler(const uip_ipaddr_t *sender_addr,
       non_answered_packet = 0;
       //printf("DAG Node: Pong packet received, non-answered packet counter: %"PRId8" \n", non_answered_packet);
       net_off(RADIO_OFF_NOW);
+      process_message = PT_MESSAGE_PONG_RECIEVED;
+      process_post_synch(&main_process, PROCESS_EVENT_MSG, (process_data_t)&process_message);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -848,7 +853,7 @@ void send_fw_chunk_req_packet(uint16_t chunk_num_raw)
 
 /*---------------------------------------------------------------------------*/
 
-static void led_mode_set(uint8_t mode)
+void led_mode_set(uint8_t mode)
 {
    led_mode = mode;
    if (led_mode == LED_OFF)

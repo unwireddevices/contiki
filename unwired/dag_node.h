@@ -44,6 +44,12 @@
 #define MODE_JOIN_PROGRESS                      0x03
 #define MODE_NEED_REBOOT                        0x04
 
+#define LED_OFF                                 0x00
+#define LED_ON                                  0x01
+#define LED_FLASH                               0x02
+#define LED_SLOW_BLINK                          0x03
+#define LED_FAST_BLINK                          0x04
+
 /*---------------------------------------------------------------------------*/
 
 simple_udp_connection_t udp_connection;
@@ -79,6 +85,7 @@ void send_message_packet(uint8_t message_type, uint8_t data_1, uint8_t data_2);
 void send_uart_data(struct command_data *uart_data);
 void uart_console(unsigned char uart_char);
 void send_time_sync_req_packet();
+void led_mode_set(uint8_t mode);
 
 PROCESS_NAME(dag_node_process);
 PROCESS_NAME(dag_node_button_process);

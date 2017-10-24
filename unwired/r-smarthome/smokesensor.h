@@ -27,41 +27,24 @@
 /*---------------------------------------------------------------------------*/
 /**
  * \file
- *         Header file for system functions
+ *         Header file for smoke sensor service
  * \author
  *         Vladislav Zaytsev vvzvlad@gmail.com vz@unwds.com
  */
 /*---------------------------------------------------------------------------*/
-
 #include "contiki.h"
-#include "ud_binary_protocol.h"
+#include "net/ip/uip.h"
+
+PROCESS_NAME(main_process);
 
 /*---------------------------------------------------------------------------*/
-
-#define PT_MESSAGE_PONG_RECIEVED 0x10
-
-/*---------------------------------------------------------------------------*/
-
-typedef union u8_u16_t
-{
-   uint16_t u16;
-   uint8_t u8[2];
-} u8_u16_t;
-
-typedef union u8_i16_t
-{
-   int16_t i16;
-   uint8_t u8[2];
-} u8_i16_t;
-
-typedef union u8_u32_t
-{
-   uint32_t u32;
-   uint8_t u8[4];
-} u8_u32_t;
-
-void hexraw_print(uint32_t flash_length, uint8_t *flash_read_data_buffer);
-void hexview_print(uint32_t flash_length, uint8_t *flash_read_data_buffer, uint32_t offset);
+#define CURRENT_DEVICE_SLEEP_TYPE             DEVICE_SLEEP_TYPE_LEAF
+#define CURRENT_DEVICE_GROUP                  DEVICE_GROUP_SENSORS
+#define CURRENT_DEVICE_VERSION                DEVICE_VERSION_V1
+#define CURRENT_PROTOCOL_VERSION              PROTOCOL_VERSION_V1
+#define CURRENT_ABILITY_1BYTE                 0b00000000
+#define CURRENT_ABILITY_2BYTE                 0b00000010
+#define CURRENT_ABILITY_3BYTE                 0b00000000
+#define CURRENT_ABILITY_4BYTE                 0b00000000
 
 /*---------------------------------------------------------------------------*/
-

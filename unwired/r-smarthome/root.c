@@ -25,43 +25,79 @@
  * SUCH DAMAGE.
  */
 /*---------------------------------------------------------------------------*/
-/**
- * \file
- *         Header file for system functions
- * \author
- *         Vladislav Zaytsev vvzvlad@gmail.com vz@unwds.com
- */
+/*
+* \file
+*         RPL-root service for Unwired Devices mesh smart house system(UDMSHS %) <- this is smile
+* \author
+*         Vladislav Zaytsev vvzvlad@gmail.com vz@unwds.com
+*/
 /*---------------------------------------------------------------------------*/
 
 #include "contiki.h"
-#include "ud_binary_protocol.h"
+#include "lib/random.h"
+#include "sys/ctimer.h"
+#include "sys/etimer.h"
+
+#include "dev/leds.h"
+#include "cc26xx/board.h"
+
+#include "net/ip/uip.h"
+#include "net/ipv6/uip-ds6.h"
+#include "net/ip/uip-debug.h"
+#include "simple-udp.h"
+#include "net/rpl/rpl.h"
+
+#include <stdio.h>
+#include <string.h>
+
+#include "button-sensor.h"
+#include "board-peripherals.h"
+
+#include "ti-lib.h"
+#include "dev/cc26xx-uart.h"
+
+#include "../ud_binary_protocol.h"
+#include "xxf_types_helper.h"
+#include "dev/watchdog.h"
+#include "root.h"
+#include "../root-node.h"
 
 /*---------------------------------------------------------------------------*/
 
-#define PT_MESSAGE_PONG_RECIEVED 0x10
+/* Buttons on DIO 1 */
+SENSORS(&button_e_sensor_click, &button_e_sensor_long_click);
+
+PROCESS(rpl_root_process,"Unwired RPL root and udp data receiver");
+
+AUTOSTART_PROCESSES(&rpl_root_process);
 
 /*---------------------------------------------------------------------------*/
 
-typedef union u8_u16_t
+PROCESS_THREAD(rpl_root_process, ev, data)
 {
-   uint16_t u16;
-   uint8_t u8[2];
-} u8_u16_t;
 
-typedef union u8_i16_t
-{
-   int16_t i16;
-   uint8_t u8[2];
-} u8_i16_t;
+   PROCESS_BEGIN();
 
-typedef union u8_u32_t
-{
-   uint32_t u32;
-   uint8_t u8[4];
-} u8_u32_t;
+   printf("Unwired RLP root. HELL-IN-CODE free. I hope.\n");
 
-void hexraw_print(uint32_t flash_length, uint8_t *flash_read_data_buffer);
-void hexview_print(uint32_t flash_length, uint8_t *flash_read_data_buffer, uint32_t offset);
+   /* if you do not execute "cleanall" target, rpl-root can build in "leaf" configuration. Diagnostic message */
+   if (RPL_CONF_LEAF_ONLY == 1)
+      printf("\nWARNING: leaf mode on rpl-root!\n");
 
-/*---------------------------------------------------------------------------*/
+   rpl_initialize();
 
+   root_node_initialize();
+
+   while (1)
+   {
+      PROCESS_WAIT_EVENT();
+      if (ev == sensors_event && data == &button_e_sensor_long_click)
+      {
+         led_on(LED_A);
+         printf("SYSTEM: Button E long click, reboot\n");
+         watchdog_reboot();
+      }
+   }
+
+   PROCESS_END();
+}

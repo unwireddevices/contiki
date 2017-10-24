@@ -25,43 +25,50 @@
  * SUCH DAMAGE.
  */
 /*---------------------------------------------------------------------------*/
-/**
- * \file
- *         Header file for system functions
- * \author
- *         Vladislav Zaytsev vvzvlad@gmail.com vz@unwds.com
- */
+/*
+* \file
+*         RPL-root service for Unwired Devices mesh smart house system(UDMSHS %) <- this is smile
+* \author
+*         Vladislav Zaytsev vvzvlad@gmail.com vz@unwds.com
+*/
 /*---------------------------------------------------------------------------*/
 
 #include "contiki.h"
-#include "ud_binary_protocol.h"
+#include "lib/random.h"
+#include "sys/ctimer.h"
+#include "sys/etimer.h"
+
+#include "dev/leds.h"
+#include "cc26xx/board.h"
+
+#include "net/ip/uip.h"
+#include "net/ipv6/uip-ds6.h"
+#include "net/ip/uip-debug.h"
+#include "simple-udp.h"
+#include "net/rpl/rpl.h"
+
+#include <stdio.h>
+#include <string.h>
+
+#include "button-sensor.h"
+#include "board-peripherals.h"
+
+#include "ti-lib.h"
+#include "dev/cc26xx-uart.h"
+
+#include "../ud_binary_protocol.h"
+#include "xxf_types_helper.h"
+#include "dev/watchdog.h"
 
 /*---------------------------------------------------------------------------*/
 
-#define PT_MESSAGE_PONG_RECIEVED 0x10
 
 /*---------------------------------------------------------------------------*/
 
-typedef union u8_u16_t
-{
-   uint16_t u16;
-   uint8_t u8[2];
-} u8_u16_t;
-
-typedef union u8_i16_t
-{
-   int16_t i16;
-   uint8_t u8[2];
-} u8_i16_t;
-
-typedef union u8_u32_t
-{
-   uint32_t u32;
-   uint8_t u8[4];
-} u8_u32_t;
-
-void hexraw_print(uint32_t flash_length, uint8_t *flash_read_data_buffer);
-void hexview_print(uint32_t flash_length, uint8_t *flash_read_data_buffer, uint32_t offset);
+PROCESS_NAME(rpl_root_process);
 
 /*---------------------------------------------------------------------------*/
+
+
+
 

@@ -97,7 +97,7 @@
 #define DEVICE_ABILITY_POWER_METER                              12
 #define DEVICE_ABILITY_RADIATION_METER                          13
 #define DEVICE_ABILITY_WATER_METER                              14
-#define DEVICE_ABILITY_RESERVED4                                15
+#define DEVICE_ABILITY_SMOKE_SENSOR                             15
 #define DEVICE_ABILITY_RESERVED5                                16
 
 #define DEVICE_ABILITY_RELAY                                    17
