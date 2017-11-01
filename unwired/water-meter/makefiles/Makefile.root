@@ -4,14 +4,9 @@ ifndef POWER_CLASS
   ${error Not POWER_CLASS define}
 endif
 
-ifndef IF_UD_H_FILE_MAIN
-  ${error Not IF_UD_H_FILE define}
-endif
-
 PROJECTDIRS += $(VARIANT) ..
 PROJECT_SOURCEFILES += root-node.c crypto-common.c rtc-common.c  system-common.c
 
-DEFINES+=IF_UD_H_FILE=$(IF_UD_H_FILE_MAIN)
 ifeq ($(POWER_CLASS),0x0B)
 	DEFINES+=PROJECT_CONF_H=\"project-conf-class-b.h\"
 else

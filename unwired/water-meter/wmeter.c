@@ -59,6 +59,7 @@
 #include "../dag_node.h"
 #include "gpio-interrupt.h"
 #include "dev/cc26xx-uart.h"
+#include "aux-ctrl.h"
 
 #include "xxf_types_helper.h"
 
@@ -71,9 +72,15 @@
 
 #define L_OUT_DIO IOID_4
 #define T_OUT_DIO IOID_11
-#define T_IN_DIO IOID_5
+#define T_IN_DIO IOID_12
 
-#define SEND_TIME             (15 * CLOCK_SECOND)
+#define SEND_TIME             (15 * 60 * CLOCK_SECOND)
+
+#define OUT_GPIO_CFG            (IOC_CURRENT_8MA | IOC_STRENGTH_AUTO |      \
+                                    IOC_NO_IOPULL | IOC_SLEW_DISABLE |         \
+                                    IOC_HYST_DISABLE | IOC_NO_EDGE |           \
+                                    IOC_INT_DISABLE | IOC_IOMODE_NORMAL |      \
+                                    IOC_NO_WAKE_UP | IOC_INPUT_DISABLE )
 
 /*---------------------------------------------------------------------------*/
 
@@ -82,7 +89,7 @@ static uint32_t water_counter = 0;
 /*---------------------------------------------------------------------------*/
 
 /* Register buttons sensors */
-SENSORS(&button_e_sensor_click);
+SENSORS(&button_a_sensor_click);
 
 /* register dimmer process */
 PROCESS(main_process, "water meter control process");
@@ -148,45 +155,90 @@ PROCESS_THREAD(send_data_process, ev, data)
    PROCESS_END();
 }
 
+
+
 /*---------------------------------------------------------------------------*/
 
 PROCESS_THREAD(main_process, ev, data)
 {
    PROCESS_BEGIN();
 
-   static struct etimer water_meter_timet;
+   static struct etimer water_meter_timer;
    static uint32_t current_value = 0;
    static uint32_t prev_measured = 0;
    static uint32_t prev_saved = 0;
 
+   static aux_consumer_module_t adc_aux = {
+      .clocks = AUX_WUC_ADI_CLOCK | AUX_WUC_ANAIF_CLOCK | AUX_WUC_SMPH_CLOCK
+    };
+
    PROCESS_PAUSE();
 
    printf("Unwired water meter device. HELL-IN-CODE free. I hope.\n");
+
    ti_lib_ioc_pin_type_gpio_output(L_OUT_DIO);
    ti_lib_ioc_pin_type_gpio_output(T_OUT_DIO);
+   ti_lib_ioc_port_configure_set(L_OUT_DIO, IOC_PORT_GPIO, OUT_GPIO_CFG);
+   ti_lib_ioc_port_configure_set(T_OUT_DIO, IOC_PORT_GPIO, OUT_GPIO_CFG);
+
    ti_lib_ioc_pin_type_gpio_input(T_IN_DIO);
 
    while (1)
    {
-      ti_lib_gpio_set_dio(L_OUT_DIO);
-      ti_lib_gpio_set_dio(T_OUT_DIO);
-      clock_delay_usec(25);
-      current_value = ti_lib_gpio_read_dio(T_IN_DIO);
-      ti_lib_gpio_clear_dio(L_OUT_DIO);
-      ti_lib_gpio_clear_dio(T_OUT_DIO);
+      /* On internal and external pull-up */
+      ti_lib_gpio_write_dio(T_OUT_DIO, 1);
+      ti_lib_gpio_write_dio(L_OUT_DIO, 0);
+      ti_lib_ioc_io_port_pull_set(T_IN_DIO, IOC_IOPULL_UP);
+      //clock_delay_usec(200);
+
+      /* Init ADC */
+      aux_ctrl_register_consumer(&adc_aux);
+      ti_lib_aux_adc_select_input(ADC_COMPB_IN_AUXIO2);
+      ti_lib_aux_adc_enable_sync(AUXADC_REF_FIXED,  AUXADC_SAMPLE_TIME_2P7_US, AUXADC_TRIGGER_MANUAL); // AUXADC_REF_FIXED = nominally 4.3 V
+
+      /* Off internal pull-up and on IR-LED */
+      ti_lib_ioc_io_port_pull_set(T_IN_DIO, IOC_NO_IOPULL);
+      ti_lib_gpio_write_dio(T_OUT_DIO, 1);
+      ti_lib_gpio_write_dio(L_OUT_DIO, 1);
+
+      clock_delay_usec(150);
+      //current_value = ti_lib_gpio_read_dio(T_IN_DIO);
+
+      /* Read ADC value */
+      ti_lib_aux_adc_gen_manual_trigger();
+
+      /* Off external pull-up and IR LED */
+      ti_lib_gpio_write_dio(L_OUT_DIO, 0);
+      ti_lib_gpio_write_dio(T_OUT_DIO, 0);
+
+      /* Read ADC sample */
+      uint16_t singleSample = ti_lib_aux_adc_read_fifo();
+      ti_lib_aux_adc_flush_fifo();
+
+      /* Disable ADC */
+      ti_lib_aux_adc_disable();
+      aux_ctrl_unregister_consumer(&adc_aux);
+
+      if (singleSample > 700)
+         current_value = 1;
+      else
+         current_value = 0;
+
+      //printf("ADC: %d mv on ADC\r\n", singleSample);
 
       if (current_value == prev_measured)
       {
          if ((prev_saved == 0) && (current_value == 1))
          {
             water_counter++;
+            //printf("METER: counter inc!\r\n");
          }
          prev_saved = current_value;
       }
       prev_measured = current_value;
 
-      etimer_set(&water_meter_timet, 13); //~100ms
-      PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&water_meter_timet));
+      etimer_set(&water_meter_timer, CLOCK_SECOND/2);
+      PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&water_meter_timer));
    }
 
    PROCESS_END();

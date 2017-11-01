@@ -76,6 +76,12 @@
 #undef NONCORESEC_CONF_SEC_LVL
 #define NONCORESEC_CONF_SEC_LVL                    FRAME802154_SECURITY_LEVEL_NONE
 
+
+#define SET_CCFG_BL_CONFIG_BOOTLOADER_ENABLE         0xC5
+#define SET_CCFG_BL_CONFIG_BL_LEVEL                  0x01
+#define SET_CCFG_BL_CONFIG_BL_PIN_NUMBER             0x06
+#define SET_CCFG_BL_CONFIG_BL_ENABLE                 0xC5
+
 /*
 #undef LLSEC802154_CONF_ENABLED
 #define LLSEC802154_CONF_ENABLED                   1
