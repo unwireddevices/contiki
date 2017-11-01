@@ -87,7 +87,6 @@ AUTOSTART_PROCESSES(&dag_node_process, &main_process, &blink_led_firebutton_proc
 
 static struct etimer blink_led_firebutton_process_timer;
 
-
 clock_time_t led_blink_off = 15*CLOCK_SECOND;
 clock_time_t led_blink_on = CLOCK_SECOND/10;
 
@@ -125,36 +124,34 @@ PROCESS_THREAD(main_process, ev, data)
 
    PROCESS_PAUSE();
 
-
    while (1)
    {
-   PROCESS_YIELD();
-   if (ev == sensors_event)
-   {
-      printf("BCP: Button click\n");
-      if (data == &button_a_sensor_click && node_mode == MODE_NORMAL)
+      PROCESS_YIELD();
+      if (ev == sensors_event)
       {
-         ti_lib_gpio_set_dio(OUT_LED_DIO);
-         ti_lib_gpio_clear_dio(OUT_LED_DIO);
+         printf("BCP: Button click\n");
+         if (data == &button_a_sensor_click && node_mode == MODE_NORMAL)
+         {
+            ti_lib_gpio_set_dio(OUT_LED_DIO);
+            ti_lib_gpio_clear_dio(OUT_LED_DIO);
 
-         send_button_status_packet('a', DEVICE_ABILITY_BUTTON_EVENT_CLICK);
-         led_blink_off = CLOCK_SECOND/2;
-         led_blink_on = CLOCK_SECOND/10;
-         etimer_reset_with_new_interval(&blink_led_firebutton_process_timer, 1);
+            send_button_status_packet('a', DEVICE_ABILITY_BUTTON_EVENT_CLICK);
+            led_blink_off = CLOCK_SECOND/2;
+            led_blink_on = CLOCK_SECOND/10;
+            etimer_reset_with_new_interval(&blink_led_firebutton_process_timer, 1);
 
-         PROCESS_YIELD_UNTIL(ev == PROCESS_EVENT_MSG && *(uint8_t*)data == PT_MESSAGE_PONG_RECIEVED);
-         printf("BCP: Pong!\n");
-         led_blink_off = CLOCK_SECOND/100;
-         led_blink_on = CLOCK_SECOND*5;
-         etimer_reset_with_new_interval(&blink_led_firebutton_process_timer, 1);
+            PROCESS_YIELD_UNTIL(ev == PROCESS_EVENT_MSG && *(uint8_t*)data == PT_MESSAGE_PONG_RECIEVED);
+            printf("BCP: Pong!\n");
+            led_blink_off = CLOCK_SECOND/100;
+            led_blink_on = CLOCK_SECOND*5;
+            etimer_reset_with_new_interval(&blink_led_firebutton_process_timer, 1);
 
-         etimer_set(&firebutton_led_process_timer, 15*60*CLOCK_SECOND);
-         PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&firebutton_led_process_timer));
-         led_blink_off = 15*CLOCK_SECOND;
-         led_blink_on = CLOCK_SECOND/10;
+            etimer_set(&firebutton_led_process_timer, 60*CLOCK_SECOND);
+            PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&firebutton_led_process_timer));
+            led_blink_off = 15*CLOCK_SECOND;
+            led_blink_on = CLOCK_SECOND/10;
+         }
       }
-
-   }
    }
 
    PROCESS_END();
