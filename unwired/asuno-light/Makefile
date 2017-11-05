@@ -9,8 +9,8 @@ endif
 
 include ../Makefile_global_unwired
 
-$(eval $(call generate-targets,light,NOLEAF,$(CPU),0x01A00001))
-$(eval $(call generate-targets,root,NOLEAF,$(CPU),0x01FF0001))
+$(eval $(call generate-targets,light,0x01A00001,0x0C))
+$(eval $(call generate-targets,root,0x01FF0001,0x0C))
 
 # 0x01FF0001 — asuno-light(asuno, 01), root(FF), version 0001
 # 0x01A00001 — asuno-light(asuno, 01), light(A0), version 0001

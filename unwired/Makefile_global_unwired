@@ -29,7 +29,7 @@ $(1)-CLEAN: $(1)
 	make clean_artefacts BOARD=$$(BOARD)/$$(CPU) CPU=$$(CPU)
 
 $(1)-fb: $(1)-CLEAN
-	while true; do ../../tools/backdoor-bootloader.py -e -w -v $(1)-firmware.hex && break || sleep 1; done;
+	while true; do  python2 ../../tools/backdoor-bootloader.py -e -w -v $(1)-firmware.hex && break || sleep 1; done;
 
 $(1)-f: $(1)-CLEAN
 	/Applications/ti/Uniflash/flash_$$(CPU).sh $(1)-firmware.hex

@@ -58,7 +58,7 @@
 #define DATA_TYPE_FIRMWARE                                      0x0C //Данные для OTA
 #define DATA_TYPE_UART                                          0x0D //Команда с данными UART
 #define DATA_TYPE_FIRMWARE_CMD                                  0x0E //Команды OTA
-#define DATA_TYPE_LOCAL_CMD                                     0x0F //Локальные команды для координатора
+#define DATA_TYPE_LOCAL_CMD                                     0x0F //Локальные команды для координатора //deprecated
 
 /* Reserved data */
 #define DATA_RESERVED                                           0xFF
@@ -208,24 +208,36 @@
 #define DEVICE_MESSAGE_TIMESYNC_STATUS                          0x0E //Статус синхронизации времени
 #define DEVICE_MESSAGE_FREE_DATA                                0x0E //Произвольные данные
 
-/* UART Binary data */
-#define UART_PROTOCOL_VERSION_V1                                0x01
-#define UART_PROTOCOL_VERSION_V2                                0x02
-#define UART_PROTOCOL_VERSION_V3                                0x03
-#define MAX_UART_DATA_LENGTH                                    1500
-#define MAGIC_SEQUENCE_LENGTH                                   6
-#define MAGIC_SEQUENCE                                          0x01,0x16,0x16,0x16,0x16,0x10
+/* UART Binary data */ //deprecated
+#define UART_PROTOCOL_VERSION_V1                                0x01 //deprecated
+#define UART_PROTOCOL_VERSION_V2                                0x02 //deprecated
 
-#define PACKET_HEADER_LENGTH                                    10
+#define UART_PROTOCOL_VERSION_V3                                0x03 //deprecated
+#define MAX_UART_DATA_LENGTH                                    1500 //deprecated
+#define MAGIC_SEQUENCE_LENGTH                                   6 //deprecated
+#define MAGIC_SEQUENCE                                          0x01,0x16,0x16,0x16,0x16,0x10 //deprecated
+#define PACKET_HEADER_LENGTH                                    10 //deprecated
+
+/* UDUP V4 */
+#define UART_PROTOCOL_VERSION_V4                                0x04
+#define MAGIC_SEQUENCE_UDUP_V4                                  0x16
+#define MAX_UART_PACKET_LENGTH_UDUP_V4                          1024
+#define MAX_UART_PAYLOAD_LENGTH_UDUP_V4                         MAX_UART_PACKET_LENGTH_UDUP_V4-(3+8+2+1)
+#define PAYLOAD_OFFSET_UDUP_V4                                  13
+
+/* UDUP V4 message types */
+#define UDUP_V4_COMMAND_TYPE_PACKET_SEND                        0x00 //заменить на net_packet
+#define UDUP_V4_COMMAND_TYPE_REBOOT                             0x01
+#define UDUP_V4_COMMAND_TYPE_BOOTLOADER_ACTIVATE                0x02
+#define UDUP_V4_COMMAND_TYPE_ROOT_TIME_SET                      0x03
+#define UDUP_V4_COMMAND_TYPE_BINARY_CR_MODE                     0x04
+#define UDUP_V4_COMMAND_TYPE_ASCII_CR_MODE                      0x05
 
 /* DEVICE_ROOT_LOCAL commands */
-#define LOCAL_ROOT_COMMAND_REBOOT                               0x00
-#define LOCAL_ROOT_COMMAND_BOOTLOADER_ACTIVATE                  0x01
-#define LOCAL_ROOT_COMMAND_TIME_SET                             0x02
-
+#define LOCAL_ROOT_COMMAND_REBOOT                               0x00 //deprecated
+#define LOCAL_ROOT_COMMAND_BOOTLOADER_ACTIVATE                  0x01 //deprecated
+#define LOCAL_ROOT_COMMAND_TIME_SET                             0x02 //deprecated
 
 /* Defines */
-
 #define UDP_DATA_PORT                                           4004
-
-#define VOLTAGE_PRESCALER                                       16
+#define VOLTAGE_PRESCALER                                       16 //deprecated

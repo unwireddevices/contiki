@@ -44,6 +44,10 @@
 
 /*---------------------------------------------------------------------------*/
 
+typedef struct eui64_addr_t {
+   uint8_t addr[8];
+ } eui64_addr_t;
+
 typedef struct firmware_packet
 {
    uint8_t data[FIRMWARE_PAYLOAD_LENGTH];
@@ -105,7 +109,7 @@ struct uart_data uart_message;
 /* main UPD connection */
 struct simple_udp_connection udp_connection;
 
-PROCESS_NAME(send_command_process);
+PROCESS_NAME(main_root_process);
 
 /*---------------------------------------------------------------------------*/
 
@@ -135,7 +139,7 @@ void send_firmware_packet(struct firmware_data *firmware_message);
 
 void send_command_packet(struct command_data *command_message);
 
-int uart_data_receiver(unsigned char uart_char);
+int uart_data_receiver_udup_v4(unsigned char uart_char);
 
 void uart_packet_dump(uint8_t *uart_buf, uint16_t uart_data_size);
 
