@@ -44,6 +44,11 @@
 
 /*---------------------------------------------------------------------------*/
 
+typedef enum {
+   ROOT_UDUP_V4_HEX_MSG,
+   ROOT_UDUP_V4_BIN_MSG
+ } root_udup_message_type_t;
+
 typedef struct eui64_addr_t {
    uint8_t addr[8];
  } eui64_addr_t;

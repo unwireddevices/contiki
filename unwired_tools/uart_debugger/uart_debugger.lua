@@ -35,6 +35,7 @@ local bindechex = require("bindechex")
 local posix = require("posix")
 local lanes = require "lanes".configure()
 local linda = lanes.linda()
+local bit = require "bit"
 
 --/*---------------------------------------------------------------------------*/--
 
@@ -247,7 +248,7 @@ local DEVICE_VERSION_V1              =     "01"
 local UART_PROTOCOL_VERSION_V1       =     "01"
 local UART_PROTOCOL_VERSION_V2       =     "02"
 local UART_PROTOCOL_VERSION_V3       =     "03"
-local UART_PROTOCOL_VERSION_V4       =     "04"
+local UDUP_V4_PROTOCOL_VERSION       =     "04"
 
 local UDUP_PV4_MQ = "16"
 local UART_FF_DATA = "FF"
@@ -274,8 +275,7 @@ local DATA_TYPE_LOCAL_CMD                       =              "0F" --Локал
 
 --/*---------------------------------------------------------------------------*/--
 
-
-local UDUP_V4_COMMAND_TYPE_PACKET_SEND          =              "00"
+local UDUP_V4_COMMAND_TYPE_NET_PACKET           =              "00"
 local UDUP_V4_COMMAND_TYPE_REBOOT               =              "01"
 local UDUP_V4_COMMAND_TYPE_BOOTLOADER_ACTIVATE  =              "02"
 local UDUP_V4_COMMAND_TYPE_ROOT_TIME_SET        =              "03"
@@ -284,12 +284,12 @@ local UDUP_V4_COMMAND_TYPE_ASCII_CR_MODE        =              "05"
 
 --/*---------------------------------------------------------------------------*/--
 
-
 local port_name = "/dev/tty.usbserial-14301"
 local main_cycle_permit = 1
 
 local arg = arg
 local p
+
 --/*---------------------------------------------------------------------------*/--
 
 function string.fromhex(str)
@@ -338,6 +338,26 @@ end
 
 --/*---------------------------------------------------------------------------*/--
 
+local function crc16_ansi_calc(s)
+   assert(type(s) == 'string')
+   local crc = 0x0000
+   for i = 1, #s do
+       local c = s:byte(i)
+       crc = bit.bxor(crc, c)
+       for j = 1, 8 do
+           local k = bit.band(crc, 1)
+           crc = bit.rshift(crc, 1)
+           if k ~= 0 then
+               crc = bit.bxor(crc, 0xA001)
+           end
+       end
+   end
+   return crc
+end
+
+--/*---------------------------------------------------------------------------*/--
+
+
 
 local function ipv6_adress_parse(ipv6_adress)
 	local adress_capturing = "(%w%w)(%w%w):(%w%w)(%w%w):(%w%w)(%w%w):(%w%w)(%w%w):(%w%w)(%w%w):(%w%w)(%w%w):(%w%w)(%w%w):(%w%w)(%w%w)"
@@ -372,7 +392,7 @@ end
 
 --/*---------------------------------------------------------------------------*/--
 
-local function uart_send(packet_type, payload, address)
+local function udup_v4_packet(packet_type, payload, address)
 	local uart_packet_size = #payload
 	local max_packet_size = 1500
 
@@ -389,7 +409,7 @@ local function uart_send(packet_type, payload, address)
 	local uart_packet_size_hex_b2 = string.sub(uart_packet_size_hex, 3, 4)
 
 	local preamble = UDUP_PV4_MQ:fromhex()..
-                  UART_PROTOCOL_VERSION_V4:fromhex()..
+                  UDUP_V4_PROTOCOL_VERSION:fromhex()..
                   packet_type:fromhex()..
                   address[1]:fromhex()..
                   address[2]:fromhex()..
@@ -399,54 +419,70 @@ local function uart_send(packet_type, payload, address)
                   address[6]:fromhex()..
                   address[7]:fromhex()..
                   address[8]:fromhex()..
-						uart_packet_size_hex_b2:fromhex()..
-						uart_packet_size_hex_b1:fromhex()
+						uart_packet_size_hex_b1:fromhex()..
+						uart_packet_size_hex_b2:fromhex()
 
    print("Send packet:\nPreamble: "..preamble:tohex())
 
-   local crc16 = {}
-   crc16[1] = UART_FF_DATA:fromhex()
-   crc16[2] = UART_FF_DATA:fromhex()
-
    payload = preamble..payload
-   payload = payload..crc16[1]
-   payload = payload..crc16[2]
+
+   local payload_crc16 = crc16_ansi_calc(payload)
+   local payload_crc16_hex = bindechex.Dec2Hex(payload_crc16)
+   while (#payload_crc16_hex < 16/8*2) do
+      payload_crc16_hex = "0"..payload_crc16_hex
+   end
+	local payload_crc16_hex_b1 = string.sub(payload_crc16_hex, 1, 2)
+   local payload_crc16_hex_b2 = string.sub(payload_crc16_hex, 3, 4)
+
+   payload = payload..payload_crc16_hex_b1:fromhex()
+   payload = payload..payload_crc16_hex_b2:fromhex()
+
 
    print("Payload: "..payload:tohex())
 
    print("Packet all size: "..(#payload+#preamble)..", preamble: "..(#preamble)..", payload(non crc included): "..(uart_packet_size)..", hex(b1, b2): "..uart_packet_size_hex_b1.." "..uart_packet_size_hex_b2.."\n")
 
+   --[[
 	local table_segments = data_cut(payload, 25)
 	for i = 1, #table_segments do
 		p:write(table_segments[i])
 		socket.sleep(0.006)
    end
-   socket.sleep(0.1)
+   ]]
+   p:write(payload)
+   socket.sleep(0.01)
 end
 
 --/*---------------------------------------------------------------------------*/--
 
---/*---------------------------------------------------------------------------*/--
-
-local function uart_send_mini(packet_type)
+local function udup_v4_short_packet(packet_type)
 
 	local preamble = UDUP_PV4_MQ:fromhex()..
-                  UART_PROTOCOL_VERSION_V4:fromhex()..
+                  UDUP_V4_PROTOCOL_VERSION:fromhex()..
                   packet_type:fromhex()
 
-   local crc16 = {}
-   crc16[1] = UART_FF_DATA:fromhex()
-   crc16[2] = UART_FF_DATA:fromhex()
-
    local payload = preamble
-   payload = payload..crc16[1]
-   payload = payload..crc16[2]
+   local payload_crc16 = crc16_ansi_calc(payload)
 
+   local payload_crc16_hex = bindechex.Dec2Hex(payload_crc16)
+   while (#payload_crc16_hex < 16/8*2) do
+      payload_crc16_hex = "0"..payload_crc16_hex
+   end
+	local payload_crc16_hex_b1 = string.sub(payload_crc16_hex, 1, 2)
+	local payload_crc16_hex_b2 = string.sub(payload_crc16_hex, 3, 4)
+   payload = payload..payload_crc16_hex_b1:fromhex()
+   payload = payload..payload_crc16_hex_b2:fromhex()
+   print(payload_crc16_hex)
+
+   --[[
 	local table_segments = data_cut(payload, 25)
 	for i = 1, #table_segments do
 		p:write(table_segments[i])
 		socket.sleep(0.006)
-	end
+   end
+   ]]
+   p:write(payload)
+   socket.sleep(0.01)
 end
 
 --/*---------------------------------------------------------------------------*/--
@@ -463,8 +499,7 @@ local function send_uart_data_0()
 	bin_data = bin_data..DEVICE_ABILITY_RELAY:fromhex()
 	bin_data = bin_data..("01"):fromhex()
 	bin_data = bin_data..("00"):fromhex()
-   uart_send(UDUP_V4_COMMAND_TYPE_PACKET_SEND, bin_data, adress)
-   --uart_send_mini(UDUP_V4_COMMAND_TYPE_REBOOT)
+   udup_v4_packet(UDUP_V4_COMMAND_TYPE_NET_PACKET, bin_data, adress)
 end
 
 local function send_uart_data_1()
@@ -477,9 +512,7 @@ local function send_uart_data_1()
 	bin_data = bin_data..DEVICE_ABILITY_RELAY:fromhex()
 	bin_data = bin_data..("01"):fromhex()
 	bin_data = bin_data..("01"):fromhex()
-   uart_send(UDUP_V4_COMMAND_TYPE_PACKET_SEND, bin_data, adress)
-
-   --uart_send_mini(UDUP_V4_COMMAND_TYPE_REBOOT)
+   udup_v4_packet(UDUP_V4_COMMAND_TYPE_NET_PACKET, bin_data, adress)
 end
 
 
@@ -593,7 +626,36 @@ assert(p:set_stop_bits(rs232.RS232_STOP_1) == rs232.RS232_ERR_NOERROR)
 assert(p:set_flow_control(rs232.RS232_FLOW_OFF) == rs232.RS232_ERR_NOERROR)
 
 --/*---------------------------------------------------------------------------*/--
-send_uart_data_1()
-send_uart_data_0()
+--send_uart_data_1()
+--send_uart_data_0()
 --port_monitor()
+udup_v4_short_packet(UDUP_V4_COMMAND_TYPE_ASCII_CR_MODE)
 
+--[[
+
+local now_epoch = os.time()
+
+local now_epoch_hex = bindechex.Dec2Hex(now_epoch)
+while (#now_epoch_hex < 32/8*2) do
+   now_epoch_hex = "0"..now_epoch_hex
+end
+local epoch_hex_bytes = {}
+epoch_hex_bytes[1] = string.sub(now_epoch_hex, 1, 2)
+epoch_hex_bytes[2] = string.sub(now_epoch_hex, 3, 4)
+epoch_hex_bytes[3] = string.sub(now_epoch_hex, 5, 6)
+epoch_hex_bytes[4] = string.sub(now_epoch_hex, 7, 8)
+
+local address = {}
+address[1] = "00"
+address[2] = "00"
+address[3] = "00"
+address[4] = "00"
+address[5] = "00"
+address[6] = "00"
+address[7] = "00"
+address[8] = "00"
+
+local epoch_bin = epoch_hex_bytes[1]:fromhex()..epoch_hex_bytes[2]:fromhex()..epoch_hex_bytes[3]:fromhex()..epoch_hex_bytes[4]:fromhex()
+
+udup_v4_packet(UDUP_V4_COMMAND_TYPE_ROOT_TIME_SET, epoch_bin, address)
+]]

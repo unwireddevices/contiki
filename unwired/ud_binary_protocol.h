@@ -208,25 +208,29 @@
 #define DEVICE_MESSAGE_TIMESYNC_STATUS                          0x0E //Статус синхронизации времени
 #define DEVICE_MESSAGE_FREE_DATA                                0x0E //Произвольные данные
 
-/* UART Binary data */ //deprecated
-#define UART_PROTOCOL_VERSION_V1                                0x01 //deprecated
-#define UART_PROTOCOL_VERSION_V2                                0x02 //deprecated
-
-#define UART_PROTOCOL_VERSION_V3                                0x03 //deprecated
-#define MAX_UART_DATA_LENGTH                                    1500 //deprecated
-#define MAGIC_SEQUENCE_LENGTH                                   6 //deprecated
-#define MAGIC_SEQUENCE                                          0x01,0x16,0x16,0x16,0x16,0x10 //deprecated
-#define PACKET_HEADER_LENGTH                                    10 //deprecated
 
 /* UDUP V4 */
-#define UART_PROTOCOL_VERSION_V4                                0x04
-#define MAGIC_SEQUENCE_UDUP_V4                                  0x16
-#define MAX_UART_PACKET_LENGTH_UDUP_V4                          1024
-#define MAX_UART_PAYLOAD_LENGTH_UDUP_V4                         MAX_UART_PACKET_LENGTH_UDUP_V4-(3+8+2+1)
-#define PAYLOAD_OFFSET_UDUP_V4                                  13
+#define UDUP_V4_PROTOCOL_VERSION                                0x04
+#define UDUP_V4_MAGIC_BYTE                                      0x16
+#define UDUP_V4_CRC_LENGTH                                      2
+#define UDUP_V4_DATA_LENGTH_LENGTH                              2
+#define UDUP_V4_CR_VOLTAGE_RSSI_LENGTH                          2
+#define UDUP_V4_ADDRESS_LENGTH                                  8
+#define UDUP_V4_HEADER_LENGTH                                   3
+
+#define UDUP_V4_RC_PAYLOAD_OFFSET                               (UDUP_V4_HEADER_LENGTH + UDUP_V4_ADDRESS_LENGTH + UDUP_V4_DATA_LENGTH_LENGTH)
+#define UDUP_V4_CR_PAYLOAD_OFFSET                               (UDUP_V4_HEADER_LENGTH + UDUP_V4_ADDRESS_LENGTH + UDUP_V4_DATA_LENGTH_LENGTH + UDUP_V4_CR_VOLTAGE_RSSI_LENGTH)
+
+#define UDUP_V4_RC_MAX_LENGTH                                   1024
+#define UDUP_V4_RC_MAX_PAYLOAD_LENGTH                           (UDUP_V4_RC_MAX_LENGTH - UDUP_V4_RC_PAYLOAD_OFFSET)
+#define UDUP_V4_CR_MAX_LENGTH                                   256
+#define UDUP_V4_CR_MAX_PAYLOAD_LENGTH                           (UDUP_V4_CR_MAX_LENGTH - UDUP_V4_CR_PAYLOAD_OFFSET)
+
+
+
 
 /* UDUP V4 message types */
-#define UDUP_V4_COMMAND_TYPE_PACKET_SEND                        0x00 //заменить на net_packet
+#define UDUP_V4_COMMAND_TYPE_NET_PACKET                         0x00
 #define UDUP_V4_COMMAND_TYPE_REBOOT                             0x01
 #define UDUP_V4_COMMAND_TYPE_BOOTLOADER_ACTIVATE                0x02
 #define UDUP_V4_COMMAND_TYPE_ROOT_TIME_SET                      0x03
