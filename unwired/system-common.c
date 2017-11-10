@@ -36,6 +36,7 @@
 
 #include "contiki.h"
 #include "contiki-lib.h"
+#include "dev/watchdog.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -44,11 +45,42 @@
 #include "xxf_types_helper.h"
 
 #include "system-common.h"
+#include "ota-main.h"
+#include "ota-common.h"
 
 /*---------------------------------------------------------------------------*/
 
+void
+flash_damp_hex(uint8_t mode)
+{
+   const uint32_t start_adress = (ota_images[1-1] << 12);
+   const uint32_t read_length = 0x400;
+   uint8_t flash_read_data_buffer[read_length];
 
-/*---------------------------------------------------------------------------*/
+   printf("SPIFLASH DAMP: \n");
+   for (uint8_t page=0; page < 100; page++ )
+   {
+      watchdog_periodic();
+      ext_flash_open();
+      bool eeprom_access = ext_flash_read(start_adress+(read_length*page), read_length, flash_read_data_buffer);
+      ext_flash_close();
+
+      if(!eeprom_access)
+      {
+         printf("SPIFLASH: Error - Could not read EEPROM\n");
+      }
+      else
+      {
+         if (mode == HEXVIEW_MODE)
+            hexview_print(read_length, flash_read_data_buffer, start_adress+(read_length*page));
+         if (mode == HEXRAW_MODE)
+            hexraw_print(read_length, flash_read_data_buffer);
+      }
+   }
+   printf("\nSPIFLASH DAMP END \n");
+
+}
+
 /*---------------------------------------------------------------------------*/
 
 void
@@ -81,3 +113,22 @@ hexview_print(uint32_t flash_length, uint8_t *flash_read_data_buffer, uint32_t o
 
 /*---------------------------------------------------------------------------*/
 
+uint16_t crc16_arc(uint8_t *data, uint16_t len)
+{
+   uint16_t crc = 0x0000;
+   uint16_t j;
+   int i;
+   // Note: 0xA001 is the reflection of 0x8005
+   for (j = len; j > 0; j--)
+   {
+      crc ^= *data++;
+      for (i = 0; i < 8; i++)
+      {
+         if (crc & 1)
+            crc = (crc >> 1) ^ 0xA001;
+         else
+            crc >>= 1;
+      }
+   }
+   return (crc);
+}

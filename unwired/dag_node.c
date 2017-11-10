@@ -121,9 +121,6 @@
 
 #define MAX_NON_ANSWERED_PINGS                  3
 
-#define HEXVIEW_MODE                            0x00
-#define HEXRAW_MODE                             0x01
-
 /*---------------------------------------------------------------------------*/
 
 /* struct for simple_udp_send */
@@ -159,104 +156,6 @@ PROCESS(status_send_process, "Status send process");
 PROCESS(maintenance_process, "Maintenance process");
 PROCESS(led_process, "Led process");
 PROCESS(fw_update_process, "FW OTA update process");
-
-/*---------------------------------------------------------------------------*/
-
-void
-flash_erase(size_t offset, size_t length)
-{
-   printf("SPIFLASH: flash clean\n");
-   ext_flash_open();
-   ext_flash_erase(offset, length);
-   ext_flash_close();
-}
-
-/*---------------------------------------------------------------------------*/
-
-void
-flash_damp_hex(uint8_t mode)
-{
-   const uint32_t start_adress = (ota_images[1-1] << 12);
-   const uint32_t read_length = 0x400;
-   uint8_t flash_read_data_buffer[read_length];
-
-   printf("SPIFLASH DAMP: \n");
-   for (uint8_t page=0; page < 100; page++ )
-   {
-      watchdog_periodic();
-      ext_flash_open();
-      bool eeprom_access = ext_flash_read(start_adress+(read_length*page), read_length, flash_read_data_buffer);
-      ext_flash_close();
-
-      if(!eeprom_access)
-      {
-         printf("SPIFLASH: Error - Could not read EEPROM\n");
-      }
-      else
-      {
-         if (mode == HEXVIEW_MODE)
-            hexview_print(read_length, flash_read_data_buffer, start_adress+(read_length*page));
-         if (mode == HEXRAW_MODE)
-            hexraw_print(read_length, flash_read_data_buffer);
-      }
-   }
-   printf("\nSPIFLASH DAMP END \n");
-
-}
-
-/*---------------------------------------------------------------------------*/
-
-void
-verify_int_firmware_v()
-{
-   printf("\n\n");
-
-   printf("Internal firmware:\n");
-   OTAMetadata_t current_firmware;
-   get_current_metadata( &current_firmware );
-   print_metadata(&current_firmware);
-   verify_current_firmware( &current_firmware );
-
-   printf("\n\n");
-
-   printf("Golden image firmware:\n");
-   OTAMetadata_t golden_image;
-   get_ota_slot_metadata(0, &golden_image);
-   print_metadata(&golden_image);
-   int verify_result = verify_ota_slot(0);
-   if (verify_result == -2){
-      printf("OTA slot 0 non-correct CRC\n");
-   }
-   if (verify_result == -1){
-      printf("OTA slot 0 non-read flash\n");
-   }
-   if (verify_result == 0){
-      printf("OTA slot 0 correct CRC\n");
-   }
-}
-
-/*---------------------------------------------------------------------------*/
-
-void
-verify_ext_firmware_e()
-{
-   printf("\n\n");
-
-   printf("OTA slot 1 firmware:\n");
-   OTAMetadata_t golden_image;
-   get_ota_slot_metadata(1, &golden_image);
-   print_metadata(&golden_image);
-   int verify_result = verify_ota_slot(1);
-   if (verify_result == -2){
-      printf("OTA slot 1 non-correct CRC\n");
-   }
-   if (verify_result == -1){
-      printf("OTA slot 1 non-read flash\n");
-   }
-   if (verify_result == 0){
-      printf("OTA slot 1 correct CRC\n");
-   }
-}
 
 /*---------------------------------------------------------------------------*/
 

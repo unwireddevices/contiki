@@ -40,6 +40,10 @@
 
 #define PT_MESSAGE_PONG_RECIEVED 0x10
 
+#define HEXVIEW_MODE                            0x00
+#define HEXRAW_MODE                             0x01
+
+
 /*---------------------------------------------------------------------------*/
 
 typedef union u8_u16_t
@@ -60,8 +64,11 @@ typedef union u8_u32_t
    uint8_t u8[4];
 } u8_u32_t;
 
+
 void hexraw_print(uint32_t flash_length, uint8_t *flash_read_data_buffer);
 void hexview_print(uint32_t flash_length, uint8_t *flash_read_data_buffer, uint32_t offset);
+void flash_damp_hex(uint8_t mode);
+uint16_t crc16_arc(uint8_t *data, uint16_t len);
 
 /*---------------------------------------------------------------------------*/
 
