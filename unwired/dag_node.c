@@ -317,14 +317,11 @@ static void udp_receiver(struct simple_udp_connection *c,
             else if (packet_type == DATA_TYPE_FIRMWARE)
                   firmware_data_handler(sender_addr, data, datalen);
 
-            else if (packet_type == DATA_TYPE_SET_TIME)
-            {
-               if (packet_subtype == DATA_TYPE_SET_TIME_RESPONSE)
+            else if (packet_type == DATA_TYPE_SET_TIME && packet_subtype == DATA_TYPE_SET_TIME_RESPONSE)
                   time_data_handler(data, datalen);
 
-               else if (packet_subtype == DATA_TYPE_SET_TIME_COMMAND_SYNC)
+            else if (packet_type == DATA_TYPE_SET_TIME && packet_subtype == DATA_TYPE_SET_TIME_COMMAND_SYNC)
                   send_time_sync_req_packet(data, datalen);
-            }
 
             else if (packet_type == DATA_TYPE_SET_SCHEDULE)
                   shedule_data_handler(data, datalen);
