@@ -508,7 +508,7 @@ void uart_packet_processed(uip_ipaddr_t node_ipaddr)
 {
    uint8_t packet_datatype = uart_data_udup_v4[UDUP_V4_RC_PAYLOAD_OFFSET+2];
 
-   if (packet_datatype == DATA_TYPE_COMMAND)
+   if (packet_datatype == DATA_TYPE_COMMAND || packet_datatype == DATA_TYPE_SETTINGS)
    {
       for (uint8_t i = 0; i < 16; i++)
          command_message.destination_address.u8[i] = node_ipaddr.u8[i]; //заменить на копирование    uip_ip6addr_copy(&node_addr, sender_addr);
