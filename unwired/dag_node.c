@@ -174,11 +174,11 @@ static void command_settings_handler(const uip_ipaddr_t *sender_addr,
                                     const uint8_t *data,
                                     uint16_t datalen)
 {
-      printf("DAG Node: Command/settings packet received\n");
       message_for_main_process.data_type = data[2];
       message_for_main_process.ability_target = data[3];
       message_for_main_process.ability_number = data[4];
       message_for_main_process.ability_state = data[5];
+      printf("DAG Node: Command/settings packet received(target, number, state): %"PRIXX8",%"PRIXX8",%"PRIXX8"\n", message_for_main_process.ability_target, message_for_main_process.ability_number, message_for_main_process.ability_state);
       process_post(&main_process, PROCESS_EVENT_CONTINUE, &message_for_main_process);
 }
 
