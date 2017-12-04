@@ -1069,11 +1069,28 @@ PROCESS_THREAD(dag_node_process, ev, data)
 
    spi_status = spi_test();
 
+   packet_counter.u16 = 0;
+
+   static uip_ipaddr_t local_ipaddr;
+   uip_ip6addr(&local_ipaddr, UIP_DS6_DEFAULT_PREFIX, 0, 0, 0, 0, 0, 0, 0);
+   uip_ds6_set_addr_iid(&local_ipaddr, &uip_lladdr);
+   uint8_t addr[8];
+
+   addr[0] = ((uint8_t *)&local_ipaddr)[8];
+   addr[1] = ((uint8_t *)&local_ipaddr)[9];
+   addr[2] = ((uint8_t *)&local_ipaddr)[10];
+   addr[3] = ((uint8_t *)&local_ipaddr)[11];
+   addr[4] = ((uint8_t *)&local_ipaddr)[12];
+   addr[5] = ((uint8_t *)&local_ipaddr)[13];
+   addr[6] = ((uint8_t *)&local_ipaddr)[14];
+   addr[7] = ((uint8_t *)&local_ipaddr)[15];
+
    printf("Node started, %s mode, %s class, SPI %s, version %"PRIu8".%"PRIu8"\n",
                 rpl_get_mode() == RPL_MODE_LEAF ? "leaf" : "no-leaf",
                 CLASS == CLASS_B ? "B(sleep)" : "C(non-sleep)",
                 spi_status == SPI_EXT_FLASH_ACTIVE ? "active" : "non-active",
                 BIG_VERSION, LITTLE_VERSION);
+   printf("Node unwired address: %"PRIXX8"%"PRIXX8"%"PRIXX8"%"PRIXX8"%"PRIXX8"%"PRIXX8"%"PRIXX8"%"PRIXX8"\n", addr[0], addr[1], addr[2], addr[3], addr[4], addr[5], addr[6], addr[7]);
 
    process_start(&dag_node_button_process, NULL);
    process_start(&maintenance_process, NULL);
