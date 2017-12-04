@@ -127,6 +127,9 @@
  * \name UART IOID mapping
  *
  */
+
+//#define BOARD_IOID_UART_TX        IOID_25
+//#define BOARD_IOID_UART_RX        IOID_26
 #define BOARD_IOID_UART_TX        IOID_3
 #define BOARD_IOID_UART_RX        IOID_2
 #define BOARD_IOID_UART_CTS       IOID_UNUSED

@@ -55,6 +55,7 @@
 simple_udp_connection_t udp_connection;
 volatile uip_ipaddr_t root_addr;
 volatile uint8_t node_mode;
+volatile union { uint16_t u16; uint8_t u8[2]; } packet_counter;
 
 struct command_data
 {

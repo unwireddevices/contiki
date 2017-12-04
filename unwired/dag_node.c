@@ -166,6 +166,7 @@ static void join_confirm_handler(const uip_ipaddr_t *sender_addr,
       uip_ipaddr_copy(&root_addr, sender_addr);
       process_post(&dag_node_process, PROCESS_EVENT_CONTINUE, NULL);
       etimer_set(&maintenance_timer, 0);
+      packet_counter.u16 = 0;
 }
 
 /*---------------------------------------------------------------------------*/
@@ -279,13 +280,6 @@ static void firmware_cmd_new_fw_handler(const uip_ipaddr_t *sender_addr,
 
 /*---------------------------------------------------------------------------*/
 
-static void shedule_data_handler(const uint8_t *data, uint16_t datalen)
-{
-
-}
-
-/*---------------------------------------------------------------------------*/
-
 static void udp_receiver(struct simple_udp_connection *c,
                          const uip_ipaddr_t *sender_addr,
                          uint16_t sender_port,
@@ -298,6 +292,11 @@ static void udp_receiver(struct simple_udp_connection *c,
       uint8_t device_version = data[1];
       uint8_t packet_type = data[2];
       uint8_t packet_subtype = data[3];
+
+      printf("DAG Node: UDP packet received(%"PRIu8"): ", datalen);
+      for (uint16_t i = 0; i < datalen; i++)
+         printf("%"PRIXX8, data[i]);
+      printf("\n");
 
       if (protocol_version == PROTOCOL_VERSION_V1 && device_version == CURRENT_DEVICE_VERSION)
       {
@@ -322,9 +321,6 @@ static void udp_receiver(struct simple_udp_connection *c,
 
             else if (packet_type == DATA_TYPE_SET_TIME && packet_subtype == DATA_TYPE_SET_TIME_COMMAND_SYNC)
                   send_time_sync_req_packet(data, datalen);
-
-            else if (packet_type == DATA_TYPE_SET_SCHEDULE)
-                  shedule_data_handler(data, datalen);
 
             else if (packet_type == DATA_TYPE_FIRMWARE_CMD)
             {
@@ -358,11 +354,24 @@ static void udp_receiver(struct simple_udp_connection *c,
                   printf(", data type: 0x%02x\n", data[2]);
             }
       }
+      else if (protocol_version == UDBP_PROTOCOL_VERSION_V5)
+      {
+         for (uint16_t i = 0; i < datalen-6; i++)
+            message_for_main_process.payload[i] = data[i+6];
+
+         printf("DAG Node: Command/settings packet received(%"PRIu8"): ", datalen-16);
+         for (uint16_t i = 0; i < datalen-6; i++)
+            printf("%"PRIXX8, message_for_main_process.payload[i]);
+         printf("\n");
+
+
+         process_post(&main_process, PROCESS_EVENT_CONTINUE, &message_for_main_process);
+      }
       else
       {
-         printf("DAG Node: Incompatible data type UDP packer from ");
+         printf("DAG Node: Incompatible protocol version UDP packer from ");
          uip_debug_ipaddr_print(sender_addr);
-         printf(", data type: 0x%02x\n", data[2]);
+         printf(", protocol version: 0x%02x\n", protocol_version);
       }
 
    led_mode_set(LED_FLASH);
@@ -495,57 +504,6 @@ void send_sensor_event(struct sensor_packet *sensor_packet)
    led_mode_set(LED_FLASH);
 }
 
-
-/*---------------------------------------------------------------------------*/
-
-void send_uart_data(struct command_data *uart_data)
-{
-   if (node_mode != MODE_NORMAL)
-      return;
-
-   if (uart_data == NULL)
-      return;
-
-   uip_ipaddr_t addr;
-   uip_ip6addr_copy(&addr, &root_addr);
-
-   //printf("DAG Node: Send uart data to DAG-root node: ");
-   //uip_debug_ipaddr_print(&addr);
-   //printf("\n");
-
-   uint8_t length = 23;
-   uint8_t udp_buffer[length];
-   udp_buffer[0] = uart_data->protocol_version;
-   udp_buffer[1] = uart_data->device_version;
-   udp_buffer[2] = uart_data->data_type;
-
-   udp_buffer[3] = uart_data->uart_returned_data_length;
-   udp_buffer[4] = uart_data->uart_data_length;
-
-   udp_buffer[5] = uart_data->payload[0];
-   udp_buffer[6] = uart_data->payload[1];
-   udp_buffer[7] = uart_data->payload[2];
-   udp_buffer[8] = uart_data->payload[3];
-   udp_buffer[9] = uart_data->payload[4];
-   udp_buffer[10] = uart_data->payload[5];
-   udp_buffer[11] = uart_data->payload[6];
-   udp_buffer[12] = uart_data->payload[7];
-   udp_buffer[13] = uart_data->payload[8];
-   udp_buffer[14] = uart_data->payload[9];
-   udp_buffer[15] = uart_data->payload[10];
-   udp_buffer[16] = uart_data->payload[11];
-   udp_buffer[17] = uart_data->payload[12];
-   udp_buffer[18] = uart_data->payload[13];
-   udp_buffer[19] = uart_data->payload[14];
-   udp_buffer[20] = uart_data->payload[15];
-   udp_buffer[21] = DATA_RESERVED;
-   udp_buffer[22] = DATA_RESERVED;
-
-   net_on(RADIO_ON_TIMER_OFF);
-   simple_udp_sendto(&udp_connection, udp_buffer, length, &addr);
-   led_mode_set(LED_FLASH);
-}
-
 /*---------------------------------------------------------------------------*/
 
 void send_status_packet(const uip_ipaddr_t *parent_addr,
@@ -558,10 +516,8 @@ void send_status_packet(const uip_ipaddr_t *parent_addr,
       return;
 
    u8_u32_t uptime;
-   u8_i16_t rssi_parent;
 
    uptime.u32 = uptime_raw;
-   rssi_parent.i16 = rssi_parent_raw;
    uip_ipaddr_t addr;
    uip_ip6addr_copy(&addr, &root_addr);
 
@@ -569,34 +525,51 @@ void send_status_packet(const uip_ipaddr_t *parent_addr,
    uip_debug_ipaddr_print(&addr);
    printf("\n");
 
-   uint8_t length = 23;
-   uint8_t udp_buffer[length];
-   udp_buffer[0] = PROTOCOL_VERSION_V1;
-   udp_buffer[1] = CURRENT_DEVICE_VERSION;
-   udp_buffer[2] = DATA_TYPE_STATUS;
-   udp_buffer[3] = parent_addr->u8[8];
-   udp_buffer[4] = parent_addr->u8[9];
-   udp_buffer[5] = parent_addr->u8[10];
-   udp_buffer[6] = parent_addr->u8[11];
-   udp_buffer[7] = parent_addr->u8[12];
-   udp_buffer[8] = parent_addr->u8[13];
-   udp_buffer[9] = parent_addr->u8[14];
-   udp_buffer[10] = parent_addr->u8[15];
-   udp_buffer[11] = uptime.u8[0];
-   udp_buffer[12] = uptime.u8[1];
-   udp_buffer[13] = uptime.u8[2];
-   udp_buffer[14] = uptime.u8[3];
-   udp_buffer[15] = rssi_parent.u8[0];
-   udp_buffer[16] = rssi_parent.u8[1];
-   udp_buffer[17] = temp;
-   udp_buffer[18] = voltage;
-   udp_buffer[19] = BIG_VERSION;
-   udp_buffer[20] = LITTLE_VERSION;
-   udp_buffer[21] = spi_status;
-   udp_buffer[22] = DATA_RESERVED;
+   uint8_t payload_length = 16*2;
+   uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
+   udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
+   udp_buffer[1] = packet_counter.u8[0];
+   udp_buffer[2] = packet_counter.u8[1];
+   udp_buffer[3] = get_parent_rssi();
+   udp_buffer[4] = get_temperature();
+   udp_buffer[5] = get_voltage();
+
+   udp_buffer[6] = UNWDS_CONFIG_MODULE_ID;
+   udp_buffer[7] = DATA_TYPE_STATUS;
+   udp_buffer[8] = parent_addr->u8[8];
+   udp_buffer[9] = parent_addr->u8[9];
+   udp_buffer[10] = parent_addr->u8[10];
+   udp_buffer[11] = parent_addr->u8[11];
+   udp_buffer[12] = parent_addr->u8[12];
+   udp_buffer[13] = parent_addr->u8[13];
+   udp_buffer[14] = parent_addr->u8[14];
+   udp_buffer[15] = parent_addr->u8[15];
+   udp_buffer[16] = uptime.u8[0];
+   udp_buffer[17] = uptime.u8[1];
+   udp_buffer[18] = uptime.u8[2];
+   udp_buffer[19] = uptime.u8[3];
+   udp_buffer[20] = temp;
+   udp_buffer[21] = BIG_VERSION;
+
+   udp_buffer[22] = LITTLE_VERSION;
+   udp_buffer[23] = spi_status;
+   udp_buffer[24] = DATA_RESERVED;
+   udp_buffer[25] = DATA_RESERVED;
+   udp_buffer[26] = DATA_RESERVED;
+   udp_buffer[27] = DATA_RESERVED;
+   udp_buffer[28] = DATA_RESERVED;
+   udp_buffer[29] = DATA_RESERVED;
+   udp_buffer[30] = DATA_RESERVED;
+   udp_buffer[31] = DATA_RESERVED;
+   udp_buffer[32] = DATA_RESERVED;
+   udp_buffer[33] = DATA_RESERVED;
+   udp_buffer[34] = DATA_RESERVED;
+   udp_buffer[35] = DATA_RESERVED;
+   udp_buffer[36] = DATA_RESERVED;
+   udp_buffer[37] = DATA_RESERVED;
 
    net_on(RADIO_ON_TIMER_OFF);
-   simple_udp_sendto(&udp_connection, udp_buffer, length, &addr);
+   simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
    led_mode_set(LED_FLASH);
 }
 
@@ -615,19 +588,34 @@ void send_join_packet(const uip_ipaddr_t *dest_addr)
    uip_debug_ipaddr_print(&addr);
    printf("\n");
 
-   uint8_t length = 10;
-   uint8_t udp_buffer[length];
-   udp_buffer[0] = PROTOCOL_VERSION_V1;
-   udp_buffer[1] = CURRENT_DEVICE_VERSION;
-   udp_buffer[2] = DATA_TYPE_JOIN;
-   udp_buffer[3] = CURRENT_DEVICE_GROUP;
-   udp_buffer[4] = CURRENT_DEVICE_SLEEP_TYPE;
-   udp_buffer[5] = CURRENT_ABILITY_1BYTE;       //TODO: заменить на нормальную схему со сдвигами
-   udp_buffer[6] = CURRENT_ABILITY_2BYTE;
-   udp_buffer[7] = CURRENT_ABILITY_3BYTE;
-   udp_buffer[8] = CURRENT_ABILITY_4BYTE;
-   udp_buffer[9] = DATA_RESERVED;
-   simple_udp_sendto(&udp_connection, udp_buffer, length, &addr);
+   uint8_t payload_length = 16;
+   uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
+   udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
+   udp_buffer[1] = packet_counter.u8[0];
+   udp_buffer[2] = packet_counter.u8[1];
+   udp_buffer[3] = get_parent_rssi();
+   udp_buffer[4] = get_temperature();
+   udp_buffer[5] = get_voltage();
+
+   udp_buffer[6] = UNWDS_CONFIG_MODULE_ID;
+   udp_buffer[7] = DATA_TYPE_JOIN;
+   udp_buffer[8] = CURRENT_DEVICE_GROUP;
+   udp_buffer[9] = CURRENT_DEVICE_SLEEP_TYPE;
+   udp_buffer[10] = CURRENT_ABILITY_1BYTE;
+   udp_buffer[11] = CURRENT_ABILITY_2BYTE;
+   udp_buffer[12] = CURRENT_ABILITY_3BYTE;
+   udp_buffer[13] = CURRENT_ABILITY_4BYTE;
+   udp_buffer[14] = DATA_RESERVED;
+   udp_buffer[15] = DATA_RESERVED;
+   udp_buffer[16] = DATA_RESERVED;
+   udp_buffer[17] = DATA_RESERVED;
+   udp_buffer[18] = DATA_RESERVED;
+   udp_buffer[19] = DATA_RESERVED;
+   udp_buffer[20] = DATA_RESERVED;
+   udp_buffer[21] = DATA_RESERVED;
+
+
+   simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
 }
 
 /*---------------------------------------------------------------------------*/

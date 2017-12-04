@@ -45,71 +45,9 @@
 /*---------------------------------------------------------------------------*/
 
 typedef enum {
-   ROOT_UDUP_V4_HEX_MSG,
-   ROOT_UDUP_V4_BIN_MSG
+   ROOT_UDUP_V5_HEX_MSG,
+   ROOT_UDUP_V5_BIN_MSG
  } root_udup_message_type_t;
-
-typedef struct eui64_addr_t {
-   uint8_t addr[8];
- } eui64_addr_t;
-
-typedef struct firmware_packet
-{
-   uint8_t data[FIRMWARE_PAYLOAD_LENGTH];
-} firmware_packet;
-
-struct firmware_data
-{
-   volatile uip_ip6addr_t destination_address;
-   volatile uint8_t protocol_version;
-   volatile uint8_t device_version;
-   volatile firmware_packet firmware_payload;
-   volatile uint8_t chunk_number_b1;
-   volatile uint8_t chunk_number_b2;
-   volatile uint8_t reserved_b1;
-   volatile uint8_t reserved_b2;
-   volatile uint8_t ready_to_send;
-   volatile uint16_t chunk_size;
-};
-
-struct firmware_cmd
-{
-   volatile uip_ip6addr_t destination_address;
-   volatile uint8_t protocol_version;
-   volatile uint8_t device_version;
-   volatile uint8_t firmware_command;
-   volatile uint8_t chunk_quantity_b1;
-   volatile uint8_t chunk_quantity_b2;
-   volatile uint8_t ready_to_send;
-};
-
-struct command_data
-{
-   volatile uip_ip6addr_t destination_address;
-   volatile uint8_t protocol_version;
-   volatile uint8_t device_version;
-   volatile uint8_t ability_target;
-   volatile uint8_t ability_number;
-   volatile uint8_t ability_state;
-   volatile uint8_t ready_to_send;
-};
-
-struct uart_data
-{
-   volatile uip_ip6addr_t destination_address;
-   volatile uint8_t protocol_version;
-   volatile uint8_t device_version;
-   volatile uint8_t data_lenth;
-   volatile uint8_t returned_data_lenth;
-   volatile uint8_t payload[16];
-   volatile uint8_t ready_to_send;
-};
-
-/* Received data via UART */
-struct command_data command_message;
-struct firmware_data firmware_message;
-struct firmware_cmd firmware_cmd_message;
-struct uart_data uart_message;
 
 /* main UPD connection */
 struct simple_udp_connection udp_connection;
@@ -117,8 +55,6 @@ struct simple_udp_connection udp_connection;
 PROCESS_NAME(main_root_process);
 
 /*---------------------------------------------------------------------------*/
-
-void dag_root_raw_print(const uip_ip6addr_t *addr, const uint8_t *data, const uint16_t length);
 
 void send_confirmation_packet(const uip_ip6addr_t *dest_addr);
 
@@ -136,16 +72,6 @@ void udp_data_receiver(struct simple_udp_connection *connection,
                        const uint8_t *data,
                        uint16_t datalen);
 
-void send_uart_packet(struct uart_data *uart_message);
-
-void send_firmware_cmd_packet(struct firmware_cmd *firmware_cmd_message);
-
-void send_firmware_packet(struct firmware_data *firmware_message);
-
-void send_command_packet(struct command_data *command_message);
-
-int uart_data_receiver_udup_v4(unsigned char uart_char);
-
-void uart_packet_dump(uint8_t *uart_buf, uint16_t uart_data_size);
+int uart_data_receiver_udup_v5(unsigned char uart_char);
 
 /*---------------------------------------------------------------------------*/

@@ -62,6 +62,10 @@
 #include "root.h"
 #include "../root-node.h"
 
+#define UART_ROOT_RX IOID_26
+
+#define UART_ROOT_TX IOID_25
+
 /*---------------------------------------------------------------------------*/
 
 /* Buttons on DIO 1 */
@@ -77,6 +81,42 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 {
 
    PROCESS_BEGIN();
+   /*
+
+   while(ti_lib_uart_busy(UART0_BASE));
+   ti_lib_ioc_pin_type_uart(UART0_BASE, IOID_UNUSED, IOID_UNUSED, IOID_UNUSED, IOID_UNUSED);
+   ti_lib_ioc_pin_type_gpio_input(BOARD_IOID_UART_TX);
+   ti_lib_gpio_clear_event_dio(BOARD_IOID_UART_TX);
+   ti_lib_ioc_pin_type_gpio_input(BOARD_IOID_UART_RX);
+   ti_lib_gpio_clear_event_dio(BOARD_IOID_UART_RX);
+   ti_lib_uart_disable(UART0_BASE);
+   ti_lib_prcm_peripheral_run_disable(PRCM_PERIPH_UART0);
+   ti_lib_prcm_load_set();
+   ti_lib_prcm_power_domain_off(PRCM_DOMAIN_SERIAL);
+   while(ti_lib_prcm_power_domain_status(PRCM_DOMAIN_SERIAL) != PRCM_DOMAIN_POWER_OFF);
+
+   ti_lib_prcm_power_domain_on(PRCM_DOMAIN_SERIAL);
+   while(ti_lib_prcm_power_domain_status(PRCM_DOMAIN_SERIAL) != PRCM_DOMAIN_POWER_ON);
+   ti_lib_prcm_peripheral_run_enable(PRCM_PERIPH_UART0);
+   ti_lib_prcm_load_set();
+   while(!ti_lib_prcm_load_get());
+
+   ti_lib_ioc_pin_type_gpio_output(BOARD_IOID_UART_TX);
+   ti_lib_gpio_set_dio(BOARD_IOID_UART_TX);
+   ti_lib_ioc_pin_type_gpio_output(UART_ROOT_TX);
+   ti_lib_gpio_set_dio(UART_ROOT_TX);
+   ti_lib_ioc_pin_type_gpio_input(UART_ROOT_TX);
+
+   ti_lib_ioc_pin_type_uart(UART0_BASE, UART_ROOT_RX, UART_ROOT_TX, IOID_UNUSED, IOID_UNUSED);
+   ti_lib_ioc_pin_type_uart(UART0_BASE, UART_ROOT_RX, BOARD_IOID_UART_TX, IOID_UNUSED, IOID_UNUSED);
+
+   ti_lib_uart_config_set_exp_clk(UART0_BASE, ti_lib_sys_ctrl_clock_get(), 115200,
+                                  (UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE | UART_CONFIG_PAR_NONE));
+   ti_lib_uart_fifo_level_set(UART0_BASE, UART_FIFO_TX7_8, UART_FIFO_RX4_8);
+   ti_lib_uart_fifo_enable(UART0_BASE);
+   ti_lib_uart_enable(UART0_BASE);
+   */
+
 
    printf("Unwired RLP root. HELL-IN-CODE free. I hope.\n");
 

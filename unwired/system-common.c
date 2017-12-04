@@ -44,6 +44,13 @@
 #include "ud_binary_protocol.h"
 #include "xxf_types_helper.h"
 
+#include "batmon-sensor.h"
+#include "core/lib/sensors.h"
+
+#include "net/rpl/rpl.h"
+#include "net/link-stats.h"
+
+
 #include "system-common.h"
 #include "ota-main.h"
 #include "ota-common.h"
@@ -132,3 +139,43 @@ uint16_t crc16_arc(uint8_t *data, uint16_t len)
    }
    return (crc);
 }
+
+/*---------------------------------------------------------------------------*/
+
+uint8_t get_voltage()
+{
+   return (uint8_t)((((batmon_sensor.value(BATMON_SENSOR_TYPE_VOLT) * 125) >> 5)-2000)/50);
+}
+
+/*---------------------------------------------------------------------------*/
+
+uint8_t get_temperature()
+{
+   uint32_t temp_offset = batmon_sensor.value(BATMON_SENSOR_TYPE_TEMP)+50;
+   uint8_t temp_offset_u8 = (uint8_t)temp_offset;
+   return temp_offset_u8;
+}
+
+/*---------------------------------------------------------------------------*/
+
+uint8_t get_parent_rssi()
+{
+   const rpl_dag_t *dag = NULL;
+   const struct link_stats *stat_parent = NULL;
+   dag = rpl_get_any_dag();
+   if (dag != NULL)
+   {
+      stat_parent = rpl_get_parent_link_stats(dag->preferred_parent);
+      if (stat_parent != NULL)
+      {
+         int16_t rssi_int = (stat_parent->rssi)+200;
+         uint16_t rssi_uint = (uint16_t)rssi_int;
+         uint8_t rssi_uint_8t = (uint8_t)rssi_uint;
+         return rssi_uint_8t;
+      }
+   }
+
+   return 0xFF;
+}
+
+

@@ -34,9 +34,11 @@
 /*---------------------------------------------------------------------------*/
 
 /* Inter-device protocol versions */
-#define PROTOCOL_VERSION_V1                                     0x01
-#define PROTOCOL_VERSION_V2                                     0x02
-#define DEVICE_VERSION_V1                                       0x01
+#define PROTOCOL_VERSION_V1                                     0x01 //derpecated
+#define PROTOCOL_VERSION_V2                                     0x02 //derpecated
+#define UDBP_PROTOCOL_VERSION_V3                                0x03 //derpecated
+#define UDBP_PROTOCOL_VERSION_V5                                0x05 //derpecated
+#define DEVICE_VERSION_V1                                       0x01 //derpecated
 
 /* Packet sizes in V2 protocol */
 #define PROTOCOL_VERSION_V2_16BYTE                              16
@@ -209,33 +211,35 @@
 #define DEVICE_MESSAGE_FREE_DATA                                0x0E //Произвольные данные
 
 
-/* UDUP V4 */
-#define UDUP_V4_PROTOCOL_VERSION                                0x04
-#define UDUP_V4_MAGIC_BYTE                                      0x16
-#define UDUP_V4_CRC_LENGTH                                      2
-#define UDUP_V4_DATA_LENGTH_LENGTH                              2
-#define UDUP_V4_CR_VOLTAGE_RSSI_LENGTH                          2
-#define UDUP_V4_ADDRESS_LENGTH                                  8
-#define UDUP_V4_HEADER_LENGTH                                   3
+/* UDUP V5 */
+#define UDUP_V5_PROTOCOL_VERSION                                0x05
+#define UDUP_V5_MAGIC_BYTE                                      0x16
+#define UDUP_V5_CRC_LENGTH                                      2
+#define UDUP_V5_DATA_LENGTH_LENGTH                              2
+#define UDUP_V5_CR_VOLTAGE_RSSI_LENGTH                          2
+#define UDUP_V5_ADDRESS_LENGTH                                  8
+#define UDUP_V5_HEADER_LENGTH                                   3
 
-#define UDUP_V4_RC_PAYLOAD_OFFSET                               (UDUP_V4_HEADER_LENGTH + UDUP_V4_ADDRESS_LENGTH + UDUP_V4_DATA_LENGTH_LENGTH)
-#define UDUP_V4_CR_PAYLOAD_OFFSET                               (UDUP_V4_HEADER_LENGTH + UDUP_V4_ADDRESS_LENGTH + UDUP_V4_DATA_LENGTH_LENGTH + UDUP_V4_CR_VOLTAGE_RSSI_LENGTH)
+#define UDUP_V5_RC_PAYLOAD_OFFSET                               (UDUP_V5_HEADER_LENGTH + UDUP_V5_ADDRESS_LENGTH + UDUP_V5_DATA_LENGTH_LENGTH)
+#define UDUP_V5_CR_PAYLOAD_OFFSET                               (UDUP_V5_HEADER_LENGTH + UDUP_V5_ADDRESS_LENGTH + UDUP_V5_DATA_LENGTH_LENGTH + UDUP_V5_CR_VOLTAGE_RSSI_LENGTH)
 
-#define UDUP_V4_RC_MAX_LENGTH                                   1024
-#define UDUP_V4_RC_MAX_PAYLOAD_LENGTH                           (UDUP_V4_RC_MAX_LENGTH - UDUP_V4_RC_PAYLOAD_OFFSET)
-#define UDUP_V4_CR_MAX_LENGTH                                   256
-#define UDUP_V4_CR_MAX_PAYLOAD_LENGTH                           (UDUP_V4_CR_MAX_LENGTH - UDUP_V4_CR_PAYLOAD_OFFSET)
+#define UDUP_V5_RC_MAX_LENGTH                                   1024
+#define UDUP_V5_RC_MAX_PAYLOAD_LENGTH                           (UDUP_V5_RC_MAX_LENGTH - UDUP_V5_RC_PAYLOAD_OFFSET)
+#define UDUP_V5_CR_MAX_LENGTH                                   256
+#define UDUP_V5_CR_MAX_PAYLOAD_LENGTH                           (UDUP_V5_CR_MAX_LENGTH - UDUP_V5_CR_PAYLOAD_OFFSET)
 
+/* UDUP V5 message types */
+#define UDUP_V5_COMMAND_TYPE_NET_PACKET                         0x00
+#define UDUP_V5_COMMAND_TYPE_REBOOT                             0x01
+#define UDUP_V5_COMMAND_TYPE_BOOTLOADER_ACTIVATE                0x02
+#define UDUP_V5_COMMAND_TYPE_ROOT_TIME_SET                      0x03
+#define UDUP_V5_COMMAND_TYPE_BINARY_CR_MODE                     0x04
+#define UDUP_V5_COMMAND_TYPE_ASCII_CR_MODE                      0x05
 
+/* UDBP V5 */
+#define UDBP_V5_PROTOCOL_VERSION                                0x05
+#define UDBP_V5_HEADER_LENGTH                                   6
 
-
-/* UDUP V4 message types */
-#define UDUP_V4_COMMAND_TYPE_NET_PACKET                         0x00
-#define UDUP_V4_COMMAND_TYPE_REBOOT                             0x01
-#define UDUP_V4_COMMAND_TYPE_BOOTLOADER_ACTIVATE                0x02
-#define UDUP_V4_COMMAND_TYPE_ROOT_TIME_SET                      0x03
-#define UDUP_V4_COMMAND_TYPE_BINARY_CR_MODE                     0x04
-#define UDUP_V4_COMMAND_TYPE_ASCII_CR_MODE                      0x05
 
 /* DEVICE_ROOT_LOCAL commands */
 #define LOCAL_ROOT_COMMAND_REBOOT                               0x00 //deprecated

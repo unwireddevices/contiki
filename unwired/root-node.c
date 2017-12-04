@@ -61,7 +61,6 @@
 #include "xxf_types_helper.h"
 #include "dev/watchdog.h"
 #include "root-node.h"
-#include "lpm.h"
 #include "crypto-common.h"
 #include "rtc-common.h"
 
@@ -71,25 +70,17 @@
 
 /*---------------------------------------------------------------------------*/
 
-static uint8_t lpm_mode_return(void);
 void send_time_sync_resp_packet(const uip_ip6addr_t *dest_addr, const uint8_t *data, const uint16_t length);
 
-uint8_t uart_data_udup_v4[UDUP_V4_RC_MAX_LENGTH];
-uint8_t udp_data_udup_v4[UDUP_V4_CR_MAX_LENGTH];
+uint8_t udup_v5_rc_uart_rx_buffer[UDUP_V5_RC_MAX_LENGTH];
+uint8_t udup_v5_cr_uart_tx_buffer[UDUP_V5_CR_MAX_LENGTH];
 
-static uint16_t udup_v4_data_iterator = 0;
-root_udup_message_type_t udup_v4_bin_hex_type = ROOT_UDUP_V4_HEX_MSG;
-static struct timer udup_v4_timeout_timer;
+static uint16_t udup_v5_data_iterator = 0;
+root_udup_message_type_t udup_v5_bin_hex_type = ROOT_UDUP_V5_HEX_MSG;
+static struct timer udup_v5_timeout_timer;
 
 PROCESS(main_root_process, "main root process");
-LPM_MODULE(root_lpm_module, lpm_mode_return, NULL, NULL, LPM_DOMAIN_NONE);
 
-/*---------------------------------------------------------------------------*/
-
-static uint8_t lpm_mode_return(void)
-{
-   return LPM_MODE_AWAKE;
-}
 
 /*---------------------------------------------------------------------------*/
 
@@ -143,121 +134,82 @@ void send_pong_packet(const uip_ip6addr_t *dest_addr)
 
 /*---------------------------------------------------------------------------*/
 
-void udup_v4_dag_root_print(const uip_ip6addr_t *addr, const uint8_t *data, const uint16_t length)
+void udup_v5_dag_root_print(const uip_ip6addr_t *addr, const uint8_t *data, const uint16_t length, uint8_t version)
 {
    if (addr == NULL || data == NULL)
       return;
 
    u8_u16_t payload_length;
    u8_u16_t crc16_calculated;
+   uint8_t payload_offset = 0;
+   uint8_t udbp_version = 0x04;
 
-   udp_data_udup_v4[0] = UDUP_V4_MAGIC_BYTE;
-   udp_data_udup_v4[1] = UDUP_V4_PROTOCOL_VERSION;
-   udp_data_udup_v4[2] = UDUP_V4_COMMAND_TYPE_NET_PACKET;
+   if (version == UDBP_PROTOCOL_VERSION_V5)
+   {
+      payload_offset = UDBP_V5_HEADER_LENGTH;
+      udbp_version = 0x05;
+   }
 
-   udp_data_udup_v4[3] = ((uint8_t *)addr)[8];
-   udp_data_udup_v4[4] = ((uint8_t *)addr)[9];
-   udp_data_udup_v4[5] = ((uint8_t *)addr)[10];
-   udp_data_udup_v4[6] = ((uint8_t *)addr)[11];
-   udp_data_udup_v4[7] = ((uint8_t *)addr)[12];
-   udp_data_udup_v4[8] = ((uint8_t *)addr)[13];
-   udp_data_udup_v4[9] = ((uint8_t *)addr)[14];
-   udp_data_udup_v4[10] = ((uint8_t *)addr)[15];
+   udup_v5_cr_uart_tx_buffer[0] = UDUP_V5_MAGIC_BYTE;
+   udup_v5_cr_uart_tx_buffer[1] = udbp_version;
+   udup_v5_cr_uart_tx_buffer[2] = UDUP_V5_COMMAND_TYPE_NET_PACKET;
 
-   /* Призрак будущих полей */
-   udp_data_udup_v4[11] = 0xDE; //voltage
-   udp_data_udup_v4[12] = 0xAD; //rssi
+   udup_v5_cr_uart_tx_buffer[3] = ((uint8_t *)addr)[8];
+   udup_v5_cr_uart_tx_buffer[4] = ((uint8_t *)addr)[9];
+   udup_v5_cr_uart_tx_buffer[5] = ((uint8_t *)addr)[10];
+   udup_v5_cr_uart_tx_buffer[6] = ((uint8_t *)addr)[11];
+   udup_v5_cr_uart_tx_buffer[7] = ((uint8_t *)addr)[12];
+   udup_v5_cr_uart_tx_buffer[8] = ((uint8_t *)addr)[13];
+   udup_v5_cr_uart_tx_buffer[9] = ((uint8_t *)addr)[14];
+   udup_v5_cr_uart_tx_buffer[10] = ((uint8_t *)addr)[15];
+
+
+   if (version == UDBP_PROTOCOL_VERSION_V5)
+   {
+      udup_v5_cr_uart_tx_buffer[11] = data[5]; //voltage
+      udup_v5_cr_uart_tx_buffer[12] = data[3]; //rssi
+   }
+   else
+   {
+      /* Призрак будущих полей */
+      udup_v5_cr_uart_tx_buffer[11] = 0xDE; //voltage
+      udup_v5_cr_uart_tx_buffer[12] = 0xAD; //rssi
+   }
 
    /* Считаем длину пакета */
-   if (length > UDUP_V4_CR_MAX_PAYLOAD_LENGTH)
-      payload_length.u16 = UDUP_V4_CR_MAX_PAYLOAD_LENGTH;
+   if (length - payload_offset > UDUP_V5_CR_MAX_PAYLOAD_LENGTH)
+      payload_length.u16 = UDUP_V5_CR_MAX_PAYLOAD_LENGTH;
    else
-      payload_length.u16 = length;
-   udp_data_udup_v4[13] = payload_length.u8[0];
-   udp_data_udup_v4[14] = payload_length.u8[1];
+      payload_length.u16 = length - payload_offset;
+   udup_v5_cr_uart_tx_buffer[13] = payload_length.u8[0];
+   udup_v5_cr_uart_tx_buffer[14] = payload_length.u8[1];
 
    /* Переносим данные */
-   for (uint16_t i = 0; i < payload_length.u16; i++)
-      udp_data_udup_v4[UDUP_V4_CR_PAYLOAD_OFFSET+i] = data[i];
+   for (uint16_t i = 0; i < payload_length.u16; i++) {
+      udup_v5_cr_uart_tx_buffer[i + UDUP_V5_CR_PAYLOAD_OFFSET] = data[i + payload_offset];
+      //printf("%" PRIXX8 " ", data[i + payload_offset]);
+   }
+   //printf("\n");
 
    /* Считаем контрольную сумму */
-   crc16_calculated.u16 = crc16_arc(udp_data_udup_v4, UDUP_V4_CR_PAYLOAD_OFFSET + payload_length.u16);
-   udp_data_udup_v4[UDUP_V4_CR_PAYLOAD_OFFSET + payload_length.u16+0] = crc16_calculated.u8[1]; //Меняем порядок байт на MSB-First
-   udp_data_udup_v4[UDUP_V4_CR_PAYLOAD_OFFSET + payload_length.u16+1] = crc16_calculated.u8[0];
+   crc16_calculated.u16 = crc16_arc(udup_v5_cr_uart_tx_buffer, UDUP_V5_CR_PAYLOAD_OFFSET + payload_length.u16);
+   udup_v5_cr_uart_tx_buffer[UDUP_V5_CR_PAYLOAD_OFFSET + payload_length.u16+0] = crc16_calculated.u8[1]; //Меняем порядок байт на MSB-First
+   udup_v5_cr_uart_tx_buffer[UDUP_V5_CR_PAYLOAD_OFFSET + payload_length.u16+1] = crc16_calculated.u8[0];
 
 
    /* Выводим весь пакет в UART в зависимости от настроек */
-   if (udup_v4_bin_hex_type == ROOT_UDUP_V4_HEX_MSG)
+   if (udup_v5_bin_hex_type == ROOT_UDUP_V5_HEX_MSG)
    {
-      for (uint16_t i = 0; i < UDUP_V4_CR_PAYLOAD_OFFSET + payload_length.u16 + UDUP_V4_CRC_LENGTH; i++)
-         printf("%"PRIXX8, udp_data_udup_v4[i]);
+      for (uint16_t i = 0; i < UDUP_V5_CR_PAYLOAD_OFFSET + payload_length.u16 + UDUP_V5_CRC_LENGTH; i++)
+         printf("%"PRIXX8, udup_v5_cr_uart_tx_buffer[i]);
       printf("\n");
    }
-   else if (udup_v4_bin_hex_type == ROOT_UDUP_V4_BIN_MSG)
+   else if (udup_v5_bin_hex_type == ROOT_UDUP_V5_BIN_MSG)
    {
-      for (uint16_t i = 0; i < UDUP_V4_CR_PAYLOAD_OFFSET + payload_length.u16 + UDUP_V4_CRC_LENGTH; i++)
-          cc26xx_uart_write_byte(udp_data_udup_v4[i]);
+      for (uint16_t i = 0; i < UDUP_V5_CR_PAYLOAD_OFFSET + payload_length.u16 + UDUP_V5_CRC_LENGTH; i++)
+          cc26xx_uart_write_byte(udup_v5_cr_uart_tx_buffer[i]);
    }
 
-}
-
-/*---------------------------------------------------------------------------*/
-
-void free_data_raw_print(const uip_ip6addr_t *addr, const uint8_t *data, const uint16_t length)
-{
-   if (addr == NULL || data == NULL)
-      return;
-
-   u8_u32_t water_counter;
-   water_counter.u8[0] = data[4];
-   water_counter.u8[1] = data[5];
-   water_counter.u8[2] = data[6];
-   water_counter.u8[3] = data[7];
-
-   printf("New message from address ");
-   uip_debug_ipaddr_print(addr);
-   printf(": counter %"PRIu32"\n", water_counter.u32);
-}
-
-
-/*---------------------------------------------------------------------------*/
-
-void decrypted_data_processed(const uip_ip6addr_t *sender_addr, const uint8_t *data, uint16_t datalen)
-{
-   uint8_t packet_type = data[2];
-   uint8_t packet_subtype = data[3];
-
-   if (packet_type == DATA_TYPE_JOIN)
-   {
-      send_confirmation_packet(sender_addr);
-   }
-
-   else if (packet_type == DATA_TYPE_STATUS || packet_type == DATA_TYPE_SENSOR_DATA)
-   {
-      send_pong_packet(sender_addr);
-   }
-
-   else if (packet_type == DATA_TYPE_SET_TIME && packet_subtype == DATA_TYPE_SET_TIME_REQUEST)
-   {
-      send_time_sync_resp_packet(sender_addr, data, datalen);
-      return;
-   }
-
-   else if (packet_type == DATA_TYPE_MESSAGE && packet_subtype == DEVICE_MESSAGE_FREE_DATA)
-   {
-      free_data_raw_print(sender_addr, data, datalen);
-      return;
-   }
-
-   udup_v4_dag_root_print(sender_addr, data, datalen);
-
-}
-
-/*---------------------------------------------------------------------------*/
-
-void encrypted_data_processed(const uip_ip6addr_t *sender_addr, const uint8_t *data, uint16_t datalen)
-{
-   printf("UDM: encrypted data received\n");
 }
 
 /*---------------------------------------------------------------------------*/
@@ -271,17 +223,56 @@ void udp_data_receiver(struct simple_udp_connection *connection,
                        uint16_t datalen)
 {
    led_on(LED_A);
-
+/*
+   printf("Raw net packet: ");
+   for (uint16_t i = 0; i < datalen; i++) {
+      printf("%" PRIXX8 " ", data[i]);
+   }
+   printf("\n");
+*/
    uip_ip6addr_t node_addr;
    uip_ip6addr_copy(&node_addr, sender_addr);
 
-   if (data[0] == PROTOCOL_VERSION_V1)
+   uint8_t protocol_version = data[0];
+
+   if (protocol_version == PROTOCOL_VERSION_V1)
    {
-      decrypted_data_processed(&node_addr, data, datalen);
+      uint8_t v_1_packet_type = data[2];
+      uint8_t v_1_packet_subtype = data[3];
+
+      if (v_1_packet_type == DATA_TYPE_SENSOR_DATA)
+      {
+         send_pong_packet(&node_addr);
+      }
+
+      else if (v_1_packet_type == DATA_TYPE_SET_TIME && v_1_packet_subtype == DATA_TYPE_SET_TIME_REQUEST)
+      {
+         send_time_sync_resp_packet(&node_addr, data, datalen);
+         return;
+      }
+
+      //udup_v5_dag_root_print(&node_addr, data, datalen, PROTOCOL_VERSION_V1);
    }
-   else if (data[0] == PROTOCOL_VERSION_V2)
+   else if (protocol_version == UDBP_PROTOCOL_VERSION_V5)
    {
-      encrypted_data_processed(&node_addr, data, datalen);
+      uint8_t v_5_module_id = data[UDBP_V5_HEADER_LENGTH + 0];
+      uint8_t v_5_packet_type = data[UDBP_V5_HEADER_LENGTH + 1];
+
+      if (v_5_module_id == UNWDS_CONFIG_MODULE_ID)
+      {
+         if (v_5_packet_type == DATA_TYPE_JOIN)
+         {
+            send_confirmation_packet(&node_addr);
+            led_off(LED_A);
+            return;
+         }
+         if (v_5_packet_type == DATA_TYPE_STATUS)
+         {
+            send_pong_packet(&node_addr);
+         }
+      }
+
+      udup_v5_dag_root_print(&node_addr, data, datalen, UDBP_PROTOCOL_VERSION_V5);
    }
 
    led_off(LED_A);
@@ -326,14 +317,11 @@ void root_node_initialize()
    simple_udp_register(&udp_connection, UDP_DATA_PORT, NULL, UDP_DATA_PORT, udp_data_receiver);
 
    /* set incoming uart-data handler */
-   cc26xx_uart_set_input(&uart_data_receiver_udup_v4);
+   cc26xx_uart_set_input(&uart_data_receiver_udup_v5);
 
    /* blink-blink LED */
    led_blink(LED_A);
    led_blink(LED_A);
-
-   /* set LPM mode to always awake */
-   lpm_register_module(&root_lpm_module);
 
    /* start main root process */
    process_start(&main_root_process, NULL);
@@ -372,227 +360,37 @@ void send_time_sync_resp_packet(const uip_ip6addr_t *dest_addr, const uint8_t *d
    simple_udp_sendto(&udp_connection, udp_buffer, PROTOCOL_VERSION_V2_16BYTE, dest_addr);
 }
 
+
 /*---------------------------------------------------------------------------*/
 
-void send_uart_packet(struct uart_data *uart_message)
+void udup_v5_to_net_packet_processed(uip_ipaddr_t node_ipaddr, uint16_t payload_length)
 {
    if (udp_connection.udp_conn == NULL)
       return;
 
-   uip_ip6addr_t addr;
-   uip_ip6addr_copy(&addr, &uart_message->destination_address);
-
-   printf("UDM: returned_data_lenth: %" PRIXX8 "\n", uart_message->returned_data_lenth);
-   printf("UDM: data_lenth: %" PRIXX8 "\n", uart_message->data_lenth);
-   printf("UDM: payload: ");
-   for (int i = 0; i < uart_message->data_lenth; i++)
-   {
-      printf("0x%" PRIXX8 " ", uart_message->payload[i]);
-   }
-   printf("\n");
-
-   uint8_t length = 23;
-   uint8_t udp_buffer[length];
-
-   udp_buffer[0] = uart_message->protocol_version;
-   udp_buffer[1] = uart_message->device_version;
-   udp_buffer[2] = DATA_TYPE_UART;
-
-   udp_buffer[3] = uart_message->returned_data_lenth;
-   udp_buffer[4] = uart_message->data_lenth;
-   udp_buffer[5] = uart_message->payload[0];
-   udp_buffer[6] = uart_message->payload[1];
-   udp_buffer[7] = uart_message->payload[2];
-   udp_buffer[8] = uart_message->payload[3];
-   udp_buffer[9] = uart_message->payload[4];
-   udp_buffer[10] = uart_message->payload[5];
-   udp_buffer[11] = uart_message->payload[6];
-   udp_buffer[12] = uart_message->payload[7];
-   udp_buffer[13] = uart_message->payload[8];
-   udp_buffer[14] = uart_message->payload[9];
-   udp_buffer[15] = uart_message->payload[10];
-   udp_buffer[16] = uart_message->payload[11];
-   udp_buffer[17] = uart_message->payload[12];
-   udp_buffer[18] = uart_message->payload[13];
-   udp_buffer[19] = uart_message->payload[14];
-   udp_buffer[20] = uart_message->payload[15];
-   udp_buffer[21] = DATA_RESERVED;
-   udp_buffer[22] = DATA_RESERVED;
-
-   simple_udp_sendto(&udp_connection, udp_buffer, length, &addr);
-}
-
-/*---------------------------------------------------------------------------*/
-
-void send_firmware_cmd_packet(struct firmware_cmd *firmware_cmd_message)
-{
-   if (udp_connection.udp_conn == NULL)
-      return;
-
-   uip_ip6addr_t addr;
-   uip_ip6addr_copy(&addr, &firmware_cmd_message->destination_address);
-
-   uint8_t length = 10;
-   uint8_t udp_buffer[length];
-   udp_buffer[0] = PROTOCOL_VERSION_V1;
-   udp_buffer[1] = DEVICE_VERSION_V1;
-   udp_buffer[2] = DATA_TYPE_FIRMWARE_CMD;
-   udp_buffer[3] = DATA_TYPE_FIRMWARE_COMMAND_NEW_FW;
-   udp_buffer[4] = firmware_cmd_message->chunk_quantity_b1;
-   udp_buffer[5] = firmware_cmd_message->chunk_quantity_b2;
-   udp_buffer[6] = DATA_RESERVED;
-   udp_buffer[7] = DATA_RESERVED;
-   udp_buffer[8] = DATA_RESERVED;
-   udp_buffer[9] = DATA_RESERVED;
-   simple_udp_sendto(&udp_connection, udp_buffer, length, &addr);
-}
-
-/*---------------------------------------------------------------------------*/
-
-void send_firmware_packet(struct firmware_data *firmware_message)
-{
-   if (udp_connection.udp_conn == NULL)
-      return;
-
-   uip_ip6addr_t addr;
-   uip_ip6addr_copy(&addr, &firmware_message->destination_address);
-
-   uint16_t payload_length = firmware_message->chunk_size;
-   uint16_t packet_length = payload_length + FIRMWARE_PAYLOAD_OFFSET;
-   uint8_t udp_buffer[packet_length];
-
-   udp_buffer[0] = firmware_message->protocol_version;
-   udp_buffer[1] = firmware_message->device_version;
-   udp_buffer[2] = DATA_TYPE_FIRMWARE;
-   udp_buffer[3] = firmware_message->chunk_number_b1;
-   udp_buffer[4] = firmware_message->chunk_number_b2;
-   udp_buffer[5] = firmware_message->reserved_b1;
-   udp_buffer[6] = firmware_message->reserved_b2; //7 = FIRMWARE_PAYLOAD_OFFSET
+   uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
+   udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
+   udp_buffer[1] = 0xFF; //Счетчик, 1 байт
+   udp_buffer[2] = 0xFF; //Счетчик, 2 байт
+   udp_buffer[3] = 0xFF; //rssi
+   udp_buffer[4] = 0xFF; //temp
+   udp_buffer[5] = 0xFF; //voltage
 
    for (uint16_t i = 0; i < payload_length; i++)
-   {
-      udp_buffer[FIRMWARE_PAYLOAD_OFFSET + i] = firmware_message->firmware_payload.data[i];
-   }
-   //printf("UDM: send fw packet %" PRIu16 " b\n", payload_length);
-   simple_udp_sendto(&udp_connection, udp_buffer, packet_length, &addr);
+      udp_buffer[i + UDBP_V5_HEADER_LENGTH] = udup_v5_rc_uart_rx_buffer[UDUP_V5_RC_PAYLOAD_OFFSET+i];
+
+   simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &node_ipaddr);
 }
-
 /*---------------------------------------------------------------------------*/
-
-void send_command_packet(struct command_data *command_message)
-{
-   if (udp_connection.udp_conn == NULL)
-      return;
-
-   uip_ip6addr_t addr;
-   uip_ip6addr_copy(&addr, &command_message->destination_address);
-
-   uint8_t length = 10;
-   uint8_t udp_buffer[length];
-   udp_buffer[0] = command_message->protocol_version;
-   udp_buffer[1] = command_message->device_version;
-   udp_buffer[2] = DATA_TYPE_COMMAND;
-   udp_buffer[3] = command_message->ability_target;
-   udp_buffer[4] = command_message->ability_number;
-   udp_buffer[5] = command_message->ability_state;
-   udp_buffer[6] = DATA_RESERVED;
-   udp_buffer[7] = DATA_RESERVED;
-   udp_buffer[8] = DATA_RESERVED;
-   udp_buffer[9] = DATA_RESERVED;
-   simple_udp_sendto(&udp_connection, udp_buffer, length, &addr);
-}
-
-/*---------------------------------------------------------------------------*/
-
-void uart_packet_processed(uip_ipaddr_t node_ipaddr)
-{
-   uint8_t packet_datatype = uart_data_udup_v4[UDUP_V4_RC_PAYLOAD_OFFSET+2];
-
-   if (packet_datatype == DATA_TYPE_COMMAND || packet_datatype == DATA_TYPE_SETTINGS)
-   {
-      for (uint8_t i = 0; i < 16; i++)
-         command_message.destination_address.u8[i] = node_ipaddr.u8[i]; //заменить на копирование    uip_ip6addr_copy(&node_addr, sender_addr);
-
-      command_message.protocol_version = uart_data_udup_v4[UDUP_V4_RC_PAYLOAD_OFFSET+0];
-      command_message.device_version = uart_data_udup_v4[UDUP_V4_RC_PAYLOAD_OFFSET+1];
-      packet_datatype = uart_data_udup_v4[UDUP_V4_RC_PAYLOAD_OFFSET+2];
-      command_message.ability_target = uart_data_udup_v4[UDUP_V4_RC_PAYLOAD_OFFSET+3];
-      command_message.ability_number = uart_data_udup_v4[UDUP_V4_RC_PAYLOAD_OFFSET+4];
-      command_message.ability_state = uart_data_udup_v4[UDUP_V4_RC_PAYLOAD_OFFSET+5];
-      command_message.ready_to_send = 1;
-   }
-
-   else if (packet_datatype == DATA_TYPE_FIRMWARE)
-   {
-      printf("UDM: DATA_TYPE_FIRMWARE not implemented\n");
-      return;
-/*
-      uint16_t fw_payload_length = uart_data_length - 23; // 23 = 16(address) + 7(packet header)
-      for (uint8_t i = 0; i < 16; i++)
-         firmware_message.destination_address.u8[i] = node_ipaddr.u8[i];
-
-      firmware_message.protocol_version = uart_data_udup_v4[UDUP_V4_RC_PAYLOAD_OFFSET+0]; //16
-      firmware_message.device_version = uart_data_udup_v4[UDUP_V4_RC_PAYLOAD_OFFSET+1]; //17
-      packet_datatype = uart_data_udup_v4[UDUP_V4_RC_PAYLOAD_OFFSET+2]; //18
-      firmware_message.chunk_number_b1 = uart_data_udup_v4[UDUP_V4_RC_PAYLOAD_OFFSET+3]; //19
-      firmware_message.chunk_number_b2 = uart_data_udup_v4[UDUP_V4_RC_PAYLOAD_OFFSET+4]; //20
-      firmware_message.reserved_b1 = uart_data_udup_v4[UDUP_V4_RC_PAYLOAD_OFFSET+5]; //21
-      firmware_message.reserved_b2 = uart_data_udup_v4[UDUP_V4_RC_PAYLOAD_OFFSET+6]; //22
-      firmware_message.chunk_size = fw_payload_length;
-
-      for (uint16_t i = 0; i < fw_payload_length; i++)
-         firmware_message.firmware_payload.data[i] = uart_data_udup_v4[UDUP_V4_RC_PAYLOAD_OFFSET+7 + i]; //23
-
-      firmware_message.ready_to_send = 1;
-*/
-   }
-
-   else if (packet_datatype == DATA_TYPE_FIRMWARE_CMD)
-   {
-      printf("UDM: DATA_TYPE_FIRMWARE_CMD not implemented\n");
-      return;
-/*
-      for (uint8_t i = 0; i < 16; i++)
-         firmware_cmd_message.destination_address.u8[i] = node_ipaddr.u8[i];
-
-      firmware_cmd_message.protocol_version = uart_data_udup_v4[UDUP_V4_RC_PAYLOAD_OFFSET+0]; //16
-      firmware_cmd_message.device_version = uart_data_udup_v4[UDUP_V4_RC_PAYLOAD_OFFSET+1]; //17
-      packet_datatype = uart_data_udup_v4[UDUP_V4_RC_PAYLOAD_OFFSET+2]; //18
-      firmware_cmd_message.firmware_command = uart_data_udup_v4[UDUP_V4_RC_PAYLOAD_OFFSET+3]; //19
-      firmware_cmd_message.chunk_quantity_b1 = uart_data_udup_v4[UDUP_V4_RC_PAYLOAD_OFFSET+4]; //20
-      firmware_cmd_message.chunk_quantity_b2 = uart_data_udup_v4[UDUP_V4_RC_PAYLOAD_OFFSET+5]; //21
-      firmware_cmd_message.ready_to_send = 1;
-      //printf("UDM: chunk_quantity: 0x%" PRIXX8 " 0x%" PRIXX8 "\n", uart_data_udup_v4[UDUP_V4_RC_PAYLOAD_OFFSET+4], uart_data_udup_v4[UDUP_V4_RC_PAYLOAD_OFFSET+5]);
-*/
-   }
-
-   else if (packet_datatype == DATA_TYPE_UART)
-   {
-      for (uint8_t i = 0; i < 16; i++)
-         uart_message.destination_address.u8[i] = node_ipaddr.u8[i];
-
-      uart_message.protocol_version = uart_data_udup_v4[UDUP_V4_RC_PAYLOAD_OFFSET+0]; //16
-      uart_message.device_version = uart_data_udup_v4[UDUP_V4_RC_PAYLOAD_OFFSET+1]; //17
-      packet_datatype = uart_data_udup_v4[UDUP_V4_RC_PAYLOAD_OFFSET+2]; //18
-      uart_message.data_lenth = uart_data_udup_v4[UDUP_V4_RC_PAYLOAD_OFFSET+3]; //19
-      uart_message.returned_data_lenth = uart_data_udup_v4[UDUP_V4_RC_PAYLOAD_OFFSET+4]; //20
-      for (uint8_t i = 0; i < 16; i++)
-         uart_message.payload[i] = uart_data_udup_v4[UDUP_V4_RC_PAYLOAD_OFFSET+5 + i]; //21
-
-      uart_message.ready_to_send = 1;
-   }
-}
-
-/*---------------------------------------------------------------------------*/
-void udup_v4_short_command_process()
+void udup_v5_short_command_process()
 {
    u8_u16_t crc16_in_packet;
-   uint8_t command = uart_data_udup_v4[2];
+   uint8_t command = udup_v5_rc_uart_rx_buffer[2];
 
    /* Считаем CRC для коротких команд */
-   uint16_t crc16_calculated = crc16_arc(uart_data_udup_v4, 3);
-   crc16_in_packet.u8[0] = uart_data_udup_v4[4]; //Меняем порядок байт на MSB-First
-   crc16_in_packet.u8[1] = uart_data_udup_v4[3];
+   uint16_t crc16_calculated = crc16_arc(udup_v5_rc_uart_rx_buffer, 3);
+   crc16_in_packet.u8[0] = udup_v5_rc_uart_rx_buffer[4]; //Меняем порядок байт на MSB-First
+   crc16_in_packet.u8[1] = udup_v5_rc_uart_rx_buffer[3];
 
    printf("UDM: crc: 0x%"PRIXX16"\n", crc16_in_packet.u16);
 
@@ -603,27 +401,27 @@ void udup_v4_short_command_process()
    }
 
    /* Выполянем короткие команды */
-   if (command == UDUP_V4_COMMAND_TYPE_REBOOT)
+   if (command == UDUP_V5_COMMAND_TYPE_REBOOT)
    {
       printf("UDM: reboot\n");
       watchdog_reboot();
    }
 
-   if (command == UDUP_V4_COMMAND_TYPE_BOOTLOADER_ACTIVATE)
+   if (command == UDUP_V5_COMMAND_TYPE_BOOTLOADER_ACTIVATE)
    {
       printf("UDM: bootloader activate\n");
       ti_lib_flash_sector_erase(0x0001F000);
    }
 
-   if (command == UDUP_V4_COMMAND_TYPE_BINARY_CR_MODE)
+   if (command == UDUP_V5_COMMAND_TYPE_BINARY_CR_MODE)
    {
-      udup_v4_bin_hex_type = ROOT_UDUP_V4_BIN_MSG;
+      udup_v5_bin_hex_type = ROOT_UDUP_V5_BIN_MSG;
       printf("UDM: CR mode is binary\n");
    }
 
-   if (command == UDUP_V4_COMMAND_TYPE_ASCII_CR_MODE)
+   if (command == UDUP_V5_COMMAND_TYPE_ASCII_CR_MODE)
    {
-      udup_v4_bin_hex_type = ROOT_UDUP_V4_HEX_MSG;
+      udup_v5_bin_hex_type = ROOT_UDUP_V5_HEX_MSG;
       printf("UDM: CR mode is ascii-hex\n");
    }
 
@@ -631,19 +429,19 @@ void udup_v4_short_command_process()
 }
 
 /*---------------------------------------------------------------------------*/
-void udup_v4_time_command_process()
+void udup_v5_time_command_process()
 {
    u8_u16_t crc16_in_packet;
 
-   if (udup_v4_data_iterator != 18)
+   if (udup_v5_data_iterator != 18)
    {
-      printf("UDM: Non-correct time set command length(iter<18b): %"PRId16"\n", udup_v4_data_iterator);
+      printf("UDM: Non-correct time set command length(iter<18b): %"PRId16"\n", udup_v5_data_iterator);
       return;
    }
-   uint16_t crc16_calculated = crc16_arc(uart_data_udup_v4, 17);
+   uint16_t crc16_calculated = crc16_arc(udup_v5_rc_uart_rx_buffer, 17);
 
-   crc16_in_packet.u8[0] = uart_data_udup_v4[18]; //Меняем порядок байт на MSB-First
-   crc16_in_packet.u8[1] = uart_data_udup_v4[17];
+   crc16_in_packet.u8[0] = udup_v5_rc_uart_rx_buffer[18]; //Меняем порядок байт на MSB-First
+   crc16_in_packet.u8[1] = udup_v5_rc_uart_rx_buffer[17];
 
    if (crc16_calculated != crc16_in_packet.u16)
    {
@@ -652,10 +450,10 @@ void udup_v4_time_command_process()
    }
 
    u8_u32_t epoch;
-   epoch.u8[0] = uart_data_udup_v4[13];
-   epoch.u8[1] = uart_data_udup_v4[14];
-   epoch.u8[2] = uart_data_udup_v4[15];
-   epoch.u8[3] = uart_data_udup_v4[16];
+   epoch.u8[0] = udup_v5_rc_uart_rx_buffer[13];
+   epoch.u8[1] = udup_v5_rc_uart_rx_buffer[14];
+   epoch.u8[2] = udup_v5_rc_uart_rx_buffer[15];
+   epoch.u8[3] = udup_v5_rc_uart_rx_buffer[16];
 
    time_data_t new_time;
    new_time.seconds = epoch.u32;
@@ -669,22 +467,21 @@ void udup_v4_time_command_process()
 }
 
 /*---------------------------------------------------------------------------*/
-void udup_v4_packet_net_packet_process()
+void udup_v5_packet_net_packet_process()
 {
-   eui64_addr_t address;
    u8_u16_t crc16_in_packet;
    u8_u16_t payload_length;
 
-   if (udup_v4_data_iterator < 15)
+   if (udup_v5_data_iterator < 15)
    {
-      printf("UDM: Non-correct packet send command length(iter<15b): %"PRId16"\n", udup_v4_data_iterator);
+      printf("UDM: Non-correct packet send command length(iter<15b): %"PRId16"\n", udup_v5_data_iterator);
       return;
    }
-   payload_length.u8[0] = uart_data_udup_v4[12]; //Меняем порядок байт на MSB-First
-   payload_length.u8[1] = uart_data_udup_v4[11];
+   payload_length.u8[0] = udup_v5_rc_uart_rx_buffer[12]; //Меняем порядок байт на MSB-First
+   payload_length.u8[1] = udup_v5_rc_uart_rx_buffer[11];
 
-   uint16_t all_packet_length_calculated = payload_length.u16 + UDUP_V4_RC_PAYLOAD_OFFSET + UDUP_V4_CRC_LENGTH;
-   uint16_t all_packet_length_really = udup_v4_data_iterator + 1; //Сравниваем счетчик(от нуля) с количеством(от единицы)
+   uint16_t all_packet_length_calculated = payload_length.u16 + UDUP_V5_RC_PAYLOAD_OFFSET + UDUP_V5_CRC_LENGTH;
+   uint16_t all_packet_length_really = udup_v5_data_iterator + 1; //Сравниваем счетчик(от нуля) с количеством(от единицы)
 
    if (all_packet_length_really != all_packet_length_calculated)
    {
@@ -694,10 +491,10 @@ void udup_v4_packet_net_packet_process()
       return;
    }
 
-   uint16_t crc16_calculated = crc16_arc(uart_data_udup_v4, all_packet_length_calculated - UDUP_V4_CRC_LENGTH);
+   uint16_t crc16_calculated = crc16_arc(udup_v5_rc_uart_rx_buffer, all_packet_length_calculated - UDUP_V5_CRC_LENGTH);
 
-   crc16_in_packet.u8[0] = uart_data_udup_v4[payload_length.u16 + UDUP_V4_RC_PAYLOAD_OFFSET + 1]; //Меняем порядок байт на MSB-First
-   crc16_in_packet.u8[1] = uart_data_udup_v4[payload_length.u16 + UDUP_V4_RC_PAYLOAD_OFFSET + 0];
+   crc16_in_packet.u8[0] = udup_v5_rc_uart_rx_buffer[payload_length.u16 + UDUP_V5_RC_PAYLOAD_OFFSET + 1]; //Меняем порядок байт на MSB-First
+   crc16_in_packet.u8[1] = udup_v5_rc_uart_rx_buffer[payload_length.u16 + UDUP_V5_RC_PAYLOAD_OFFSET + 0];
 
    if (crc16_calculated != crc16_in_packet.u16)
    {
@@ -705,90 +502,93 @@ void udup_v4_packet_net_packet_process()
       return;
    }
 
-   address.addr[0] = uart_data_udup_v4[3];
-   address.addr[1] = uart_data_udup_v4[4];
-   address.addr[2] = uart_data_udup_v4[5];
-   address.addr[3] = uart_data_udup_v4[6];
-   address.addr[4] = uart_data_udup_v4[7];
-   address.addr[5] = uart_data_udup_v4[8];
-   address.addr[6] = uart_data_udup_v4[9];
-   address.addr[7] = uart_data_udup_v4[10];
-
    static uip_ipaddr_t node_ipaddr;
-   uip_ip6addr_u8(&node_ipaddr, 0xFD, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, address.addr[0], address.addr[1], address.addr[2], address.addr[3], address.addr[4], address.addr[5], address.addr[6], address.addr[7]);
+   uip_ip6addr_u8(&node_ipaddr, 0xFD, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      udup_v5_rc_uart_rx_buffer[3],
+      udup_v5_rc_uart_rx_buffer[4],
+      udup_v5_rc_uart_rx_buffer[5],
+      udup_v5_rc_uart_rx_buffer[6],
+      udup_v5_rc_uart_rx_buffer[7],
+      udup_v5_rc_uart_rx_buffer[8],
+      udup_v5_rc_uart_rx_buffer[9],
+      udup_v5_rc_uart_rx_buffer[10]);
 
-   uart_packet_processed(node_ipaddr);
+
+
+   udup_v5_to_net_packet_processed(node_ipaddr, payload_length.u16);
 
    printf("UDM: adress: ");
    uip_debug_ipaddr_print(&node_ipaddr);
    printf(", payload length: %"PRIXX16"", payload_length.u16);
-   printf(", data_iter: %"PRId16"", udup_v4_data_iterator);
+   printf(", data_iter: %"PRId16"", udup_v5_data_iterator);
    printf("\n");
 }
 
 /*---------------------------------------------------------------------------*/
-int uart_data_receiver_udup_v4(unsigned char uart_char)
+int uart_data_receiver_udup_v5(unsigned char uart_char)
 {
    led_blink(LED_A);
-   if (udup_v4_data_iterator < UDUP_V4_RC_MAX_LENGTH)
+   if (udup_v5_data_iterator < UDUP_V5_RC_MAX_LENGTH)
    {
-      uart_data_udup_v4[udup_v4_data_iterator] = uart_char;
-      udup_v4_data_iterator++;
-      timer_restart(&udup_v4_timeout_timer);
+      udup_v5_rc_uart_rx_buffer[udup_v5_data_iterator] = uart_char;
+      udup_v5_data_iterator++;
+      timer_restart(&udup_v5_timeout_timer);
    }
    return 1;
 }
 
 /*---------------------------------------------------------------------------*/
-void udup_v4_data_process()
+void udup_v5_data_process()
 {
    printf("UDM: UDUP packet: ");
-   for (uint16_t i = 0; i <= udup_v4_data_iterator; i++)
-      printf("%"PRIXX8" ", uart_data_udup_v4[i]);
+   for (uint16_t i = 0; i <= udup_v5_data_iterator; i++)
+      printf("%"PRIXX8" ", udup_v5_rc_uart_rx_buffer[i]);
    printf("\n");
 
    /* Проверяем символ начала пакета */
-   if (udup_v4_data_iterator < 4)
+   if (udup_v5_data_iterator < 4)
    {
-      printf("UDM: Non-correct packet length(length<4b): %"PRId16"\n", udup_v4_data_iterator + 1);
+      printf("UDM: Non-correct packet length(length<4b): %"PRId16"\n", udup_v5_data_iterator + 1);
       return;
    }
 
-   uint8_t mq = uart_data_udup_v4[0];
-   uint8_t version = uart_data_udup_v4[1];
-   uint8_t command = uart_data_udup_v4[2];
+   uint8_t mq = udup_v5_rc_uart_rx_buffer[0];
+   uint8_t version = udup_v5_rc_uart_rx_buffer[1];
+   uint8_t command = udup_v5_rc_uart_rx_buffer[2];
 
    /* Проверяем символ начала пакета */
-   if (mq != UDUP_V4_MAGIC_BYTE)
+   if (mq != UDUP_V5_MAGIC_BYTE)
    {
       printf("UDM: Non-correct MQ: 0x%"PRIXX8"\n", mq);
       return;
    }
 
    /* Проверяем версию протокола */
-   if (version != UDUP_V4_PROTOCOL_VERSION)
+   if (version == UDUP_V5_PROTOCOL_VERSION)
+   {
+      /* Считаем CRC и обрабатываем сетевой пакет */
+      if (command == UDUP_V5_COMMAND_TYPE_NET_PACKET)
+         udup_v5_packet_net_packet_process();
+
+      /* Считаем CRC и выполняем короткие команды */
+      else if (command == UDUP_V5_COMMAND_TYPE_REBOOT ||
+               command == UDUP_V5_COMMAND_TYPE_BOOTLOADER_ACTIVATE ||
+               command == UDUP_V5_COMMAND_TYPE_BINARY_CR_MODE ||
+               command == UDUP_V5_COMMAND_TYPE_ASCII_CR_MODE)
+         udup_v5_short_command_process();
+
+      /* Считаем CRC и выполняем команду времени */
+      else if (command == UDUP_V5_COMMAND_TYPE_ROOT_TIME_SET)
+         udup_v5_time_command_process();
+
+      else
+         printf("UDM: Non-correct command: 0x%"PRIXX8"\n", command);
+   }
+   else
    {
       printf("UDM: Non-correct protocol version: 0x%"PRIXX8"\n", version);
       return;
    }
-
-    /* Считаем CRC и выполняем короткие команды */
-   if (command == UDUP_V4_COMMAND_TYPE_REBOOT ||
-      command == UDUP_V4_COMMAND_TYPE_BOOTLOADER_ACTIVATE ||
-      command == UDUP_V4_COMMAND_TYPE_BINARY_CR_MODE ||
-      command == UDUP_V4_COMMAND_TYPE_ASCII_CR_MODE)
-      udup_v4_short_command_process();
-
-   /* Считаем CRC и выполняем команду времени */
-   else if (command == UDUP_V4_COMMAND_TYPE_ROOT_TIME_SET)
-      udup_v4_time_command_process();
-
-   /* Считаем CRC и обрабатываем сетевой пакет */
-   else if (command == UDUP_V4_COMMAND_TYPE_NET_PACKET)
-      udup_v4_packet_net_packet_process();
-
-   else
-      printf("UDM: Non-correct command: 0x%"PRIXX8"\n", command);
 
    return;
 }
@@ -798,7 +598,7 @@ void udup_v4_data_process()
 PROCESS_THREAD(main_root_process, ev, data)
 {
    PROCESS_BEGIN();
-   timer_set(&udup_v4_timeout_timer, 2);
+   timer_set(&udup_v5_timeout_timer, 2);
 
    static struct etimer main_root_process_timer;
    PROCESS_PAUSE();
@@ -808,20 +608,12 @@ PROCESS_THREAD(main_root_process, ev, data)
       etimer_set(&main_root_process_timer, 1);
       PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&main_root_process_timer));
 
-      if (timer_expired(&udup_v4_timeout_timer) && udup_v4_data_iterator > 0)
+      if (timer_expired(&udup_v5_timeout_timer) && udup_v5_data_iterator > 0)
       {
          disable_interrupts();
-         udup_v4_data_iterator--;
-         udup_v4_data_process();
-         udup_v4_data_iterator = 0;
-         enable_interrupts();
-      }
-
-      if (command_message.ready_to_send != 0)
-      {
-         disable_interrupts();
-         send_command_packet(&command_message);
-         command_message.ready_to_send = 0;
+         udup_v5_data_iterator--;
+         udup_v5_data_process();
+         udup_v5_data_iterator = 0;
          enable_interrupts();
       }
 
