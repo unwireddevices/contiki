@@ -90,6 +90,9 @@ SHELL_COMMAND(unwired_shell_channel_command, "channel", "channel <set/get> <num>
 PROCESS(unwired_shell_bootloader_process, "bootloader");
 SHELL_COMMAND(unwired_shell_bootloader_command, "bootloader", "bootloader: bootloader start", &unwired_shell_bootloader_process);
 
+PROCESS(unwired_shell_address_process, "address");
+SHELL_COMMAND(unwired_shell_address_command, "address", "address: show net address", &unwired_shell_address_process);
+
 PROCESS(unwired_shell_test_process, "test");
 SHELL_COMMAND(unwired_shell_test_command, "test", "test: test func", &unwired_shell_test_process);
 
@@ -114,14 +117,14 @@ typedef enum str2int_errno_t{
    STR2INT_UNDERFLOW,
    STR2INT_INCONVERTIBLE
 } str2int_errno_t;
-
+/*
 static str2int_errno_t hex_str2uint8(uint8_t *out, char *s) {
    char *end;
    if (s[0] == '\0' || isspace((unsigned char) s[0]))
        return STR2INT_INCONVERTIBLE;
    errno = 0;
    long l = strtol(s, &end, 16);
-   /* Both checks are needed because INT_MAX == LONG_MAX is possible. */
+   // Both checks are needed because INT_MAX == LONG_MAX is possible. //
    if (l > 255 || (errno == ERANGE && l == LONG_MAX))
        return STR2INT_OVERFLOW;
    if (l < 0 || (errno == ERANGE && l == LONG_MIN))
@@ -131,6 +134,7 @@ static str2int_errno_t hex_str2uint8(uint8_t *out, char *s) {
    *out = (uint8_t)l;
    return STR2INT_SUCCESS;
 }
+*/
 
 static str2int_errno_t hex_str2uint16(uint16_t *out, char *s) {
    char *end;
@@ -216,6 +220,10 @@ PROCESS_THREAD(unwired_shell_status_process, ev, data)
       printf("STATUS: rpl parent is reachable: %" PRId16 "\n", parent_is_reachable);
 
    }
+   else
+   {
+      printf("STATUS: not join to net, net status not available\n");
+   }
    uint8_t temp = (uint8_t)batmon_sensor.value(BATMON_SENSOR_TYPE_TEMP);
    printf("STATUS: temp: %"PRIu8"C, voltage: %"PRId16"mv\n", temp, ((batmon_sensor.value(BATMON_SENSOR_TYPE_VOLT) * 125) >> 5));
 
@@ -240,6 +248,42 @@ PROCESS_THREAD(unwired_shell_bootloader_process, ev, data)
   printf("Bootloader: bootloader activate\n");
   ti_lib_flash_sector_erase(0x0001F000);
   PROCESS_END();
+}
+
+/*---------------------------------------------------------------------------*/
+
+
+PROCESS_THREAD(unwired_shell_address_process, ev, data)
+{
+   PROCESS_BEGIN();
+   rpl_dag_t *dag = rpl_get_any_dag();
+
+   if (dag)
+   {
+      uip_ipaddr_t ipaddr_node = dag->dag_id;
+      printf("ADDRESS: node full ipv6 address: ");
+      uip_debug_ipaddr_print(&ipaddr_node);
+      printf("\n");
+
+      printf("ADDRESS: unwired net address: ");
+      printf("%"PRIXX8"%"PRIXX8"%"PRIXX8"%"PRIXX8"%"PRIXX8"%"PRIXX8"%"PRIXX8"%"PRIXX8"",
+      ((uint8_t *)&ipaddr_node)[8],
+      ((uint8_t *)&ipaddr_node)[9],
+      ((uint8_t *)&ipaddr_node)[10],
+      ((uint8_t *)&ipaddr_node)[11],
+      ((uint8_t *)&ipaddr_node)[12],
+      ((uint8_t *)&ipaddr_node)[13],
+      ((uint8_t *)&ipaddr_node)[14],
+      ((uint8_t *)&ipaddr_node)[15]);
+      printf("\n");
+   }
+   else
+   {
+      printf("ADDRESS: not join to net, local address not available\n");
+   }
+
+   printf("\n");
+   PROCESS_END();
 }
 
 
@@ -401,17 +445,20 @@ PROCESS_THREAD(unwired_shell_panid_process, ev, data)
 
 PROCESS_THREAD(unwired_shell_test_process, ev, data)
 {
+/*
    uint8_t max_args = 1;
    uint8_t argc;
    char *args[max_args+1];
+*/
    PROCESS_BEGIN();
-
+/*
    argc = parse_args(data, args, max_args);
    uint16_t value = 0;
    str2int_errno_t status = hex_str2uint16(&value, args[0]);
    printf("Hex convert: %"PRIu16"(%"PRIXX16"), %"PRIint"\n", value, value, (int)status);
 
    printf("\n");
+*/
    PROCESS_END();
 }
 
@@ -427,7 +474,7 @@ void unwired_shell_init(void)
   shell_register_command(&unwired_shell_channel_command);
   shell_register_command(&unwired_shell_panid_command);
   shell_register_command(&unwired_shell_bootloader_command);
-
+  shell_register_command(&unwired_shell_address_command);
 }
 
 /*---------------------------------------------------------------------------*/
