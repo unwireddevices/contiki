@@ -366,7 +366,7 @@ class CommandInterface(object):
         mdebug(10, "*** sending synch sequence")
         self._write(cmd) # send U
         self._write(cmd) # send U
-        return self._wait_for_ack("Synch (0x55 0x55)", 2)
+        return self._wait_for_ack("Synch (0x55 0x55)", 0.5)
 
     def checkLastCmd(self):
         stat = self.cmdGetStatus()
