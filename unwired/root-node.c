@@ -513,15 +513,13 @@ void udup_v5_packet_net_packet_process()
       udup_v5_rc_uart_rx_buffer[9],
       udup_v5_rc_uart_rx_buffer[10]);
 
-
-
    udup_v5_to_net_packet_processed(node_ipaddr, payload_length.u16);
 
-   printf("UDM: adress: ");
-   uip_debug_ipaddr_print(&node_ipaddr);
-   printf(", payload length: %"PRIXX16"", payload_length.u16);
-   printf(", data_iter: %"PRId16"", udup_v5_data_iterator);
-   printf("\n");
+   //printf("UDM: adress: ");
+   //uip_debug_ipaddr_print(&node_ipaddr);
+   //printf(", payload length: %"PRIXX16"", payload_length.u16);
+   //printf(", data_iter: %"PRId16"", udup_v5_data_iterator);
+   //printf("\n");
 }
 
 /*---------------------------------------------------------------------------*/
@@ -540,10 +538,10 @@ int uart_data_receiver_udup_v5(unsigned char uart_char)
 /*---------------------------------------------------------------------------*/
 void udup_v5_data_process()
 {
-   printf("UDM: UDUP packet: ");
-   for (uint16_t i = 0; i <= udup_v5_data_iterator; i++)
-      printf("%"PRIXX8" ", udup_v5_rc_uart_rx_buffer[i]);
-   printf("\n");
+   //printf("UDM: UDUP packet: ");
+   //for (uint16_t i = 0; i <= udup_v5_data_iterator; i++)
+   //   printf("%"PRIXX8" ", udup_v5_rc_uart_rx_buffer[i]);
+   //printf("\n");
 
    /* Проверяем символ начала пакета */
    if (udup_v5_data_iterator < 4)
