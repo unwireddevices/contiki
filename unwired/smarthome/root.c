@@ -62,9 +62,19 @@
 #include "root.h"
 #include "../root-node.h"
 
-#define UART_ROOT_RX IOID_26
 
+#define CC26XX_UART_INTERRUPT_ALL (UART_INT_OE | UART_INT_BE | UART_INT_PE | \
+   UART_INT_FE | UART_INT_RT | UART_INT_TX | \
+   UART_INT_RX | UART_INT_CTS)
+
+
+#define UART_ROOT_RX IOID_26
 #define UART_ROOT_TX IOID_25
+
+#define  UART_NORMAL_TX BOARD_IOID_UART_TX
+#define  UART_NORMAL_RX BOARD_IOID_UART_RX
+#define  UART_ALT_TX UART_ROOT_TX
+#define  UART_ALT_RX UART_ROOT_RX
 
 /*---------------------------------------------------------------------------*/
 
@@ -77,46 +87,45 @@ AUTOSTART_PROCESSES(&rpl_root_process);
 
 /*---------------------------------------------------------------------------*/
 
+
+void off_uart(uint32_t rx_dio, uint32_t tx_dio)
+{
+   ti_lib_ioc_port_configure_set(tx_dio, IOC_PORT_GPIO, IOC_STD_OUTPUT);
+   ti_lib_ioc_port_configure_set(rx_dio, IOC_PORT_GPIO, IOC_STD_INPUT);
+   ti_lib_gpio_set_output_enable_dio(tx_dio, GPIO_OUTPUT_ENABLE);
+   ti_lib_gpio_set_dio(tx_dio);
+
+   while(ti_lib_uart_busy(UART0_BASE));
+   ti_lib_uart_int_disable(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
+   ti_lib_uart_int_clear(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
+   ti_lib_uart_fifo_disable(UART0_BASE);
+   while(ti_lib_uart_busy(UART0_BASE));
+   ti_lib_uart_disable(UART0_BASE);
+}
+
+void on_uart(uint32_t rx_dio, uint32_t tx_dio, uint32_t baud_rate)
+{
+   ti_lib_ioc_pin_type_gpio_output(UART_NORMAL_TX);
+   ti_lib_gpio_set_dio(UART_NORMAL_TX);
+   while(ti_lib_uart_busy(UART0_BASE));
+   ti_lib_ioc_pin_type_uart(UART0_BASE, rx_dio, tx_dio, IOID_UNUSED, IOID_UNUSED);
+   ti_lib_uart_config_set_exp_clk(UART0_BASE, ti_lib_sys_ctrl_clock_get(), baud_rate,
+                  (UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE | UART_CONFIG_PAR_NONE));
+   ti_lib_uart_fifo_level_set(UART0_BASE, UART_FIFO_TX7_8, UART_FIFO_RX7_8);
+   ti_lib_uart_fifo_enable(UART0_BASE);
+   ti_lib_uart_int_enable(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
+   ti_lib_uart_int_clear(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
+   while(ti_lib_uart_busy(UART0_BASE));
+   ti_lib_uart_enable(UART0_BASE);
+   while(ti_lib_uart_busy(UART0_BASE));
+   ti_lib_uart_int_clear(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
+}
+
+
 PROCESS_THREAD(rpl_root_process, ev, data)
 {
 
    PROCESS_BEGIN();
-   /*
-
-   while(ti_lib_uart_busy(UART0_BASE));
-   ti_lib_ioc_pin_type_uart(UART0_BASE, IOID_UNUSED, IOID_UNUSED, IOID_UNUSED, IOID_UNUSED);
-   ti_lib_ioc_pin_type_gpio_input(BOARD_IOID_UART_TX);
-   ti_lib_gpio_clear_event_dio(BOARD_IOID_UART_TX);
-   ti_lib_ioc_pin_type_gpio_input(BOARD_IOID_UART_RX);
-   ti_lib_gpio_clear_event_dio(BOARD_IOID_UART_RX);
-   ti_lib_uart_disable(UART0_BASE);
-   ti_lib_prcm_peripheral_run_disable(PRCM_PERIPH_UART0);
-   ti_lib_prcm_load_set();
-   ti_lib_prcm_power_domain_off(PRCM_DOMAIN_SERIAL);
-   while(ti_lib_prcm_power_domain_status(PRCM_DOMAIN_SERIAL) != PRCM_DOMAIN_POWER_OFF);
-
-   ti_lib_prcm_power_domain_on(PRCM_DOMAIN_SERIAL);
-   while(ti_lib_prcm_power_domain_status(PRCM_DOMAIN_SERIAL) != PRCM_DOMAIN_POWER_ON);
-   ti_lib_prcm_peripheral_run_enable(PRCM_PERIPH_UART0);
-   ti_lib_prcm_load_set();
-   while(!ti_lib_prcm_load_get());
-
-   ti_lib_ioc_pin_type_gpio_output(BOARD_IOID_UART_TX);
-   ti_lib_gpio_set_dio(BOARD_IOID_UART_TX);
-   ti_lib_ioc_pin_type_gpio_output(UART_ROOT_TX);
-   ti_lib_gpio_set_dio(UART_ROOT_TX);
-   ti_lib_ioc_pin_type_gpio_input(UART_ROOT_TX);
-
-   ti_lib_ioc_pin_type_uart(UART0_BASE, UART_ROOT_RX, UART_ROOT_TX, IOID_UNUSED, IOID_UNUSED);
-   ti_lib_ioc_pin_type_uart(UART0_BASE, UART_ROOT_RX, BOARD_IOID_UART_TX, IOID_UNUSED, IOID_UNUSED);
-
-   ti_lib_uart_config_set_exp_clk(UART0_BASE, ti_lib_sys_ctrl_clock_get(), 115200,
-                                  (UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE | UART_CONFIG_PAR_NONE));
-   ti_lib_uart_fifo_level_set(UART0_BASE, UART_FIFO_TX7_8, UART_FIFO_RX4_8);
-   ti_lib_uart_fifo_enable(UART0_BASE);
-   ti_lib_uart_enable(UART0_BASE);
-   */
-
 
    printf("Unwired RLP root. HELL-IN-CODE free. I hope.\n");
 
@@ -127,6 +136,10 @@ PROCESS_THREAD(rpl_root_process, ev, data)
    rpl_initialize();
 
    root_node_initialize();
+
+   off_uart(UART_NORMAL_RX, UART_NORMAL_TX);
+   on_uart(UART_ALT_RX, UART_ALT_TX, 115200);
+   printf("Alt uart active\n");
 
    while (1)
    {
