@@ -138,8 +138,5 @@ LOG_OPENOCD
 /.settings/language.settings.xml
 /.cproject
 *.o
-/unwired/incotex/light-ota-chanks
-/unwired/incotex/light-ota-image.binary
-/unwired/incotex/light-ota-chunks
-/udrouter/version.lua
 /.vscode
+/unwired_tools/udup_v5_controller/version.lua
