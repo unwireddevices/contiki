@@ -88,25 +88,10 @@
 #  include "smarthome/dimmer.h"
 #endif
 
-#ifdef IF_UD_LIGHT
-#  include "asuno-light/light.h"
-#endif
-
 #ifdef IF_UD_MOTIONSENSOR
 #  include "smarthome/motionsensor.h"
 #endif
 
-#ifdef IF_UD_WMETER
-#  include "water-meter/wmeter.h"
-#endif
-
-#ifdef IF_UD_FIREBUTTON
-#  include "r-smarthome/firebutton.h"
-#endif
-
-#ifdef IF_UD_SMOKESENSOR
-#  include "r-smarthome/smokesensor.h"
-#endif
 
 #define MAINTENANCE_INTERVAL            (10 * 60 * CLOCK_SECOND)
 #define SHORT_STATUS_INTERVAL           (10 * 60 * CLOCK_SECOND)
