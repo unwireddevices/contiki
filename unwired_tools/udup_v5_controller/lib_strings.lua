@@ -2,6 +2,38 @@ local strings = {}
 
 --/*---------------------------------------------------------------------------*/--
 
+function strings.color(color)
+	if (color == "red") then
+		io.write(string.char(27,91,51,49,109))
+	elseif (color == "none") then
+		io.write(string.char(27,91,48,109))
+	end
+end
+
+--/*---------------------------------------------------------------------------*/--
+
+function strings.print(data, ...)
+	io.write(data, ...)
+	io.write("\n")
+	io.flush()
+end
+
+--/*---------------------------------------------------------------------------*/--
+
+function strings.print_n(data, ...)
+	io.write(data, ...)
+	io.flush()
+end
+
+function strings.print_red(data, ...)
+	strings.color("red")
+	print(data, ...)
+	strings.color("none")
+end
+
+
+--/*---------------------------------------------------------------------------*/--
+
 function strings.fromhex(str)
    local str = string.gsub(str, " ", "")
    return (str:gsub('..', function (cc)
