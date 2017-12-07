@@ -117,7 +117,7 @@ volatile uint8_t led_mode;
 
 volatile uint8_t non_answered_packet = 0;
 volatile uip_ipaddr_t root_addr;
-static struct command_data message_for_main_process;
+static struct interpocess_message message_for_main_process;
 
 static struct etimer maintenance_timer;
 static struct etimer fw_timer;
@@ -144,18 +144,19 @@ PROCESS(fw_update_process, "FW OTA update process");
 
 /*---------------------------------------------------------------------------*/
 
-static void join_confirm_handler(const uip_ipaddr_t *sender_addr,
+static void udbp_v5_join_stage_2_handler(const uip_ipaddr_t *sender_addr,
                                     const uint8_t *data,
                                     uint16_t datalen)
 {
       uip_ipaddr_copy(&root_addr, sender_addr);
       process_post(&dag_node_process, PROCESS_EVENT_CONTINUE, NULL);
       etimer_set(&maintenance_timer, 0);
-      packet_counter.u16 = 0;
+      packet_counter_node.u16 = 0;
 }
 
 /*---------------------------------------------------------------------------*/
 
+/*
 static void command_settings_handler(const uip_ipaddr_t *sender_addr,
                                     const uint8_t *data,
                                     uint16_t datalen)
@@ -167,56 +168,24 @@ static void command_settings_handler(const uip_ipaddr_t *sender_addr,
       printf("DAG Node: Command/settings packet received(target, number, state): %"PRIXX8",%"PRIXX8",%"PRIXX8"\n", message_for_main_process.ability_target, message_for_main_process.ability_number, message_for_main_process.ability_state);
       process_post(&main_process, PROCESS_EVENT_CONTINUE, &message_for_main_process);
 }
-
-
-/*---------------------------------------------------------------------------*/
-
-static void uart_packet_handler(const uip_ipaddr_t *sender_addr,
-                                    const uint8_t *data,
-                                    uint16_t datalen)
-{
-      //printf("DAG Node: Uart packet received\n");
-      message_for_main_process.data_type = data[2];
-      message_for_main_process.uart_returned_data_length = data[3];
-      message_for_main_process.uart_data_length = data[4];
-      if ( message_for_main_process.uart_returned_data_length > 16 )
-            message_for_main_process.uart_returned_data_length = 16;
-
-      message_for_main_process.payload[0] = data[5];
-      message_for_main_process.payload[1] = data[6];
-      message_for_main_process.payload[2] = data[7];
-      message_for_main_process.payload[3] = data[8];
-      message_for_main_process.payload[4] = data[9];
-      message_for_main_process.payload[5] = data[10];
-      message_for_main_process.payload[6] = data[11];
-      message_for_main_process.payload[7] = data[12];
-      message_for_main_process.payload[8] = data[13];
-      message_for_main_process.payload[9] = data[14];
-      message_for_main_process.payload[10] = data[15];
-      message_for_main_process.payload[11] = data[16];
-      message_for_main_process.payload[12] = data[17];
-      message_for_main_process.payload[13] = data[18];
-      message_for_main_process.payload[14] = data[19];
-      message_for_main_process.payload[15] = data[20];
-      process_post(&main_process, PROCESS_EVENT_CONTINUE, &message_for_main_process);
-}
-
+*/
 
 /*---------------------------------------------------------------------------*/
 
-static void pong_handler(const uip_ipaddr_t *sender_addr,
+static void udbp_v5_ack_handler(const uip_ipaddr_t *sender_addr,
                         const uint8_t *data,
                         uint16_t datalen)
 {
       non_answered_packet = 0;
-      //printf("DAG Node: Pong packet received, non-answered packet counter: %"PRId8" \n", non_answered_packet);
+      printf("DAG Node: ACK packet received, non-answered packet counter: %"PRId8" \n", non_answered_packet);
       net_off(RADIO_OFF_NOW);
-      process_message = PT_MESSAGE_PONG_RECIEVED;
+      process_message = PT_MESSAGE_ACK_RECIEVED;
       process_post_synch(&main_process, PROCESS_EVENT_MSG, (process_data_t)&process_message);
 }
 
 /*---------------------------------------------------------------------------*/
 
+/*
 static void firmware_data_handler(const uip_ipaddr_t *sender_addr,
                                     const uint8_t *data,
                                     uint16_t datalen)
@@ -237,9 +206,11 @@ static void firmware_data_handler(const uip_ipaddr_t *sender_addr,
 
       etimer_set( &fw_timer, 0 );
 }
+*/
 
 /*---------------------------------------------------------------------------*/
 
+/*
 static void firmware_cmd_new_fw_handler(const uip_ipaddr_t *sender_addr,
                                           const uint8_t *data,
                                           uint16_t datalen)
@@ -258,10 +229,11 @@ static void firmware_cmd_new_fw_handler(const uip_ipaddr_t *sender_addr,
       }
       else
       {
-            send_message_packet(DEVICE_MESSAGE_OTA_SPI_NOTACTIVE, DATA_NONE, DATA_NONE);
+            udbp_v5_message_sender(DEVICE_MESSAGE_OTA_SPI_NOTACTIVE, DATA_NONE, DATA_NONE);
             printf("DAG Node: OTA update not processed, spi flash not-active\n");
       }
 }
+*/
 
 /*---------------------------------------------------------------------------*/
 
@@ -273,10 +245,10 @@ static void udp_receiver(struct simple_udp_connection *c,
                          const uint8_t *data, //TODO: make "parse" function(data[0] -> data.protocol_version)
                          uint16_t datalen)
 {
-      uint8_t protocol_version = data[0];
-      uint8_t device_version = data[1];
-      uint8_t packet_type = data[2];
-      uint8_t packet_subtype = data[3];
+      uint8_t protocol_version = data[0]; //deprecated
+      uint8_t device_version = data[1]; //deprecated
+      //uint8_t packet_type = data[2]; //deprecated
+      //uint8_t packet_subtype = data[3]; //deprecated
 
       printf("DAG Node: UDP packet received(%"PRIu8"): ", datalen);
       for (uint16_t i = 0; i < datalen; i++)
@@ -285,18 +257,9 @@ static void udp_receiver(struct simple_udp_connection *c,
 
       if (protocol_version == PROTOCOL_VERSION_V1 && device_version == CURRENT_DEVICE_VERSION)
       {
-
-            if (packet_type == DATA_TYPE_JOIN_CONFIRM)
-                  join_confirm_handler(sender_addr, data, datalen);
-
-            else if (packet_type == DATA_TYPE_COMMAND || data[2] == DATA_TYPE_SETTINGS)
+/*
+            if (packet_type == DATA_TYPE_COMMAND || data[2] == DATA_TYPE_SETTINGS)
                   command_settings_handler(sender_addr, data, datalen);
-
-            else if (packet_type == DATA_TYPE_UART)
-                  uart_packet_handler(sender_addr, data, datalen);
-
-            else if (packet_type == DATA_TYPE_PONG)
-                  pong_handler(sender_addr, data, datalen);
 
             else if (packet_type == DATA_TYPE_FIRMWARE)
                   firmware_data_handler(sender_addr, data, datalen);
@@ -338,25 +301,44 @@ static void udp_receiver(struct simple_udp_connection *c,
                   uip_debug_ipaddr_print(sender_addr);
                   printf(", data type: 0x%02x\n", data[2]);
             }
+*/
       }
       else if (protocol_version == UDBP_PROTOCOL_VERSION_V5)
       {
-         for (uint16_t i = 0; i < datalen-6; i++)
-            message_for_main_process.payload[i] = data[i+6];
+         uint8_t endpoint = data[6];
+         if (endpoint == UNWDS_6LOWPAN_SYSTEM_MODULE_ID)
+         {
+            uint8_t packet_type = data[7];
+            if (packet_type == DATA_TYPE_JOIN_V5_STAGE_2)
+            {
+               udbp_v5_join_stage_2_handler(sender_addr, data, datalen);
+            }
+            else if (packet_type == DATA_TYPE_ACK)
+            {
+               udbp_v5_ack_handler(sender_addr, data, datalen);
+            }
+            else
+            {
+               printf("DAG Node: Incompatible packet type(endpoint UNWDS_6LOWPAN_SYSTEM_MODULE_ID): %"PRIXX8"\n", packet_type);
+            }
+         }
+         else
+         {
+            for (uint16_t i = 0; i < datalen-6; i++)
+               message_for_main_process.payload[i] = data[i+6];
 
-         printf("DAG Node: Command/settings packet received(%"PRIu8"): ", datalen-16);
-         for (uint16_t i = 0; i < datalen-6; i++)
-            printf("%"PRIXX8, message_for_main_process.payload[i]);
-         printf("\n");
+            printf("DAG Node: Message for module received(%"PRIu8"): ", datalen-16);
+            for (uint16_t i = 0; i < datalen-6; i++)
+               printf("%"PRIXX8, message_for_main_process.payload[i]);
+            printf("\n");
 
+            process_post(&main_process, PROCESS_EVENT_CONTINUE, &message_for_main_process);
+         }
 
-         process_post(&main_process, PROCESS_EVENT_CONTINUE, &message_for_main_process);
       }
       else
       {
-         printf("DAG Node: Incompatible protocol version UDP packer from ");
-         uip_debug_ipaddr_print(sender_addr);
-         printf(", protocol version: 0x%02x\n", protocol_version);
+         printf("DAG Node: Incompatible protocol version: %"PRIXX8"\n", protocol_version);
       }
 
    led_mode_set(LED_FLASH);
@@ -364,6 +346,7 @@ static void udp_receiver(struct simple_udp_connection *c,
 
 /*---------------------------------------------------------------------------*/
 
+/*
 void send_time_sync_req_packet()
 {
    if (node_mode != MODE_NORMAL)
@@ -395,40 +378,11 @@ void send_time_sync_req_packet()
    net_on(RADIO_ON_TIMER_OFF);
    simple_udp_sendto(&udp_connection, udp_buffer, PROTOCOL_VERSION_V2_16BYTE, &addr);
 }
+*/
 
 /*---------------------------------------------------------------------------*/
 
-void send_confirmation_packet(const uip_ipaddr_t *dest_addr)
-{
-   if (node_mode != MODE_NORMAL)
-      return;
-
-   if (dest_addr == NULL)
-   {
-      printf("ERROR: dest_addr in send_confirmation_packet null\n");
-      return;
-   }
-
-   uint8_t length = 10;
-   uint8_t udp_buffer[length];
-   udp_buffer[0] = PROTOCOL_VERSION_V1;
-   udp_buffer[1] = DEVICE_VERSION_V1;
-   udp_buffer[2] = DATA_TYPE_JOIN_CONFIRM;
-   udp_buffer[3] = DATA_RESERVED;
-   udp_buffer[4] = DATA_RESERVED;
-   udp_buffer[5] = DATA_RESERVED;
-   udp_buffer[6] = DATA_RESERVED;
-   udp_buffer[7] = DATA_RESERVED;
-   udp_buffer[8] = DATA_RESERVED;
-   udp_buffer[9] = DATA_RESERVED;
-
-   net_on(RADIO_ON_TIMER_OFF);
-   simple_udp_sendto(&udp_connection, udp_buffer, length, dest_addr);
-}
-
-/*---------------------------------------------------------------------------*/
-
-void send_message_packet(uint8_t message_type, uint8_t data_1, uint8_t data_2)
+void udbp_v5_message_sender(uint8_t message_type, uint8_t data_1, uint8_t data_2)
 {
    if (node_mode != MODE_NORMAL)
       return;
@@ -436,62 +390,44 @@ void send_message_packet(uint8_t message_type, uint8_t data_1, uint8_t data_2)
    uip_ipaddr_t addr;
    uip_ip6addr_copy(&addr, &root_addr);
 
-   uint8_t length = 10;
-   uint8_t udp_buffer[length];
-   udp_buffer[0] = PROTOCOL_VERSION_V1;
-   udp_buffer[1] = DEVICE_VERSION_V1;
-   udp_buffer[2] = DATA_TYPE_MESSAGE;
-   udp_buffer[3] = message_type;
-   udp_buffer[4] = data_1;
-   udp_buffer[5] = data_2;
-   udp_buffer[6] = DATA_RESERVED;
-   udp_buffer[7] = DATA_RESERVED;
-   udp_buffer[8] = DATA_RESERVED;
-   udp_buffer[9] = DATA_RESERVED;
+   printf("DAG Node: Send message packet to DAG-root node\n");
+
+   uint8_t payload_length = 16;
+   uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
+   udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
+   udp_buffer[1] = packet_counter_node.u8[0];
+   udp_buffer[2] = packet_counter_node.u8[1];
+   udp_buffer[3] = get_parent_rssi();
+   udp_buffer[4] = get_temperature();
+   udp_buffer[5] = get_voltage();
+
+   udp_buffer[6] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
+   udp_buffer[7] = DATA_TYPE_MESSAGE;
+   udp_buffer[8] = message_type;
+   udp_buffer[9] = data_1;
+   udp_buffer[10] = data_2;
+   udp_buffer[11] = DATA_RESERVED;
+   udp_buffer[12] = DATA_RESERVED;
+   udp_buffer[13] = DATA_RESERVED;
+   udp_buffer[14] = DATA_RESERVED;
+   udp_buffer[15] = DATA_RESERVED;
+   udp_buffer[16] = DATA_RESERVED;
+   udp_buffer[17] = DATA_RESERVED;
+   udp_buffer[18] = DATA_RESERVED;
+   udp_buffer[19] = DATA_RESERVED;
+   udp_buffer[20] = DATA_RESERVED;
+   udp_buffer[21] = DATA_RESERVED;
+
 
    net_on(RADIO_ON_TIMER_OFF);
-   simple_udp_sendto(&udp_connection, udp_buffer, length, &addr);
-}
-
-/*---------------------------------------------------------------------------*/
-
-void send_sensor_event(struct sensor_packet *sensor_packet)
-{
-   if (node_mode != MODE_NORMAL)
-      return;
-
-   if (sensor_packet == NULL)
-      return;
-
-   uip_ipaddr_t addr;
-   uip_ip6addr_copy(&addr, &root_addr);
-
-   printf("DAG Node: Send sensor-event message to DAG-root node: ");
-   uip_debug_ipaddr_print(&addr);
-   printf("\n");
-
-   uint8_t length = 10;
-   uint8_t udp_buffer[length];
-   udp_buffer[0] = sensor_packet->protocol_version;
-   udp_buffer[1] = sensor_packet->device_version;
-   udp_buffer[2] = sensor_packet->data_type;
-
-   udp_buffer[3] = sensor_packet->number_ability;
-   udp_buffer[4] = DATA_RESERVED;
-   udp_buffer[5] = sensor_packet->sensor_number;
-   udp_buffer[6] = sensor_packet->sensor_event;
-   udp_buffer[7] = DATA_RESERVED;
-   udp_buffer[8] = DATA_RESERVED;
-   udp_buffer[9] = DATA_RESERVED;
-
-   net_on(RADIO_ON_TIMER_OFF);
-   simple_udp_sendto(&udp_connection, udp_buffer, length, &addr);
+   simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
+   packet_counter_node.u16++;
    led_mode_set(LED_FLASH);
 }
 
 /*---------------------------------------------------------------------------*/
 
-void send_status_packet(const uip_ipaddr_t *parent_addr,
+void udbp_v5_status_packet_sender(const uip_ipaddr_t *parent_addr,
                         uint32_t uptime_raw,
                         int16_t rssi_parent_raw,
                         uint8_t temp,
@@ -501,8 +437,8 @@ void send_status_packet(const uip_ipaddr_t *parent_addr,
       return;
 
    u8_u32_t uptime;
-
    uptime.u32 = uptime_raw;
+
    uip_ipaddr_t addr;
    uip_ip6addr_copy(&addr, &root_addr);
 
@@ -513,13 +449,13 @@ void send_status_packet(const uip_ipaddr_t *parent_addr,
    uint8_t payload_length = 16*2;
    uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
    udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
-   udp_buffer[1] = packet_counter.u8[0];
-   udp_buffer[2] = packet_counter.u8[1];
+   udp_buffer[1] = packet_counter_node.u8[0];
+   udp_buffer[2] = packet_counter_node.u8[1];
    udp_buffer[3] = get_parent_rssi();
    udp_buffer[4] = get_temperature();
    udp_buffer[5] = get_voltage();
 
-   udp_buffer[6] = UNWDS_CONFIG_MODULE_ID;
+   udp_buffer[6] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
    udp_buffer[7] = DATA_TYPE_STATUS;
    udp_buffer[8] = parent_addr->u8[8];
    udp_buffer[9] = parent_addr->u8[9];
@@ -561,7 +497,7 @@ void send_status_packet(const uip_ipaddr_t *parent_addr,
 
 /*---------------------------------------------------------------------------*/
 
-void send_join_packet(const uip_ipaddr_t *dest_addr)
+void udbp_v5_join_stage_1_sender(const uip_ipaddr_t *dest_addr)
 {
    if (dest_addr == NULL)
       return;
@@ -576,14 +512,14 @@ void send_join_packet(const uip_ipaddr_t *dest_addr)
    uint8_t payload_length = 16;
    uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
    udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
-   udp_buffer[1] = packet_counter.u8[0];
-   udp_buffer[2] = packet_counter.u8[1];
+   udp_buffer[1] = packet_counter_node.u8[0];
+   udp_buffer[2] = packet_counter_node.u8[1];
    udp_buffer[3] = get_parent_rssi();
    udp_buffer[4] = get_temperature();
    udp_buffer[5] = get_voltage();
 
-   udp_buffer[6] = UNWDS_CONFIG_MODULE_ID;
-   udp_buffer[7] = DATA_TYPE_JOIN;
+   udp_buffer[6] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
+   udp_buffer[7] = DATA_TYPE_JOIN_V5_STAGE_1;
    udp_buffer[8] = CURRENT_DEVICE_GROUP;
    udp_buffer[9] = CURRENT_DEVICE_SLEEP_TYPE;
    udp_buffer[10] = CURRENT_ABILITY_1BYTE;
@@ -605,6 +541,7 @@ void send_join_packet(const uip_ipaddr_t *dest_addr)
 
 /*---------------------------------------------------------------------------*/
 
+/*
 void send_fw_chunk_req_packet(uint16_t chunk_num_raw)
 {
    uip_ipaddr_t addr;
@@ -627,6 +564,7 @@ void send_fw_chunk_req_packet(uint16_t chunk_num_raw)
    udp_buffer[9] = DATA_RESERVED;
    simple_udp_sendto(&udp_connection, udp_buffer, length, &addr);
 }
+*/
 
 /*---------------------------------------------------------------------------*/
 
@@ -837,7 +775,7 @@ PROCESS_THREAD(status_send_process, ev, data)
          uint8_t voltage = ( (batmon_sensor.value(BATMON_SENSOR_TYPE_VOLT) * 125) >> 5 ) / VOLTAGE_PRESCALER;
          if (ipaddr_parent != NULL && stat_parent != NULL)
          {
-            send_status_packet(ipaddr_parent, rtc_s(), stat_parent->rssi, temp, voltage);
+            udbp_v5_status_packet_sender(ipaddr_parent, rtc_s(), stat_parent->rssi, temp, voltage);
          }
          non_answered_packet++;
          if (non_answered_packet != 1)
@@ -886,7 +824,7 @@ PROCESS_THREAD(fw_update_process, ev, data)
      printf("\r[OTA]: Erasing page %"PRIu32" at 0x%"PRIX32"..", page, (( ota_images[0] + page ) << 12));
      while( erase_extflash_page( (( ota_images[0] + page ) << 12) ) );
 
-     send_message_packet(DEVICE_MESSAGE_OTA_SPI_ERASE_IN_PROGRESS, page, DATA_NONE);
+     udbp_v5_message_sender(DEVICE_MESSAGE_OTA_SPI_ERASE_IN_PROGRESS, page, DATA_NONE);
      etimer_set( &ota_image_erase_timer, (CLOCK_SECOND/20) );
      PROCESS_WAIT_EVENT_UNTIL( etimer_expired(&ota_image_erase_timer) );
    }
@@ -900,7 +838,7 @@ PROCESS_THREAD(fw_update_process, ev, data)
 
       if (chunk_num < fw_chunk_quantity.u16) //Если остались незапрошенные пакеты
       {
-         send_fw_chunk_req_packet(chunk_num);
+         //send_fw_chunk_req_packet(chunk_num);
          printf("\r[OTA]: Request %"PRId16"/%"PRId16" chunk... ", chunk_num + 1, fw_chunk_quantity.u16);
          chunk_num++;
       }
@@ -927,14 +865,14 @@ PROCESS_THREAD(fw_update_process, ev, data)
             else
             {
                printf("[OTA]: New FW in OTA slot 1 non-correct firmware UUID\n");
-               send_message_packet(DEVICE_MESSAGE_OTA_NONCORRECT_UUID, DATA_NONE, DATA_NONE);
+               udbp_v5_message_sender(DEVICE_MESSAGE_OTA_NONCORRECT_UUID, DATA_NONE, DATA_NONE);
             }
 
          }
          else
          {
             printf("[OTA]: New FW in OTA slot 1 non-correct CRC\n");
-            send_message_packet(DEVICE_MESSAGE_OTA_NONCORRECT_CRC, DATA_NONE, DATA_NONE);
+            udbp_v5_message_sender(DEVICE_MESSAGE_OTA_NONCORRECT_CRC, DATA_NONE, DATA_NONE);
          }
          process_exit(&fw_update_process);
          return 0;
@@ -950,7 +888,7 @@ PROCESS_THREAD(fw_update_process, ev, data)
          if (fw_error_counter > FW_MAX_ERROR_COUNTER)
          {
             printf("[OTA]: Not delivered chunk(>%"PRId8" errors), exit\n", FW_MAX_ERROR_COUNTER);
-            send_message_packet(DEVICE_MESSAGE_OTA_NOT_DELIVERED_CHUNK, DATA_NONE, DATA_NONE);
+            udbp_v5_message_sender(DEVICE_MESSAGE_OTA_NOT_DELIVERED_CHUNK, DATA_NONE, DATA_NONE);
             process_exit(&fw_update_process);
             chunk_num = 0;
             fw_error_counter = 0;
@@ -1003,7 +941,7 @@ PROCESS_THREAD(root_find_process, ev, data)
                   if ( led_mode != LED_FAST_BLINK)
                      led_mode_set(LED_FAST_BLINK);
 
-                  send_join_packet(&root_find_dag->dag_id);
+                  udbp_v5_join_stage_1_sender(&root_find_dag->dag_id);
                }
             }
          }
@@ -1042,7 +980,7 @@ PROCESS_THREAD(dag_node_process, ev, data)
 
    spi_status = spi_test();
 
-   packet_counter.u16 = 0;
+   packet_counter_node.u16 = 0;
 
    static uip_ipaddr_t local_ipaddr;
    uip_ip6addr(&local_ipaddr, UIP_DS6_DEFAULT_PREFIX, 0, 0, 0, 0, 0, 0, 0);
@@ -1078,9 +1016,10 @@ PROCESS_THREAD(dag_node_process, ev, data)
 
    PROCESS_YIELD_UNTIL(ev == PROCESS_EVENT_CONTINUE);
 
-   printf("DAG Node: DAG active, join packet confirmation received, mode set to MODE_NORMAL\n");
+   printf("DAG Node: DAG active, join stage 2 packet received, mode set to MODE_NORMAL\n");
    led_mode_set(LED_SLOW_BLINK);
    node_mode = MODE_NORMAL;
+   udbp_v5_message_sender(DEVICE_MESSAGE_JOIN_SUCCESSFUL, DATA_NONE, DATA_NONE);
    net_mode(RADIO_FREEDOM);
    net_off(RADIO_OFF_NOW);
    //process_start(&time_sync_process, NULL); //Start timesync in main process, if necessary
@@ -1090,7 +1029,7 @@ PROCESS_THREAD(dag_node_process, ev, data)
       if (verify_ota_slot(0) == VERIFY_SLOT_CRC_ERROR)
       {
          printf("[OTA]: bad golden image, write current FW\n");
-         send_message_packet(DEVICE_MESSAGE_OTA_BAD_GOLDEN_IMAGE, DATA_NONE, DATA_NONE);
+         udbp_v5_message_sender(DEVICE_MESSAGE_OTA_BAD_GOLDEN_IMAGE, DATA_NONE, DATA_NONE);
          backup_golden_image();
          watchdog_reboot();
       }
@@ -1101,7 +1040,7 @@ PROCESS_THREAD(dag_node_process, ev, data)
    {
       write_fw_flag(FW_FLAG_PING_OK);
       printf("DAG Node: OTA flag changed to FW_FLAG_PING_OK\n");
-      send_message_packet(DEVICE_MESSAGE_OTA_UPDATE_SUCCESS, DATA_NONE, DATA_NONE);
+      udbp_v5_message_sender(DEVICE_MESSAGE_OTA_UPDATE_SUCCESS, DATA_NONE, DATA_NONE);
       node_mode = MODE_NEED_REBOOT;
       printf("DAG Node: mode set to MODE_NEED_REBOOT(reboot after ota-update)\n");
       process_exit(&maintenance_process);

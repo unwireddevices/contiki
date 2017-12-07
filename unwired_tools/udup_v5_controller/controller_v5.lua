@@ -5,7 +5,7 @@ package.path = package.path..';'..script_dir.."?.lua"
 
 local socket = require("socket")
 
-local bindechex = require("bindechex")
+local bindechex = require("lib_bindechex")
 
 local posix = require("posix")
 
@@ -16,22 +16,20 @@ local lanes = require "lanes".configure()
 
 local linda = lanes.linda()
 
-local newprint = require("lib_newprint")
-local raw_print = print
-local print = newprint.print
-local print_n = newprint.print_n
-local print_red = newprint.print_red
-
 local ansicrc = require("lib_ansicrc")
 
 local strings = require("lib_strings")
 string.fromhex = strings.fromhex
 string.tohex = strings.tohex
+local print_raw = print
+local print = strings.print
+local print_n = strings.print_n
+local print_red = strings.print_red
 
 local cjson = require "cjson"
 
-local mqtt = require("mqtt_library")
-local mqtt_client = mqtt.client.create("localhost", 1883, mqtt_callback)
+local mqtt = require("lib_mqtt")
+local mqtt_client
 
 local bit = require "bit"
 
@@ -40,9 +38,9 @@ local arg = arg
 --/*-------------------------------- Дефайны и определения -------------------------------------------*/--
 
 
-local DATA_TYPE_JOIN                            =              "01" --Запрос на включение в сеть
+local DATA_TYPE_RESERVED_1                      =              "01" --Не используется
 local DATA_TYPE_SENSOR_DATA                     =              "02" --Данные с датчиков устройства
-local DATA_TYPE_CONFIRM                 	      =              "03" --Подтверждение запроса на включение в сеть
+local DATA_TYPE_RESERVED_2              	      =              "03" --Не используется
 local DATA_TYPE_PONG                            =              "04" --Подтверждение доставки пакета
 local DATA_TYPE_COMMAND                         =              "05" --Команды возможностям устройства
 local DATA_TYPE_STATUS                          =              "06" --Пакет со статусными данными
@@ -54,6 +52,9 @@ local DATA_TYPE_SET_SCHEDULE                    =              "0B" --Коман
 local DATA_TYPE_FIRMWARE                        =              "0C" --Данные для OTA
 local DATA_TYPE_UART                            =              "0D" --Команда с данными UART
 local DATA_TYPE_FIRMWARE_CMD                    =              "0E" --Команды OTA
+local DATA_TYPE_RESERVED_3                      =              "0F" --Не используется
+local DATA_TYPE_JOIN_V5_STAGE_1                 =              "10" --Нода посылает запрос координатору
+local DATA_TYPE_JOIN_V5_STAGE_2                 =              "11" --Координатор отвечает ноде
 
 
 local PAYLOAD_OFFSET_MODULE_ID = 1
@@ -61,7 +62,7 @@ local PAYLOAD_OFFSET_MODULE_ID = 1
 local UNWDS_4BTN_MODULE_ID = 2
 local UNWDS_OPT3001_MODULE_ID = 15
 
-local UNWDS_CONFIG_MODULE_ID = 126
+local UNWDS_6LOWPAN_SYSTEM_MODULE_ID = 127
 local PAYLOAD_CONFIG_MODULE_ID_OFFSET_PACKET_TYPE = 2
 
 --/*---------------------------------------------------------------------------*/--
@@ -79,17 +80,17 @@ end
 --/*---------------------------------------------------------------------------*/--
 
 local function send_to_mqtt(json_text, topic)
-   --print(topic, ":\n", json_text)
+   print(topic, ":\n", json_text)
    mqtt_client:publish(topic, json_text)
 end
 
 --/*------------------------------ Обработка разных типов системных пакетов ---------------------------------------------*/--
 
-local function join_data_processing(address, voltage, rssi, payload)
+local function join_data_processing(address_string, voltage, parent_rssi, payload)
    local json_table = {}
    json_table.data = {}
-   json_table.data.device_group = device_group[current_device_group] or current_device_group
-   json_table.data.sleep_type = device_sleep_type[current_sleep_type] or current_sleep_type
+   --json_table.data.device_group = device_group[current_device_group] or current_device_group
+   --json_table.data.sleep_type = device_sleep_type[current_sleep_type] or current_sleep_type
 
    json_table.status = {}
    json_table.status.devEUI = address_string
@@ -98,7 +99,7 @@ local function join_data_processing(address, voltage, rssi, payload)
    json_table.status.battery = voltage
    json_table.status.date = os.date("!%FT%T.%uZ")
    local json_text = cjson.encode(json_table)
-   send_to_mqtt(json_text, "/devices/6lowpan/"..address_string.."/join")
+   send_to_mqtt(json_text, "devices/6lowpan/"..address_string.."/join")
 end
 
 --/*---------------------------------------------------------------------------*/--
@@ -118,7 +119,22 @@ local function status_data_processing(address_string, voltage, parent_rssi, payl
    json_table.status.battery = voltage
    json_table.status.date = os.date("!%FT%T.%uZ")
    local json_text = cjson.encode(json_table)
-   send_to_mqtt(json_text, "/devices/6lowpan/"..address_string.."/status")
+   send_to_mqtt(json_text, "devices/6lowpan/"..address_string.."/status")
+end
+
+local function message_data_processing(address_string, voltage, parent_rssi, payload)
+   local json_table = {}
+   json_table.data = {}
+   json_table.data.message = payload[3]
+
+   json_table.status = {}
+   json_table.status.devEUI = address_string
+   json_table.status.rssi = parent_rssi
+   json_table.status.temperature = 0
+   json_table.status.battery = voltage
+   json_table.status.date = os.date("!%FT%T.%uZ")
+   local json_text = cjson.encode(json_table)
+   send_to_mqtt(json_text, "devices/6lowpan/"..address_string.."/message")
 end
 
 --/*------------------------------ Обработка пакетов UNWDS ---------------------------------------------*/--
@@ -137,7 +153,7 @@ local function unwds_opt3001_data_processing(address_string, voltage, parent_rss
    json_table.status.date = os.date("!%FT%T.%uZ")
 
    local json_text = cjson.encode(json_table)
-   send_to_mqtt(json_text, "/devices/6lowpan/"..address_string.."/opt3001")
+   send_to_mqtt(json_text, "devices/6lowpan/"..address_string.."/opt3001")
 end
 
 --/*---------------------------------------------------------------------------*/--
@@ -170,7 +186,7 @@ local function unwds_4btn_data_processing(address_string, voltage, parent_rssi, 
    json_table.status.date = os.date("!%FT%T.%uZ")
 
    local json_text = cjson.encode(json_table)
-   send_to_mqtt(json_text, "/devices/6lowpan/"..address_string.."/4btn")
+   send_to_mqtt(json_text, "devices/6lowpan/"..address_string.."/4btn")
 end
 
 --/*---------------------------------------------------------------------------*/--
@@ -178,7 +194,7 @@ end
 local function packet_parse(packet)
    local packet_capture_pattern = "160500(%w%w%w%w%w%w%w%w%w%w%w%w%w%w%w%w)(%w%w)(%w%w)(%w%w%w%w)(.+)(%w%w%w%w)"
    local _, _, adress_raw, voltage_raw, parent_rssi_raw, payload_length_raw, payload_raw, crc_raw = string.find(packet, packet_capture_pattern)
-   --raw_print(adress_raw, voltage_raw, parent_rssi_raw, payload_length_raw, payload_raw, crc_raw)
+   --print_raw(adress_raw, voltage_raw, parent_rssi_raw, payload_length_raw, payload_raw, crc_raw)
    if (adress_raw ~= nil and payload_length_raw ~= nil and payload_raw ~= nil and crc_raw ~= nil and voltage_raw ~= nil and parent_rssi_raw ~= nil) then
       local adress_capture_pattern = "(%w%w%w%w)(%w%w%w%w)(%w%w%w%w)(%w%w%w%w)"
       local payload_length_capture_pattern = "(%w%w)(%w%w)"
@@ -219,11 +235,14 @@ local function packet_parse(packet)
          return
       end
 
-      if (get_module_id(payload) == UNWDS_CONFIG_MODULE_ID) then
-         if (get_module_config_packet_type(payload) == DATA_TYPE_JOIN) then
-            join_data_processing(address_string, voltage, parent_rssi, payload)
+      if (get_module_id(payload) == UNWDS_6LOWPAN_SYSTEM_MODULE_ID) then
+         if (get_module_config_packet_type(payload) == DATA_TYPE_JOIN_V5_STAGE_1) then
+            print("Not parse join stage 1 packet(it is normal)")
+            --join_data_processing(address_string, voltage, parent_rssi, payload)
          elseif (get_module_config_packet_type(payload) == DATA_TYPE_STATUS) then
             status_data_processing(address_string, voltage, parent_rssi, payload)
+         elseif (get_module_config_packet_type(payload) == DATA_TYPE_MESSAGE) then
+            message_data_processing(address_string, voltage, parent_rssi, payload)
          else
             print("Non-corrent packet type: ", get_module_config_packet_type(payload))
          end
@@ -260,17 +279,14 @@ local function packet_parse(packet)
 	end
 end
 
-local function uart_packet_process(packet)
-   packet_parse(packet)
-   mqtt_client:publish("uart/", packet)
-end
-
 local function uart_packet_send(packet)
    linda:set("uart_new_data", packet)
 end
 
-
 local function mqtt_callback(topic, message)
+   if (topic == "uart/#") then
+      uart_packet_send(message)
+   end
    print("MQTT: ", topic, ": ", message)
 end
 
@@ -278,15 +294,26 @@ end
 --/*---------------------------------------------------------------------------*/--
 
 local function main_cycle()
-	mqtt_client:connect("lua_parser")
-   --mqtt_client:subscribe("#")
+   mqtt_client = mqtt.client.create("localhost", 1883, mqtt_callback)
+   local mqtt_err = mqtt_client:connect("lua_parser")
+   if (mqtt_err ~= nil) then
+      print(mqtt_err)
+      os.exit(0)
+   end
+   print("MQTT: Connected")
+
+   mqtt_client:subscribe({"devices/6lowpan/#"})
+   mqtt_client:subscribe({"uart/#"})
+   print("MQTT: Subscribed to devices/6lowpan/# and uart/#")
 
 	while true do
-		socket.sleep(0.01)
+      socket.sleep(0.01)
+      mqtt_client:handler()
 		local uart_packet = linda:get("uart_packet")
       if (uart_packet ~= nil) then
          linda:set("uart_packet", nil)
          --print(uart_packet)
+         mqtt_client:publish("uart/", uart_packet)
          packet_parse(uart_packet)
 		end
 	end
@@ -301,25 +328,12 @@ local function lanes_uart_parser()
    local rs232 = require("luars232")
    local port_name = "/dev/ttyATH0"
 
-   local bindechex = require("bindechex")
-
    local buffers = require("lib_buffers")
-
-   local strings = require("lib_strings")
-   string.fromhex = strings.fromhex
-   string.tohex = strings.tohex
-
-   local newprint = require("lib_newprint")
-   local raw_print = print
-   local print = newprint.print
-   local print_n = newprint.print_n
-   local print_red = newprint.print_red
-
+   local buffer = buffers.create_buffer()
 
    local e, p = rs232.open(port_name)
-   if e ~= rs232.RS232_ERR_NOERROR then
-      print(string.format("can't open serial port '%s', error: '%s'\n",
-      port_name, rs232.error_tostring(e)))
+   if (e ~= rs232.RS232_ERR_NOERROR) then
+      print(string.format("can't open serial port '%s', error: '%s'\n", port_name, rs232.error_tostring(e)))
       return
    end
 
@@ -330,9 +344,9 @@ local function lanes_uart_parser()
    p:set_flow_control(rs232.RS232_FLOW_OFF)
 
    local _, data_read, packet, message
-   local buffer = buffers.create_buffer()
+   local buffer_state
 
-   print("LANES thread 1: Start uart parser cycle")
+   print("UART: Parser active")
 
    while true do
       local uart_new_data = linda:get("uart_new_data")
@@ -347,7 +361,8 @@ local function lanes_uart_parser()
       _, data_read = p:read(1, 1)
       if (data_read ~= nil) then
          buffers.add_byte_to_buffer(buffer, data_read)
-         local buffer_state = buffers.get_buffer(buffer)
+         buffer_state = buffers.get_buffer(buffer)
+         --print(buffer_state)
          _, _, packet = string.find(buffer_state, "(1605.+\n)")
          if (packet ~= nil) then
             linda:set("uart_packet", packet)

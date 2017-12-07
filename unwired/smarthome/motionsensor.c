@@ -85,20 +85,13 @@ uint32_t motion_sensor_ioid = IOID_30;
 
 void send_motion_sensor_packet(uint8_t motion_event)
 {
-   struct sensor_packet motion_sensor_packet;
-   motion_sensor_packet.protocol_version = CURRENT_PROTOCOL_VERSION;
-   motion_sensor_packet.device_version = CURRENT_DEVICE_VERSION;
-   motion_sensor_packet.data_type = DATA_TYPE_SENSOR_DATA;
-   motion_sensor_packet.number_ability = DEVICE_ABILITY_MOTION_SENSOR;
-   motion_sensor_packet.sensor_number = 1;
-   motion_sensor_packet.sensor_event = motion_event;
-   send_sensor_event(&motion_sensor_packet);
+   //motion_sensor_packet.sensor_number = 1;
+   //motion_sensor_packet.sensor_event = motion_event;
 
    led_blink(LED_A);
 }
 
-void
-gpio_int_handler(uint8_t ioid)
+void gpio_int_handler(uint8_t ioid)
 {
    if (motion_sensor_ioid == ioid)
    {

@@ -46,21 +46,24 @@
 #define PROTOCOL_VERSION_V2_592BYTE                             592
 
 /* Data types */
-#define DATA_TYPE_JOIN                                          0x01 //Запрос на включение в сеть
+#define DATA_TYPE_RESERVED_1                                    0x01 //Не используется
 #define DATA_TYPE_SENSOR_DATA                                   0x02 //Данные с датчиков устройства
-#define DATA_TYPE_JOIN_CONFIRM                                  0x03 //Подтверждение запроса на включение в сеть
-#define DATA_TYPE_PONG                                          0x04 //Подтверждение доставки пакета
+#define DATA_TYPE_RESERVED_2                                    0x03 //Не используется
+#define DATA_TYPE_ACK                                           0x04 //Подтверждение доставки пакета
 #define DATA_TYPE_COMMAND                                       0x05 //Команды возможностям устройства
 #define DATA_TYPE_STATUS                                        0x06 //Пакет со статусными данными
 #define DATA_TYPE_GET_STATUS                                    0x07 //Запрос статуса(не реализовано)
 #define DATA_TYPE_SETTINGS                                      0x08 //Команда настройки параметров
 #define DATA_TYPE_MESSAGE                                       0x09 //Сообщения
 #define DATA_TYPE_SET_TIME                                      0x0A //Команда установки времени
-#define DATA_TYPE_SET_SCHEDULE                                  0x0B //Команда установки расписания
+#define DATA_TYPE_SET_SCHEDULE                                  0x0B //Команда установки расписания(не реализовано)
 #define DATA_TYPE_FIRMWARE                                      0x0C //Данные для OTA
 #define DATA_TYPE_UART                                          0x0D //Команда с данными UART
 #define DATA_TYPE_FIRMWARE_CMD                                  0x0E //Команды OTA
-#define DATA_TYPE_LOCAL_CMD                                     0x0F //Локальные команды для координатора //deprecated
+#define DATA_TYPE_RESERVED_3                                    0x0F //Не используется
+#define DATA_TYPE_JOIN_V5_STAGE_1                               0x10 //Нода посылает запрос координатору
+#define DATA_TYPE_JOIN_V5_STAGE_2                               0x11 //Координатор отвечает ноде
+#define DATA_TYPE_JOIN_V5_STAGE_3                               0x12 //Нода удостоверяет, что получила подтверждение и в сети(для индикации пользователю).
 
 /* Reserved data */
 #define DATA_RESERVED                                           0xFF
@@ -209,6 +212,7 @@
 #define DEVICE_MESSAGE_OTA_NONCORRECT_UUID                      0x0D
 #define DEVICE_MESSAGE_TIMESYNC_STATUS                          0x0E //Статус синхронизации времени
 #define DEVICE_MESSAGE_FREE_DATA                                0x0E //Произвольные данные
+#define DEVICE_MESSAGE_JOIN_SUCCESSFUL                          0x0F //Успешный джойн в сеть
 
 
 /* UDUP V5 */
@@ -249,3 +253,8 @@
 /* Defines */
 #define UDP_DATA_PORT                                           4004
 #define VOLTAGE_PRESCALER                                       16 //deprecated
+
+
+
+#define PT_MESSAGE_ACK_RECIEVED 0x10
+

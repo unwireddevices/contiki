@@ -38,7 +38,6 @@
 
 /*---------------------------------------------------------------------------*/
 
-#define PT_MESSAGE_PONG_RECIEVED 0x10
 
 #define HEXVIEW_MODE                            0x00
 #define HEXRAW_MODE                             0x01
@@ -79,9 +78,9 @@ typedef enum {
    UNWDS_IEC61107_MODULE_ID = 55,
    /* Customer 100 to 125*/
    UNWDS_CUSTOMER_MODULE_ID = 100,
-   UNWDS_UDSMARTHOME_MODULE_ID = 125,
    /* System module 126 */
    UNWDS_CONFIG_MODULE_ID = 126,
+   UNWDS_6LOWPAN_SYSTEM_MODULE_ID = 127,
 } UNWDS_MODULE_IDS_t;
 
 /*---------------------------------------------------------------------------*/

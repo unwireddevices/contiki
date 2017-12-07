@@ -55,38 +55,18 @@
 simple_udp_connection_t udp_connection;
 volatile uip_ipaddr_t root_addr;
 volatile uint8_t node_mode;
-volatile union { uint16_t u16; uint8_t u8[2]; } packet_counter;
+volatile union { uint16_t u16; uint8_t u8[2]; } packet_counter_node;
 
-struct command_data
+struct interpocess_message
 {
-   volatile uint8_t data_type;
-   volatile uint8_t protocol_version;
-   volatile uint8_t device_version;
-   volatile uint8_t ability_target;
-   volatile uint8_t ability_number;
-   volatile uint8_t ability_state;
-   volatile uint8_t uart_returned_data_length;
-   volatile uint8_t uart_data_length;
-   volatile uint8_t ready_to_send;
    volatile uint8_t payload[16];
 };
 
-struct sensor_packet
-{
-   uint8_t protocol_version;
-   uint8_t device_version;
-   uint8_t data_type;
-   uint8_t number_ability;
-   uint8_t sensor_number;
-   uint8_t sensor_event;
-};
-
-void send_sensor_event(struct sensor_packet *sensor_packet);
-void send_message_packet(uint8_t message_type, uint8_t data_1, uint8_t data_2);
-void send_uart_data(struct command_data *uart_data);
+void udbp_v5_message_sender(uint8_t message_type, uint8_t data_1, uint8_t data_2);
 void uart_console(unsigned char uart_char);
-void send_time_sync_req_packet();
+//void send_time_sync_req_packet();
 void led_mode_set(uint8_t mode);
+void udbp_v5_join_stage_3_sender(const uip_ipaddr_t *dest_addr);
 
 PROCESS_NAME(dag_node_process);
 PROCESS_NAME(dag_node_button_process);

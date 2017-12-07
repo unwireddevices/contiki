@@ -79,57 +79,87 @@ static uint16_t udup_v5_data_iterator = 0;
 root_udup_message_type_t udup_v5_bin_hex_type = ROOT_UDUP_V5_HEX_MSG;
 static struct timer udup_v5_timeout_timer;
 
+volatile union { uint16_t u16; uint8_t u8[2]; } packet_counter_root;
+
 PROCESS(main_root_process, "main root process");
 
 
 /*---------------------------------------------------------------------------*/
 
-void send_confirmation_packet(const uip_ip6addr_t *dest_addr)
+void udbp_v5_join_stage_2_sender(const uip_ip6addr_t *dest_addr)
 {
    if (dest_addr == NULL)
-   {
-      printf("UDM: dest_addr in send_confirmation_packet null\n");
       return;
-   }
 
-   uint8_t length = 10;
-   uint8_t udp_buffer[length];
-   udp_buffer[0] = PROTOCOL_VERSION_V1;
-   udp_buffer[1] = DEVICE_VERSION_V1;
-   udp_buffer[2] = DATA_TYPE_JOIN_CONFIRM;
-   udp_buffer[3] = DATA_RESERVED;
-   udp_buffer[4] = DATA_RESERVED;
-   udp_buffer[5] = DATA_RESERVED;
-   udp_buffer[6] = DATA_RESERVED;
-   udp_buffer[7] = DATA_RESERVED;
+   uip_ipaddr_t addr;
+   uip_ip6addr_copy(&addr, dest_addr);
+
+   uint8_t payload_length = 16;
+   uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
+   udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
+   udp_buffer[1] = packet_counter_root.u8[0];
+   udp_buffer[2] = packet_counter_root.u8[1];
+   udp_buffer[3] = get_parent_rssi();
+   udp_buffer[4] = get_temperature();
+   udp_buffer[5] = get_voltage();
+
+   udp_buffer[6] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
+   udp_buffer[7] = DATA_TYPE_JOIN_V5_STAGE_2;
    udp_buffer[8] = DATA_RESERVED;
    udp_buffer[9] = DATA_RESERVED;
-   simple_udp_sendto(&udp_connection, udp_buffer, length, dest_addr);
+   udp_buffer[10] = DATA_RESERVED;
+   udp_buffer[11] = DATA_RESERVED;
+   udp_buffer[12] = DATA_RESERVED;
+   udp_buffer[13] = DATA_RESERVED;
+   udp_buffer[14] = DATA_RESERVED;
+   udp_buffer[15] = DATA_RESERVED;
+   udp_buffer[16] = DATA_RESERVED;
+   udp_buffer[17] = DATA_RESERVED;
+   udp_buffer[18] = DATA_RESERVED;
+   udp_buffer[19] = DATA_RESERVED;
+   udp_buffer[20] = DATA_RESERVED;
+   udp_buffer[21] = DATA_RESERVED;
+   simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
+   packet_counter_root.u16++;
 }
 
 /*---------------------------------------------------------------------------*/
 
-void send_pong_packet(const uip_ip6addr_t *dest_addr)
+void udbp_v5_ack_packet_sender(const uip_ip6addr_t *dest_addr)
 {
    if (dest_addr == NULL)
-   {
-      printf("UDM: dest_addr in send_pong_packet null\n");
       return;
-   }
 
-   uint8_t length = 10;
-   uint8_t udp_buffer[length];
-   udp_buffer[0] = PROTOCOL_VERSION_V1;
-   udp_buffer[1] = DEVICE_VERSION_V1;
-   udp_buffer[2] = DATA_TYPE_PONG;
-   udp_buffer[3] = DATA_RESERVED;
-   udp_buffer[4] = DATA_RESERVED;
-   udp_buffer[5] = DATA_RESERVED;
-   udp_buffer[6] = DATA_RESERVED;
-   udp_buffer[7] = DATA_RESERVED;
+   uip_ipaddr_t addr;
+   uip_ip6addr_copy(&addr, dest_addr);
+
+   uint8_t payload_length = 16;
+   uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
+   udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
+   udp_buffer[1] = packet_counter_root.u8[0];
+   udp_buffer[2] = packet_counter_root.u8[1];
+   udp_buffer[3] = get_parent_rssi();
+   udp_buffer[4] = get_temperature();
+   udp_buffer[5] = get_voltage();
+
+   udp_buffer[6] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
+   udp_buffer[7] = DATA_TYPE_ACK;
    udp_buffer[8] = DATA_RESERVED;
    udp_buffer[9] = DATA_RESERVED;
-   simple_udp_sendto(&udp_connection, udp_buffer, length, dest_addr);
+   udp_buffer[10] = DATA_RESERVED;
+   udp_buffer[11] = DATA_RESERVED;
+   udp_buffer[12] = DATA_RESERVED;
+   udp_buffer[13] = DATA_RESERVED;
+   udp_buffer[14] = DATA_RESERVED;
+   udp_buffer[15] = DATA_RESERVED;
+   udp_buffer[16] = DATA_RESERVED;
+   udp_buffer[17] = DATA_RESERVED;
+   udp_buffer[18] = DATA_RESERVED;
+   udp_buffer[19] = DATA_RESERVED;
+   udp_buffer[20] = DATA_RESERVED;
+   udp_buffer[21] = DATA_RESERVED;
+   simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
+   packet_counter_root.u16++;
 }
 
 /*---------------------------------------------------------------------------*/
@@ -235,43 +265,29 @@ void udp_data_receiver(struct simple_udp_connection *connection,
 
    uint8_t protocol_version = data[0];
 
-   if (protocol_version == PROTOCOL_VERSION_V1)
-   {
-      uint8_t v_1_packet_type = data[2];
-      uint8_t v_1_packet_subtype = data[3];
-
-      if (v_1_packet_type == DATA_TYPE_SENSOR_DATA)
-      {
-         send_pong_packet(&node_addr);
-      }
-
-      else if (v_1_packet_type == DATA_TYPE_SET_TIME && v_1_packet_subtype == DATA_TYPE_SET_TIME_REQUEST)
-      {
-         send_time_sync_resp_packet(&node_addr, data, datalen);
-         return;
-      }
-
-      //udup_v5_dag_root_print(&node_addr, data, datalen, PROTOCOL_VERSION_V1);
-   }
-   else if (protocol_version == UDBP_PROTOCOL_VERSION_V5)
+   if (protocol_version == UDBP_PROTOCOL_VERSION_V5)
    {
       uint8_t v_5_module_id = data[UDBP_V5_HEADER_LENGTH + 0];
       uint8_t v_5_packet_type = data[UDBP_V5_HEADER_LENGTH + 1];
 
-      if (v_5_module_id == UNWDS_CONFIG_MODULE_ID)
+      if (v_5_module_id == UNWDS_6LOWPAN_SYSTEM_MODULE_ID)
       {
-         if (v_5_packet_type == DATA_TYPE_JOIN)
+         if (v_5_packet_type == DATA_TYPE_JOIN_V5_STAGE_1)
          {
-            send_confirmation_packet(&node_addr);
+            udbp_v5_join_stage_2_sender(&node_addr);
             led_off(LED_A);
             return;
          }
-         if (v_5_packet_type == DATA_TYPE_STATUS)
+         if (v_5_packet_type == DATA_TYPE_MESSAGE)
          {
-            send_pong_packet(&node_addr);
+            uint8_t message_type = data[UDBP_V5_HEADER_LENGTH + 2];
+            if (message_type == DEVICE_MESSAGE_JOIN_SUCCESSFUL)
+            {
+               printf("[Join successful]: ");
+            }
          }
       }
-
+      udbp_v5_ack_packet_sender(&node_addr);
       udup_v5_dag_root_print(&node_addr, data, datalen, UDBP_PROTOCOL_VERSION_V5);
    }
 
@@ -599,6 +615,7 @@ PROCESS_THREAD(main_root_process, ev, data)
    timer_set(&udup_v5_timeout_timer, 2);
 
    static struct etimer main_root_process_timer;
+   packet_counter_root.u16 = 0;
    PROCESS_PAUSE();
 
    while (1)

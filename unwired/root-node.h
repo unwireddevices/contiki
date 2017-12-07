@@ -56,9 +56,6 @@ PROCESS_NAME(main_root_process);
 
 /*---------------------------------------------------------------------------*/
 
-void send_confirmation_packet(const uip_ip6addr_t *dest_addr);
-
-void send_pong_packet(const uip_ip6addr_t *dest_addr);
 
 void rpl_initialize();
 

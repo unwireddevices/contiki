@@ -264,7 +264,7 @@ void configure_channel(uint8_t channel_dio)
 
 /*---------------------------------------------------------------------------*/
 
-
+/*
 void settings_change(struct command_data *command_relay)
 {
    printf("RELAY: new settings, target: %02X, state: %02X, number: %02X \n",
@@ -285,10 +285,11 @@ void settings_change(struct command_data *command_relay)
    if (command_relay->ability_target == DEVICE_ABILITY_RELAY_2_SETTINGS_START_STATE)
       set_start_state_flash(BOARD_IOID_RELAY_2, command_relay->ability_state);
 }
+*/
 
 /*---------------------------------------------------------------------------*/
 
-
+/*
 void exe_relay_command(struct command_data *command_relay)
 {
    printf("RELAY: new command, target: %02X, state: %02X, number: %02X \n",
@@ -304,6 +305,7 @@ void exe_relay_command(struct command_data *command_relay)
    }
    change_dio_state(command_relay->ability_number, command_relay->ability_state);
 }
+*/
 
 /*---------------------------------------------------------------------------*/
 
@@ -311,7 +313,7 @@ PROCESS_THREAD(main_process, ev, data)
 {
    PROCESS_BEGIN();
 
-   static struct command_data *message_data = NULL;
+   //static struct command_data *message_data = NULL;
 
    PROCESS_PAUSE();
 
@@ -324,18 +326,18 @@ PROCESS_THREAD(main_process, ev, data)
       PROCESS_YIELD();
       if (ev == PROCESS_EVENT_CONTINUE)
       {
-         message_data = data;
-         if (message_data != NULL)
-         {
-            if (message_data->ability_target == DEVICE_ABILITY_RELAY)
-            {
-               if (message_data->data_type == DATA_TYPE_COMMAND)
-                  exe_relay_command(message_data);
-
-               if (message_data->data_type == DATA_TYPE_SETTINGS)
-                  settings_change(message_data);
-            }
-         }
+         //message_data = data;
+         //if (message_data != NULL)
+         //{
+            //if (message_data->ability_target == DEVICE_ABILITY_RELAY)
+            //{
+            //   if (message_data->data_type == DATA_TYPE_COMMAND)
+            //      exe_relay_command(message_data);
+            //
+            //   if (message_data->data_type == DATA_TYPE_SETTINGS)
+            //      settings_change(message_data);
+            //}
+         //}
       }
    }
 

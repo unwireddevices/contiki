@@ -54,6 +54,9 @@
 #include "board-peripherals.h"
 #include "dev/watchdog.h"
 #include "simple-udp.h"
+#include "system-common.h"
+#include "radio_power.h"
+
 
 #include "button.h"
 
@@ -80,24 +83,63 @@ AUTOSTART_PROCESSES(&dag_node_process, &main_process);
 
 /*---------------------------------------------------------------------------*/
 
-void send_button_status_packet(uint8_t button_number,
-                               uint8_t click_type)
+void udbp_v5_button_status_sender(uint8_t button_number,
+                                  uint8_t click_type)
 {
-   struct sensor_packet button_sensor_packet;
-   button_sensor_packet.protocol_version = CURRENT_PROTOCOL_VERSION;
-   button_sensor_packet.device_version = CURRENT_DEVICE_VERSION;
-   button_sensor_packet.data_type = DATA_TYPE_SENSOR_DATA;
-   button_sensor_packet.number_ability = DEVICE_ABILITY_BUTTON;
-   button_sensor_packet.sensor_number = button_number;
-   button_sensor_packet.sensor_event = click_type;
-   send_sensor_event(&button_sensor_packet);
-
    if (node_mode == 2) //MODE_NOTROOT_SLEEP
    {
       watchdog_reboot();
    }
 
-   led_blink(LED_A);
+   if (node_mode == MODE_NORMAL)
+   {
+      uip_ipaddr_t addr;
+      uip_ip6addr_copy(&addr, &root_addr);
+
+      uint8_t short_press_mask = 0b10000000;
+      uint8_t long_press_mask = 0b11000000;
+
+      uint8_t dio_and_status = button_number;
+
+      if (click_type == DEVICE_ABILITY_BUTTON_EVENT_CLICK)
+         dio_and_status |= short_press_mask;
+
+      else if (click_type == DEVICE_ABILITY_BUTTON_EVENT_LONG_CLICK)
+         dio_and_status |= long_press_mask;
+
+      printf("DAG Node: Send button packet to DAG-root node\n");
+
+      uint8_t payload_length = 16;
+      uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
+      udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
+      udp_buffer[1] = packet_counter_node.u8[0];
+      udp_buffer[2] = packet_counter_node.u8[1];
+      udp_buffer[3] = get_parent_rssi();
+      udp_buffer[4] = get_temperature();
+      udp_buffer[5] = get_voltage();
+
+      udp_buffer[6] = UNWDS_4BTN_MODULE_ID;
+      udp_buffer[7] = dio_and_status;
+      udp_buffer[8] = DATA_RESERVED;
+      udp_buffer[9] = DATA_RESERVED;
+      udp_buffer[10] = DATA_RESERVED;
+      udp_buffer[11] = DATA_RESERVED;
+      udp_buffer[12] = DATA_RESERVED;
+      udp_buffer[13] = DATA_RESERVED;
+      udp_buffer[14] = DATA_RESERVED;
+      udp_buffer[15] = DATA_RESERVED;
+      udp_buffer[16] = DATA_RESERVED;
+      udp_buffer[17] = DATA_RESERVED;
+      udp_buffer[18] = DATA_RESERVED;
+      udp_buffer[19] = DATA_RESERVED;
+      udp_buffer[20] = DATA_RESERVED;
+      udp_buffer[21] = DATA_RESERVED;
+
+      net_on(RADIO_ON_TIMER_OFF);
+      simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
+      packet_counter_node.u16++;
+      led_mode_set(LED_FLASH);
+   }
 }
 
 /*---------------------------------------------------------------------------*/
@@ -118,47 +160,47 @@ PROCESS_THREAD(main_process, ev, data)
          if (data == &button_a_sensor_click)
          {
             printf("BCP: Button A click\n");
-            send_button_status_packet('a', DEVICE_ABILITY_BUTTON_EVENT_CLICK);
+            udbp_v5_button_status_sender(BOARD_IOID_KEY_A, DEVICE_ABILITY_BUTTON_EVENT_CLICK);
          }
          if (data == &button_a_sensor_long_click)
          {
             printf("BCP: Button A long click\n");
-            send_button_status_packet('a', DEVICE_ABILITY_BUTTON_EVENT_LONG_CLICK);
+            udbp_v5_button_status_sender(BOARD_IOID_KEY_A, DEVICE_ABILITY_BUTTON_EVENT_LONG_CLICK);
          }
          if (data == &button_b_sensor_click)
          {
             printf("BCP: Button B click\n");
-            send_button_status_packet('b', DEVICE_ABILITY_BUTTON_EVENT_CLICK);
+            udbp_v5_button_status_sender(BOARD_IOID_KEY_B, DEVICE_ABILITY_BUTTON_EVENT_CLICK);
          }
          if (data == &button_b_sensor_long_click)
          {
             printf("BCP: Button B long click\n");
-            send_button_status_packet('b', DEVICE_ABILITY_BUTTON_EVENT_LONG_CLICK);
+            udbp_v5_button_status_sender(BOARD_IOID_KEY_B, DEVICE_ABILITY_BUTTON_EVENT_LONG_CLICK);
          }
          if (data == &button_c_sensor_click)
          {
             printf("BCP: Button C click\n");
-            send_button_status_packet('c', DEVICE_ABILITY_BUTTON_EVENT_CLICK);
+            udbp_v5_button_status_sender(BOARD_IOID_KEY_C, DEVICE_ABILITY_BUTTON_EVENT_CLICK);
          }
          if (data == &button_c_sensor_long_click)
          {
             printf("BCP: Button C long click\n");
-            send_button_status_packet('c', DEVICE_ABILITY_BUTTON_EVENT_LONG_CLICK);
+            udbp_v5_button_status_sender(BOARD_IOID_KEY_C, DEVICE_ABILITY_BUTTON_EVENT_LONG_CLICK);
          }
          if (data == &button_d_sensor_click)
          {
             printf("BCP: Button D click\n");
-            send_button_status_packet('d', DEVICE_ABILITY_BUTTON_EVENT_CLICK);
+            udbp_v5_button_status_sender(BOARD_IOID_KEY_D, DEVICE_ABILITY_BUTTON_EVENT_CLICK);
          }
          if (data == &button_d_sensor_long_click)
          {
             printf("BCP: Button D long click\n");
-            send_button_status_packet('d', DEVICE_ABILITY_BUTTON_EVENT_LONG_CLICK);
+            udbp_v5_button_status_sender(BOARD_IOID_KEY_D, DEVICE_ABILITY_BUTTON_EVENT_LONG_CLICK);
          }
          if (data == &button_e_sensor_click)
          {
-            printf("BCP: Button E click\n");
-            send_button_status_packet('e', DEVICE_ABILITY_BUTTON_EVENT_CLICK);
+            printf("BCP: Button e click\n");
+            udbp_v5_button_status_sender(BOARD_IOID_KEY_E, DEVICE_ABILITY_BUTTON_EVENT_CLICK);
          }
 
       }

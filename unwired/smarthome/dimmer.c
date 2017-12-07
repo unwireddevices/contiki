@@ -117,7 +117,7 @@ PROCESS_THREAD(main_process, ev, data)
 {
    PROCESS_BEGIN();
 
-   static struct command_data *message_data = NULL;
+   //static struct command_data *message_data = NULL;
 
    PROCESS_PAUSE();
 
@@ -129,11 +129,11 @@ PROCESS_THREAD(main_process, ev, data)
       PROCESS_YIELD();
       if (ev == PROCESS_EVENT_CONTINUE)
       {
-         message_data = data;
-         if (message_data->ability_target == DEVICE_ABILITY_DIMMER)
-         {
-            exe_dimmer_command(message_data);
-         }
+         //message_data = data;
+         //if (message_data->ability_target == DEVICE_ABILITY_DIMMER)
+         //{
+            //exe_dimmer_command(message_data);
+         //}
       }
    }
 

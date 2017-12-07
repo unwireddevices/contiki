@@ -236,7 +236,7 @@ PROCESS_THREAD(unwired_shell_status_process, ev, data)
 PROCESS_THREAD(unwired_shell_timesync_process, ev, data)
 {
   PROCESS_BEGIN();
-  send_time_sync_req_packet();
+  //send_time_sync_req_packet();
   PROCESS_END();
 }
 
