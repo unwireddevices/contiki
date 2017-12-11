@@ -50,6 +50,9 @@
 #include "net/rpl/rpl.h"
 #include "net/link-stats.h"
 
+#include <ctype.h> // for str2xxx
+#include <errno.h> // for str2xxx
+#include <limits.h> // for str2xxx
 
 #include "system-common.h"
 #include "ota-main.h"
@@ -178,4 +181,62 @@ uint8_t get_parent_rssi()
    return 0xFF;
 }
 
+/*---------------------------------------------------------------------------*/
 
+
+str2int_errno_t hex_str2uint16(uint16_t *out, char *s) {
+   char *end;
+   if (s[0] == '\0' || isspace((unsigned char) s[0]))
+       return STR2INT_INCONVERTIBLE;
+   errno = 0;
+   long l = strtol(s, &end, 16);
+   /* Both checks are needed because INT_MAX == LONG_MAX is possible. */
+   if (l > 0xFFFF || (errno == ERANGE && l == LONG_MAX))
+       return STR2INT_OVERFLOW;
+   if (l < 0 || (errno == ERANGE && l == LONG_MIN))
+       return STR2INT_UNDERFLOW;
+   if (*end != '\0')
+       return STR2INT_INCONVERTIBLE;
+   *out = (uint16_t)l;
+   return STR2INT_SUCCESS;
+}
+
+/*---------------------------------------------------------------------------*/
+
+
+str2int_errno_t hex_str2uint8(uint8_t *out, char *s) {
+   char *end;
+   if (s[0] == '\0' || isspace((unsigned char) s[0]))
+       return STR2INT_INCONVERTIBLE;
+   errno = 0;
+   long l = strtol(s, &end, 16);
+   // Both checks are needed because INT_MAX == LONG_MAX is possible. //
+   if (l > 255 || (errno == ERANGE && l == LONG_MAX))
+       return STR2INT_OVERFLOW;
+   if (l < 0 || (errno == ERANGE && l == LONG_MIN))
+       return STR2INT_UNDERFLOW;
+   if (*end != '\0')
+       return STR2INT_INCONVERTIBLE;
+   *out = (uint8_t)l;
+   return STR2INT_SUCCESS;
+}
+
+
+/*---------------------------------------------------------------------------*/
+
+str2int_errno_t dec_str2uint8(uint8_t *out, char *s) {
+    char *end;
+    if (s[0] == '\0' || isspace((unsigned char) s[0]))
+        return STR2INT_INCONVERTIBLE;
+    errno = 0;
+    long l = strtol(s, &end, 10);
+    /* Both checks are needed because INT_MAX == LONG_MAX is possible. */
+    if (l > 255 || (errno == ERANGE && l == LONG_MAX))
+        return STR2INT_OVERFLOW;
+    if (l < 0 || (errno == ERANGE && l == LONG_MIN))
+        return STR2INT_UNDERFLOW;
+    if (*end != '\0')
+        return STR2INT_INCONVERTIBLE;
+    *out = (uint8_t)l;
+    return STR2INT_SUCCESS;
+}

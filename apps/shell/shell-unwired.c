@@ -43,9 +43,7 @@
 #include <string.h>
 
 #include <assert.h>
-#include <ctype.h>
-#include <errno.h>
-#include <limits.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -96,7 +94,6 @@ SHELL_COMMAND(unwired_shell_address_command, "address", "address: show net addre
 PROCESS(unwired_shell_test_process, "test");
 SHELL_COMMAND(unwired_shell_test_command, "test", "test: test func", &unwired_shell_test_process);
 
-//команда включения бутлоадера
 /*---------------------------------------------------------------------------*/
 
 static uint8_t parse_args(char *args_string, char **args, uint8_t max_args)
@@ -109,66 +106,6 @@ static uint8_t parse_args(char *args_string, char **args, uint8_t max_args)
       args[i] = strtok(NULL," ");
    }
    return i;
-}
-
-typedef enum str2int_errno_t{
-   STR2INT_SUCCESS,
-   STR2INT_OVERFLOW,
-   STR2INT_UNDERFLOW,
-   STR2INT_INCONVERTIBLE
-} str2int_errno_t;
-/*
-static str2int_errno_t hex_str2uint8(uint8_t *out, char *s) {
-   char *end;
-   if (s[0] == '\0' || isspace((unsigned char) s[0]))
-       return STR2INT_INCONVERTIBLE;
-   errno = 0;
-   long l = strtol(s, &end, 16);
-   // Both checks are needed because INT_MAX == LONG_MAX is possible. //
-   if (l > 255 || (errno == ERANGE && l == LONG_MAX))
-       return STR2INT_OVERFLOW;
-   if (l < 0 || (errno == ERANGE && l == LONG_MIN))
-       return STR2INT_UNDERFLOW;
-   if (*end != '\0')
-       return STR2INT_INCONVERTIBLE;
-   *out = (uint8_t)l;
-   return STR2INT_SUCCESS;
-}
-*/
-
-static str2int_errno_t hex_str2uint16(uint16_t *out, char *s) {
-   char *end;
-   if (s[0] == '\0' || isspace((unsigned char) s[0]))
-       return STR2INT_INCONVERTIBLE;
-   errno = 0;
-   long l = strtol(s, &end, 16);
-   /* Both checks are needed because INT_MAX == LONG_MAX is possible. */
-   if (l > 0xFFFF || (errno == ERANGE && l == LONG_MAX))
-       return STR2INT_OVERFLOW;
-   if (l < 0 || (errno == ERANGE && l == LONG_MIN))
-       return STR2INT_UNDERFLOW;
-   if (*end != '\0')
-       return STR2INT_INCONVERTIBLE;
-   *out = (uint16_t)l;
-   return STR2INT_SUCCESS;
-}
-
-
-static str2int_errno_t dec_str2uint8(uint8_t *out, char *s) {
-    char *end;
-    if (s[0] == '\0' || isspace((unsigned char) s[0]))
-        return STR2INT_INCONVERTIBLE;
-    errno = 0;
-    long l = strtol(s, &end, 10);
-    /* Both checks are needed because INT_MAX == LONG_MAX is possible. */
-    if (l > 255 || (errno == ERANGE && l == LONG_MAX))
-        return STR2INT_OVERFLOW;
-    if (l < 0 || (errno == ERANGE && l == LONG_MIN))
-        return STR2INT_UNDERFLOW;
-    if (*end != '\0')
-        return STR2INT_INCONVERTIBLE;
-    *out = (uint8_t)l;
-    return STR2INT_SUCCESS;
 }
 
 /*---------------------------------------------------------------------------*/

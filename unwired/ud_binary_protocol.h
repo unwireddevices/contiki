@@ -227,7 +227,7 @@
 #define UDUP_V5_RC_PAYLOAD_OFFSET                               (UDUP_V5_HEADER_LENGTH + UDUP_V5_ADDRESS_LENGTH + UDUP_V5_DATA_LENGTH_LENGTH)
 #define UDUP_V5_CR_PAYLOAD_OFFSET                               (UDUP_V5_HEADER_LENGTH + UDUP_V5_ADDRESS_LENGTH + UDUP_V5_DATA_LENGTH_LENGTH + UDUP_V5_CR_VOLTAGE_RSSI_LENGTH)
 
-#define UDUP_V5_RC_MAX_LENGTH                                   1024
+#define UDUP_V5_RC_MAX_LENGTH                                   512*2
 #define UDUP_V5_RC_MAX_PAYLOAD_LENGTH                           (UDUP_V5_RC_MAX_LENGTH - UDUP_V5_RC_PAYLOAD_OFFSET)
 #define UDUP_V5_CR_MAX_LENGTH                                   256
 #define UDUP_V5_CR_MAX_PAYLOAD_LENGTH                           (UDUP_V5_CR_MAX_LENGTH - UDUP_V5_CR_PAYLOAD_OFFSET)
@@ -237,23 +237,16 @@
 #define UDUP_V5_COMMAND_TYPE_REBOOT                             0x01
 #define UDUP_V5_COMMAND_TYPE_BOOTLOADER_ACTIVATE                0x02
 #define UDUP_V5_COMMAND_TYPE_ROOT_TIME_SET                      0x03
-#define UDUP_V5_COMMAND_TYPE_BINARY_CR_MODE                     0x04
-#define UDUP_V5_COMMAND_TYPE_ASCII_CR_MODE                      0x05
 
 /* UDBP V5 */
 #define UDBP_V5_PROTOCOL_VERSION                                0x05
 #define UDBP_V5_HEADER_LENGTH                                   6
 
 
-/* DEVICE_ROOT_LOCAL commands */
-#define LOCAL_ROOT_COMMAND_REBOOT                               0x00 //deprecated
-#define LOCAL_ROOT_COMMAND_BOOTLOADER_ACTIVATE                  0x01 //deprecated
-#define LOCAL_ROOT_COMMAND_TIME_SET                             0x02 //deprecated
-
 /* Defines */
 #define UDP_DATA_PORT                                           4004
 #define VOLTAGE_PRESCALER                                       16 //deprecated
-
+#define LF_BYTE                                                 0x0A
 
 
 #define PT_MESSAGE_ACK_RECIEVED 0x10

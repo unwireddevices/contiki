@@ -1,4 +1,4 @@
-   #define PRId8   "d"
+   #define PRId8   "d" //Signed
    #define PRId16   "d"
    #define PRId32   "ld"
 
@@ -8,7 +8,7 @@
    #define PRIi64   "lli"
    #define PRIint   "i"
 
-   #define PRIu8   "u"
+   #define PRIu8   "u" //unsigned
    #define PRIu16   "u"
 
 #ifndef PRIu32
@@ -18,7 +18,7 @@
    #define PRIu64   "llu"
 
 
-   #define PRIx8   "x"
+   #define PRIx8   "x" //hex
    #define PRIx16   "x"
 #ifndef PRIx32
    #define PRIx32   "lx"
@@ -36,5 +36,5 @@
 #endif
 
 
-#define CHAR   "s"
-
+#define STRING   "s"
+#define CHAR   "c"

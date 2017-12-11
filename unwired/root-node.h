@@ -44,10 +44,11 @@
 
 /*---------------------------------------------------------------------------*/
 
-typedef enum {
-   ROOT_UDUP_V5_HEX_MSG,
-   ROOT_UDUP_V5_BIN_MSG
- } root_udup_message_type_t;
+ typedef enum hex_to_bin_errno_t{
+   HEX2BIN_SUCCESS,
+   HEX2BIN_NONPARITY,
+   HEX2BIN_INCONVERTIBLE
+} hex_to_bin_errno_t;
 
 /* main UPD connection */
 struct simple_udp_connection udp_connection;

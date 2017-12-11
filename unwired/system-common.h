@@ -104,6 +104,14 @@ typedef union u8_u32_t
 } u8_u32_t;
 
 
+typedef enum str2int_errno_t{
+   STR2INT_SUCCESS,
+   STR2INT_OVERFLOW,
+   STR2INT_UNDERFLOW,
+   STR2INT_INCONVERTIBLE
+} str2int_errno_t;
+
+
 void hexraw_print(uint32_t flash_length, uint8_t *flash_read_data_buffer);
 void hexview_print(uint32_t flash_length, uint8_t *flash_read_data_buffer, uint32_t offset);
 void flash_damp_hex(uint8_t mode);
@@ -111,5 +119,11 @@ uint16_t crc16_arc(uint8_t *data, uint16_t len);
 uint8_t get_voltage();
 uint8_t get_parent_rssi();
 uint8_t get_temperature();
+
+
+str2int_errno_t hex_str2uint16(uint16_t *out, char *s);
+str2int_errno_t hex_str2uint16(uint16_t *out, char *s);
+str2int_errno_t dec_str2uint8(uint8_t *out, char *s);
+str2int_errno_t hex_str2uint8(uint8_t *out, char *s);
 /*---------------------------------------------------------------------------*/
 

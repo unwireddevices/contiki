@@ -72,11 +72,10 @@
 
 void send_time_sync_resp_packet(const uip_ip6addr_t *dest_addr, const uint8_t *data, const uint16_t length);
 
-uint8_t udup_v5_rc_uart_rx_buffer[UDUP_V5_RC_MAX_LENGTH];
+uint8_t udup_v5_rc_uart_rx_buffer[UDUP_V5_RC_MAX_LENGTH+1]; //+1 for \n(0x0A)
 uint8_t udup_v5_cr_uart_tx_buffer[UDUP_V5_CR_MAX_LENGTH];
 
 static uint16_t udup_v5_data_iterator = 0;
-root_udup_message_type_t udup_v5_bin_hex_type = ROOT_UDUP_V5_HEX_MSG;
 static struct timer udup_v5_timeout_timer;
 
 volatile union { uint16_t u16; uint8_t u8[2]; } packet_counter_root;
@@ -228,17 +227,9 @@ void udup_v5_dag_root_print(const uip_ip6addr_t *addr, const uint8_t *data, cons
 
 
    /* Выводим весь пакет в UART в зависимости от настроек */
-   if (udup_v5_bin_hex_type == ROOT_UDUP_V5_HEX_MSG)
-   {
-      for (uint16_t i = 0; i < UDUP_V5_CR_PAYLOAD_OFFSET + payload_length.u16 + UDUP_V5_CRC_LENGTH; i++)
-         printf("%"PRIXX8, udup_v5_cr_uart_tx_buffer[i]);
-      printf("\n");
-   }
-   else if (udup_v5_bin_hex_type == ROOT_UDUP_V5_BIN_MSG)
-   {
-      for (uint16_t i = 0; i < UDUP_V5_CR_PAYLOAD_OFFSET + payload_length.u16 + UDUP_V5_CRC_LENGTH; i++)
-          cc26xx_uart_write_byte(udup_v5_cr_uart_tx_buffer[i]);
-   }
+   for (uint16_t i = 0; i < UDUP_V5_CR_PAYLOAD_OFFSET + payload_length.u16 + UDUP_V5_CRC_LENGTH; i++)
+      printf("%"PRIXX8, udup_v5_cr_uart_tx_buffer[i]);
+   printf("\n");
 
 }
 
@@ -277,14 +268,6 @@ void udp_data_receiver(struct simple_udp_connection *connection,
             udbp_v5_join_stage_2_sender(&node_addr);
             led_off(LED_A);
             return;
-         }
-         if (v_5_packet_type == DATA_TYPE_MESSAGE)
-         {
-            uint8_t message_type = data[UDBP_V5_HEADER_LENGTH + 2];
-            if (message_type == DEVICE_MESSAGE_JOIN_SUCCESSFUL)
-            {
-               printf("[Join successful]: ");
-            }
          }
       }
       udbp_v5_ack_packet_sender(&node_addr);
@@ -408,7 +391,7 @@ void udup_v5_short_command_process()
    crc16_in_packet.u8[0] = udup_v5_rc_uart_rx_buffer[4]; //Меняем порядок байт на MSB-First
    crc16_in_packet.u8[1] = udup_v5_rc_uart_rx_buffer[3];
 
-   printf("UDM: crc: 0x%"PRIXX16"\n", crc16_in_packet.u16);
+   //printf("UDM: crc: 0x%"PRIXX16"\n", crc16_in_packet.u16);
 
    if (crc16_calculated != crc16_in_packet.u16)
    {
@@ -427,18 +410,6 @@ void udup_v5_short_command_process()
    {
       printf("UDM: bootloader activate\n");
       ti_lib_flash_sector_erase(0x0001F000);
-   }
-
-   if (command == UDUP_V5_COMMAND_TYPE_BINARY_CR_MODE)
-   {
-      udup_v5_bin_hex_type = ROOT_UDUP_V5_BIN_MSG;
-      printf("UDM: CR mode is binary\n");
-   }
-
-   if (command == UDUP_V5_COMMAND_TYPE_ASCII_CR_MODE)
-   {
-      udup_v5_bin_hex_type = ROOT_UDUP_V5_HEX_MSG;
-      printf("UDM: CR mode is ascii-hex\n");
    }
 
    return;
@@ -542,27 +513,59 @@ void udup_v5_packet_net_packet_process()
 int uart_data_receiver_udup_v5(unsigned char uart_char)
 {
    led_blink(LED_A);
+   //printf("UART char: %"PRIXX8"\n", uart_char);
    if (udup_v5_data_iterator < UDUP_V5_RC_MAX_LENGTH)
    {
       udup_v5_rc_uart_rx_buffer[udup_v5_data_iterator] = uart_char;
       udup_v5_data_iterator++;
       timer_restart(&udup_v5_timeout_timer);
    }
+   //if (uart_char == LF_BYTE)
+   //{
+   //   timer_set(&udup_v5_timeout_timer, 0);
+   //   printf("Timer reset!");
+   //}
    return 1;
+}
+
+/*---------------------------------------------------------------------------*/
+hex_to_bin_errno_t convert_hex_to_bin()
+{
+   for (uint16_t i = 0; i < udup_v5_data_iterator + 1; i = i + 2)
+   {
+      if (udup_v5_rc_uart_rx_buffer[i] == LF_BYTE && i > 0)
+         return HEX2BIN_SUCCESS;
+
+      else if (udup_v5_rc_uart_rx_buffer[i+1] == LF_BYTE && i+1 > 1)
+         return HEX2BIN_NONPARITY;
+
+      uint8_t convert_result;
+      char hex_string[2] = { udup_v5_rc_uart_rx_buffer[i], udup_v5_rc_uart_rx_buffer[i+1] };
+      str2int_errno_t convert_status = hex_str2uint8(&convert_result, hex_string);
+      if (convert_status == STR2INT_SUCCESS)
+      {
+         //printf("HEX2BIN: converted %"CHAR"%"CHAR": dec: %"PRId8", hex: %"PRIXX8"\n", udup_v5_rc_uart_rx_buffer[i], udup_v5_rc_uart_rx_buffer[i+1], convert_result, convert_result);
+         udup_v5_rc_uart_rx_buffer[i/2] = convert_result;
+      }
+      else
+         break;
+   }
+   return HEX2BIN_INCONVERTIBLE;
 }
 
 /*---------------------------------------------------------------------------*/
 void udup_v5_data_process()
 {
-   //printf("UDM: UDUP packet: ");
-   //for (uint16_t i = 0; i <= udup_v5_data_iterator; i++)
-   //   printf("%"PRIXX8" ", udup_v5_rc_uart_rx_buffer[i]);
-   //printf("\n");
-
+/*
+   printf("UDM: UDUP packet: ");
+   for (uint16_t i = 0; i <= udup_v5_data_iterator; i++)
+      printf("%"PRIXX8" ", udup_v5_rc_uart_rx_buffer[i]);
+   printf("\n");
+*/
    /* Проверяем символ начала пакета */
-   if (udup_v5_data_iterator < 4)
+   if (udup_v5_data_iterator + 1 < 5)
    {
-      printf("UDM: Non-correct packet length(length<4b): %"PRId16"\n", udup_v5_data_iterator + 1);
+      printf("UDM: Non-correct packet length(length<5b): %"PRId16"\n", udup_v5_data_iterator + 1);
       return;
    }
 
@@ -586,9 +589,7 @@ void udup_v5_data_process()
 
       /* Считаем CRC и выполняем короткие команды */
       else if (command == UDUP_V5_COMMAND_TYPE_REBOOT ||
-               command == UDUP_V5_COMMAND_TYPE_BOOTLOADER_ACTIVATE ||
-               command == UDUP_V5_COMMAND_TYPE_BINARY_CR_MODE ||
-               command == UDUP_V5_COMMAND_TYPE_ASCII_CR_MODE)
+               command == UDUP_V5_COMMAND_TYPE_BOOTLOADER_ACTIVATE)
          udup_v5_short_command_process();
 
       /* Считаем CRC и выполняем команду времени */
@@ -612,7 +613,7 @@ void udup_v5_data_process()
 PROCESS_THREAD(main_root_process, ev, data)
 {
    PROCESS_BEGIN();
-   timer_set(&udup_v5_timeout_timer, 2);
+   timer_set(&udup_v5_timeout_timer, 10);
 
    static struct etimer main_root_process_timer;
    packet_counter_root.u16 = 0;
@@ -627,7 +628,29 @@ PROCESS_THREAD(main_root_process, ev, data)
       {
          disable_interrupts();
          udup_v5_data_iterator--;
-         udup_v5_data_process();
+         hex_to_bin_errno_t convert_status = convert_hex_to_bin();
+         if (convert_status == HEX2BIN_SUCCESS)
+         {
+            udup_v5_data_iterator = udup_v5_data_iterator/2;
+/*
+            printf("HEX2BIN bytes(%"PRIu8"):", udup_v5_data_iterator);
+            for (uint16_t i = 0; i < udup_v5_data_iterator; i++)
+               printf("%"PRIXX8" ", udup_v5_rc_uart_rx_buffer[i]);
+            printf("\n");
+*/
+            udup_v5_data_iterator--;
+            udup_v5_data_process();
+         }
+         else if (convert_status == HEX2BIN_NONPARITY)
+         {
+            printf("UDM: ANSCII-HEX converting failed, NONPARITY\n");
+         }
+         else if (convert_status == HEX2BIN_INCONVERTIBLE)
+         {
+            printf("UDM: ANSCII-HEX converting failed, INCONVERTIBLE\n");
+
+         }
+
          udup_v5_data_iterator = 0;
          enable_interrupts();
       }
