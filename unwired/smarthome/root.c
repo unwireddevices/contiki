@@ -137,9 +137,10 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 
    root_node_initialize();
 
+   printf("UDM: UART change to alt(RX: %"PRIu16", TX: %"PRIu16")\n", UART_ALT_RX, UART_ALT_TX);
    off_uart(UART_NORMAL_RX, UART_NORMAL_TX);
    on_uart(UART_ALT_RX, UART_ALT_TX, 115200);
-   printf("Alt uart active\n");
+   printf("UDM: Alt UART active\n");
 
    while (1)
    {
@@ -147,7 +148,7 @@ PROCESS_THREAD(rpl_root_process, ev, data)
       if (ev == sensors_event && data == &button_e_sensor_long_click)
       {
          led_on(LED_A);
-         printf("SYSTEM: Button E long click, reboot\n");
+         printf("UDM: Button E long click, reboot\n");
          watchdog_reboot();
       }
    }
