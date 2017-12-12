@@ -210,8 +210,8 @@ void udup_v5_dag_root_print(const uip_ip6addr_t *addr, const uint8_t *data, cons
       payload_length.u16 = UDUP_V5_CR_MAX_PAYLOAD_LENGTH;
    else
       payload_length.u16 = length - payload_offset;
-   udup_v5_cr_uart_tx_buffer[13] = payload_length.u8[0];
-   udup_v5_cr_uart_tx_buffer[14] = payload_length.u8[1];
+   udup_v5_cr_uart_tx_buffer[13] = payload_length.u8[1]; //Меняем порядок байт на MSB-First
+   udup_v5_cr_uart_tx_buffer[14] = payload_length.u8[0];
 
    /* Переносим данные */
    for (uint16_t i = 0; i < payload_length.u16; i++) {
