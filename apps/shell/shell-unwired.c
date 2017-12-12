@@ -59,6 +59,8 @@
 #include "net/mac/frame802154.h"
 
 #include "rtc-common.h"
+#include "system-common.h"
+
 #include "dag_node.h"
 
 #include "xxf_types_helper.h"
