@@ -109,7 +109,7 @@ void udbp_v5_button_status_sender(uint8_t button_number,
 
       printf("DAG Node: Send button packet to DAG-root node\n");
 
-      uint8_t payload_length = 16;
+      uint8_t payload_length = 2;
       uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
       udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
       udp_buffer[1] = packet_counter_node.u8[0];
@@ -120,6 +120,7 @@ void udbp_v5_button_status_sender(uint8_t button_number,
 
       udp_buffer[6] = UNWDS_4BTN_MODULE_ID;
       udp_buffer[7] = dio_and_status;
+/*
       udp_buffer[8] = DATA_RESERVED;
       udp_buffer[9] = DATA_RESERVED;
       udp_buffer[10] = DATA_RESERVED;
@@ -134,6 +135,7 @@ void udbp_v5_button_status_sender(uint8_t button_number,
       udp_buffer[19] = DATA_RESERVED;
       udp_buffer[20] = DATA_RESERVED;
       udp_buffer[21] = DATA_RESERVED;
+ */
 
       net_on(RADIO_ON_TIMER_OFF);
       simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
