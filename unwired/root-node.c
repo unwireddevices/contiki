@@ -367,18 +367,42 @@ void udup_v5_to_net_packet_processed(uip_ipaddr_t node_ipaddr, uint16_t payload_
    if (udp_connection.udp_conn == NULL)
       return;
 
-   uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
+   uint16_t addition_length = ((((payload_length-1)/MINIMAL_BLOCK)+1)*MINIMAL_BLOCK)-payload_length;
+
+   //printf("addition_length ff: %"PRIu8" + %"PRIu8" = %"PRIu8"\n", payload_length, addition_length, payload_length + addition_length);
+
+   uint16_t packet_length = payload_length + addition_length + UDBP_V5_HEADER_LENGTH;
+   uint8_t udp_buffer[packet_length];
    udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
-   udp_buffer[1] = 0xFF; //Счетчик, 1 байт
-   udp_buffer[2] = 0xFF; //Счетчик, 2 байт
-   udp_buffer[3] = 0xFF; //rssi
-   udp_buffer[4] = 0xFF; //temp
-   udp_buffer[5] = 0xFF; //voltage
+   udp_buffer[1] = 0xDE; //Счетчик, 1 байт
+   udp_buffer[2] = 0xAD; //Счетчик, 2 байт
+   udp_buffer[3] = 0xBE; //rssi
+   udp_buffer[4] = 0xEE; //temp
+   udp_buffer[5] = 0xEF; //voltage
 
    for (uint16_t i = 0; i < payload_length; i++)
       udp_buffer[i + UDBP_V5_HEADER_LENGTH] = udup_v5_rc_uart_rx_buffer[UDUP_V5_RC_PAYLOAD_OFFSET+i];
 
-   simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &node_ipaddr);
+   for (uint8_t i = 0; i < addition_length; i++)
+      udp_buffer[i + payload_length + UDBP_V5_HEADER_LENGTH] = 0xFF;
+
+/*
+   printf("Payload(%"PRIu16"): ", payload_length);
+   for (uint16_t i = 0; i < payload_length; i++)
+   {
+      printf("%"PRIXX8, udp_buffer[i + UDBP_V5_HEADER_LENGTH]);
+   }
+   printf("\n");
+
+   printf("Packet(%"PRIu16" + %"PRIu16" + %"PRIu16" = %"PRIu16"): ", payload_length, addition_length, UDBP_V5_HEADER_LENGTH, packet_length);
+   for (uint16_t i = 0; i < packet_length; i++)
+   {
+      printf("%"PRIXX8, udp_buffer[i]);
+   }
+   printf("\n");
+*/
+
+   simple_udp_sendto(&udp_connection, udp_buffer, packet_length, &node_ipaddr);
 }
 /*---------------------------------------------------------------------------*/
 void udup_v5_short_command_process()

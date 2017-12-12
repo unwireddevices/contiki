@@ -247,6 +247,7 @@
 #define UDP_DATA_PORT                                           4004
 #define VOLTAGE_PRESCALER                                       16 //deprecated
 #define LF_BYTE                                                 0x0A
+#define MINIMAL_BLOCK                                           16
 
 
 #define PT_MESSAGE_ACK_RECIEVED 0x10
