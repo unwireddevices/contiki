@@ -392,7 +392,7 @@ void udbp_v5_message_sender(uint8_t message_type, uint8_t data_1, uint8_t data_2
 
    printf("DAG Node: Send message packet to DAG-root node\n");
 
-   uint8_t payload_length = 16;
+   uint8_t payload_length = 5;
    uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
    udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
    udp_buffer[1] = packet_counter_node.u8[0];
@@ -406,6 +406,7 @@ void udbp_v5_message_sender(uint8_t message_type, uint8_t data_1, uint8_t data_2
    udp_buffer[8] = message_type;
    udp_buffer[9] = data_1;
    udp_buffer[10] = data_2;
+/*
    udp_buffer[11] = DATA_RESERVED;
    udp_buffer[12] = DATA_RESERVED;
    udp_buffer[13] = DATA_RESERVED;
@@ -417,7 +418,7 @@ void udbp_v5_message_sender(uint8_t message_type, uint8_t data_1, uint8_t data_2
    udp_buffer[19] = DATA_RESERVED;
    udp_buffer[20] = DATA_RESERVED;
    udp_buffer[21] = DATA_RESERVED;
-
+ */
 
    net_on(RADIO_ON_TIMER_OFF);
    simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
@@ -446,7 +447,7 @@ void udbp_v5_status_packet_sender(const uip_ipaddr_t *parent_addr,
    uip_debug_ipaddr_print(&addr);
    printf("\n");
 
-   uint8_t payload_length = 16*2;
+   uint8_t payload_length = 18;
    uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
    udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
    udp_buffer[1] = packet_counter_node.u8[0];
@@ -474,6 +475,7 @@ void udbp_v5_status_packet_sender(const uip_ipaddr_t *parent_addr,
 
    udp_buffer[22] = LITTLE_VERSION;
    udp_buffer[23] = spi_status;
+/*
    udp_buffer[24] = DATA_RESERVED;
    udp_buffer[25] = DATA_RESERVED;
    udp_buffer[26] = DATA_RESERVED;
@@ -488,6 +490,7 @@ void udbp_v5_status_packet_sender(const uip_ipaddr_t *parent_addr,
    udp_buffer[35] = DATA_RESERVED;
    udp_buffer[36] = DATA_RESERVED;
    udp_buffer[37] = DATA_RESERVED;
+ */
 
    net_on(RADIO_ON_TIMER_OFF);
    simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
@@ -509,7 +512,7 @@ void udbp_v5_join_stage_1_sender(const uip_ipaddr_t *dest_addr)
    uip_debug_ipaddr_print(&addr);
    printf("\n");
 
-   uint8_t payload_length = 16;
+   uint8_t payload_length = 8;
    uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
    udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
    udp_buffer[1] = packet_counter_node.u8[0];
@@ -526,6 +529,7 @@ void udbp_v5_join_stage_1_sender(const uip_ipaddr_t *dest_addr)
    udp_buffer[11] = CURRENT_ABILITY_2BYTE;
    udp_buffer[12] = CURRENT_ABILITY_3BYTE;
    udp_buffer[13] = CURRENT_ABILITY_4BYTE;
+/*
    udp_buffer[14] = DATA_RESERVED;
    udp_buffer[15] = DATA_RESERVED;
    udp_buffer[16] = DATA_RESERVED;
@@ -534,7 +538,7 @@ void udbp_v5_join_stage_1_sender(const uip_ipaddr_t *dest_addr)
    udp_buffer[19] = DATA_RESERVED;
    udp_buffer[20] = DATA_RESERVED;
    udp_buffer[21] = DATA_RESERVED;
-
+ */
 
    simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
 }
