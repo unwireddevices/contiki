@@ -327,7 +327,7 @@ static void udp_receiver(struct simple_udp_connection *c,
             for (uint16_t i = 0; i < datalen-6; i++)
                message_for_main_process.payload[i] = data[i+6];
 
-            printf("DAG Node: Message for module received(%"PRIu8"): ", datalen-16);
+            printf("DAG Node: Message for module received(%"PRIu8"): ", datalen-6);
             for (uint16_t i = 0; i < datalen-6; i++)
                printf("%"PRIXX8, message_for_main_process.payload[i]);
             printf("\n");
