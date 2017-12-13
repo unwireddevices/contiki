@@ -61,11 +61,30 @@
 #include "../ud_binary_protocol.h"
 #include "../int-flash-common.h"
 #include "../dag_node.h"
+#include "system-common.h"
 
 /*---------------------------------------------------------------------------*/
 
-uint8_t relay_1_state = 0;
-uint8_t relay_2_state = 0;
+#define BOARD_RELAY IOID_14
+
+
+typedef enum {
+	UMDK_GPIO_REPLY_OK_0 = 0,
+	UMDK_GPIO_REPLY_OK_1 = 1,
+	UMDK_GPIO_REPLY_OK = 2,
+	UMDK_GPIO_REPLY_ERR_PIN = 3,
+	UMDK_GPIO_REPLY_ERR_FORMAT = 4,
+   UMDK_GPIO_REPLY_OK_AINAF = 5,
+   UMDK_GPIO_REPLY_OK_ALL = 6
+} umdk_gpio_reply_t;
+
+typedef enum {
+	UMDK_GPIO_GET = 0,
+	UMDK_GPIO_SET_0 = 1,
+	UMDK_GPIO_SET_1 = 2,
+	UMDK_GPIO_TOGGLE = 3,
+   UMDK_GPIO_GET_ALL = 4,
+} umdk_gpio_action_t;
 
 /*---------------------------------------------------------------------------*/
 
@@ -80,264 +99,107 @@ AUTOSTART_PROCESSES(&dag_node_process, &main_process);
 
 /*---------------------------------------------------------------------------*/
 
-void set_start_state_flash(uint8_t dio_number, uint8_t dio_state)
+
+
+void udbp_v5_gpio_reply_sender(uint8_t gpio, uint8_t reply)
 {
-   if (dio_number == BOARD_IOID_RELAY_1)
-      user_flash_update_byte(POWER_1_CH_START_STATE_OFFSET, dio_state);
 
-   if (dio_number == BOARD_IOID_RELAY_2)
-      user_flash_update_byte(POWER_2_CH_START_STATE_OFFSET, dio_state);
-}
-
-/*---------------------------------------------------------------------------*/
-
-uint8_t get_start_state_flash(uint8_t dio_number)
-{
-   uint8_t state = 0xFF;
-
-   if (dio_number == BOARD_IOID_RELAY_1)
-      state = user_flash_read_byte(POWER_1_CH_START_STATE_OFFSET);
-
-   if (dio_number == BOARD_IOID_RELAY_2)
-      state = user_flash_read_byte(POWER_2_CH_START_STATE_OFFSET);
-
-   if (state == 0xFF)
-      state = START_ON_LAST_STATE;
-
-   return state;
-}
-
-
-/*---------------------------------------------------------------------------*/
-
-void set_last_state_flash(uint8_t dio_number, uint8_t dio_state)
-{
-   if (dio_number == BOARD_IOID_RELAY_1)
-      user_flash_update_byte(POWER_1_CH_LAST_STATE_OFFSET, dio_state);
-
-   if (dio_number == BOARD_IOID_RELAY_2)
-      user_flash_update_byte(POWER_2_CH_LAST_STATE_OFFSET, dio_state);
-}
-
-/*---------------------------------------------------------------------------*/
-
-uint8_t get_last_state_flash(uint8_t dio_number)
-{
-   uint8_t state = 0xFF;
-   if (dio_number == BOARD_IOID_RELAY_1)
-      state = user_flash_read_byte(POWER_1_CH_LAST_STATE_OFFSET);
-
-   if (dio_number == BOARD_IOID_RELAY_2)
-      state = user_flash_read_byte(POWER_2_CH_LAST_STATE_OFFSET);
-
-   if (state == 0xFF)
-      state = DEVICE_ABILITY_RELAY_COMMAND_OFF;
-
-   return state;
-}
-
-/*---------------------------------------------------------------------------*/
-
-uint8_t ability_to_dio(uint8_t ability)
-{
-   if (ability == DEVICE_ABILITY_RELAY_1)
-      return BOARD_IOID_RELAY_1;
-
-   if (ability == DEVICE_ABILITY_RELAY_2)
-      return BOARD_IOID_RELAY_2;
-
-   return 0xFF;
-}
-
-/*---------------------------------------------------------------------------*/
-
-uint8_t dio_to_ability(uint8_t dio)
-{
-   if (dio == BOARD_IOID_RELAY_1)
-      return DEVICE_ABILITY_RELAY_1;
-
-   if (dio == BOARD_IOID_RELAY_2)
-      return DEVICE_ABILITY_RELAY_2;
-
-   return 0;
-}
-
-/*---------------------------------------------------------------------------*/
-void change_dio_state(uint8_t ability_number, uint8_t dio_state)    //TODO: куча кода дублируется, сделай с этим что-нибудь
-//TODO: и убери switch-case!
-{
-   //сюда передается ability, хотя функция называется change_dio.
-   printf("RELAY: change dio state, number: %02X, state: %02X\n",
-          ability_number,
-          dio_state);
-
-   if (ability_number == DEVICE_ABILITY_RELAY_1)
+   if (node_mode == MODE_NORMAL)
    {
-      switch ( dio_state )
-      {
-      case DEVICE_ABILITY_RELAY_COMMAND_OFF:
-         ti_lib_gpio_clear_dio(BOARD_IOID_RELAY_1);
-         printf("RELAY: Relay 1 set to OFF\n");
-         relay_1_state = 0;
-         break;
-      case DEVICE_ABILITY_RELAY_COMMAND_ON:
-         ti_lib_gpio_set_dio(BOARD_IOID_RELAY_1);
-         printf("RELAY: Relay 1 set to ON\n");
-         relay_1_state = 1;
-         break;
-      case DEVICE_ABILITY_RELAY_COMMAND_TOGGLE:
-         if (relay_1_state == 1)
-         {
-            ti_lib_gpio_clear_dio(BOARD_IOID_RELAY_1);
-            printf("RELAY: Relay 1 set to OFF\n");
-            relay_1_state = 0;
-         }
-         else
-         {
-            ti_lib_gpio_set_dio(BOARD_IOID_RELAY_1);
-            printf("RELAY: Relay 1 set to ON\n");
-            relay_1_state = 1;
-         }
-         break;
-      default:
-         printf("RELAY: Incompatible relay 1 state!\n");
-         break;
-      }
-      set_last_state_flash(BOARD_IOID_RELAY_1, relay_1_state);
+      uip_ipaddr_t addr;
+      uip_ip6addr_copy(&addr, &root_addr);
 
+      uint8_t gpio_and_reply = reply << 6;
+      gpio_and_reply |= gpio & 0b00011111;
+
+      printf("DAG Node: Send gpio reply packet to DAG-root node\n");
+
+      uint8_t payload_length = 2;
+      uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
+      udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
+      udp_buffer[1] = packet_counter_node.u8[0];
+      udp_buffer[2] = packet_counter_node.u8[1];
+      udp_buffer[3] = get_parent_rssi();
+      udp_buffer[4] = get_temperature();
+      udp_buffer[5] = get_voltage();
+
+      udp_buffer[6] = UNWDS_GPIO_MODULE_ID;
+      udp_buffer[7] = gpio_and_reply;
+
+      simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
+      packet_counter_node.u16++;
+      led_mode_set(LED_FLASH);
    }
-   if (ability_number == DEVICE_ABILITY_RELAY_2)
-   {
-      switch ( dio_state )
-      {
-      case DEVICE_ABILITY_RELAY_COMMAND_OFF:
-         ti_lib_gpio_clear_dio(BOARD_IOID_RELAY_2);
-         printf("RELAY: Relay 2 set to OFF\n");
-         relay_2_state = 0;
-         break;
-      case DEVICE_ABILITY_RELAY_COMMAND_ON:
-         ti_lib_gpio_set_dio(BOARD_IOID_RELAY_2);
-         printf("RELAY: Relay 2 set to ON\n");
-         relay_2_state = 1;
-         break;
-      case DEVICE_ABILITY_RELAY_COMMAND_TOGGLE:
-         if (relay_2_state == 1)
-         {
-            ti_lib_gpio_clear_dio(BOARD_IOID_RELAY_2);
-            printf("RELAY: Relay 2 set to OFF\n");
-            relay_2_state = 0;
-         }
-         else
-         {
-            ti_lib_gpio_set_dio(BOARD_IOID_RELAY_2);
-            printf("RELAY: Relay 2 set to ON\n");
-            relay_2_state = 1;
-         }
-         break;
-      default:
-         printf("RELAY: Incompatible relay 2 state!\n");
-         break;
-      }
-      set_last_state_flash(BOARD_IOID_RELAY_2, relay_2_state);
-   }
-
 }
-
-/*---------------------------------------------------------------------------*/
-
-void configure_channel(uint8_t channel_dio)
-{
-   ti_lib_ioc_pin_type_gpio_output(channel_dio);
-   ti_lib_gpio_clear_dio(channel_dio);
-
-   uint8_t start_state = get_start_state_flash(channel_dio);
-
-   if (start_state == START_ON_LAST_STATE)
-      change_dio_state(dio_to_ability(channel_dio), get_last_state_flash(channel_dio));
-
-   if (start_state == START_ON_ON_STATE)
-      change_dio_state(dio_to_ability(channel_dio), DEVICE_ABILITY_RELAY_COMMAND_ON);
-
-   if (start_state == START_ON_OFF_STATE)
-      change_dio_state(dio_to_ability(channel_dio), DEVICE_ABILITY_RELAY_COMMAND_OFF);
-}
-
-/*---------------------------------------------------------------------------*/
-
-/*
-void settings_change(struct command_data *command_relay)
-{
-   printf("RELAY: new settings, target: %02X, state: %02X, number: %02X \n",
-          command_relay->ability_target,
-          command_relay->ability_state,
-          command_relay->ability_number);
-
-   if (command_relay->ability_number != DEVICE_ABILITY_RELAY_1 &&
-         command_relay->ability_number != DEVICE_ABILITY_RELAY_2)
-   {
-      printf("Not support relay number\n");
-      return;
-   }
-
-   if (command_relay->ability_target == DEVICE_ABILITY_RELAY_1_SETTINGS_START_STATE)
-      set_start_state_flash(BOARD_IOID_RELAY_1, command_relay->ability_state);
-
-   if (command_relay->ability_target == DEVICE_ABILITY_RELAY_2_SETTINGS_START_STATE)
-      set_start_state_flash(BOARD_IOID_RELAY_2, command_relay->ability_state);
-}
-*/
-
-/*---------------------------------------------------------------------------*/
-
-/*
-void exe_relay_command(struct command_data *command_relay)
-{
-   printf("RELAY: new command, target: %02X, state: %02X, number: %02X \n",
-          command_relay->ability_target,
-          command_relay->ability_state,
-          command_relay->ability_number);
-
-   if (command_relay->ability_number != DEVICE_ABILITY_RELAY_1 &&
-         command_relay->ability_number != DEVICE_ABILITY_RELAY_2)
-   {
-      printf("Not support relay number\n");
-      return;
-   }
-   change_dio_state(command_relay->ability_number, command_relay->ability_state);
-}
-*/
-
-/*---------------------------------------------------------------------------*/
 
 PROCESS_THREAD(main_process, ev, data)
 {
    PROCESS_BEGIN();
 
-   //static struct command_data *message_data = NULL;
+   static struct interpocess_message *message_data = NULL;
 
    PROCESS_PAUSE();
 
    printf("Unwired relay device. HELL-IN-CODE free. I hope.\n");
-   configure_channel(BOARD_IOID_RELAY_1);
-   configure_channel(BOARD_IOID_RELAY_2);
+   ti_lib_ioc_pin_type_gpio_output(BOARD_RELAY);
+/*
+   uint8_t command = 1;
+   uint8_t gpio = 15;
 
+   uint8_t gpio_cmd = command << 6;
+   gpio_cmd |= gpio & 0b00011111;
+
+   uint8_t command_2 = (gpio_cmd & 0b11100000) >> 6;
+   uint8_t gpio_2 = gpio_cmd & 0b00011111;
+
+   printf("TEST: GPIO %"PRIu8" and CMD %"PRIu8" => 0x%"PRIXX8" => GPIO %"PRIu8" and CMD %"PRIu8"\n", gpio, command, gpio_cmd, gpio_2, command_2);
+   //014f
+    */
    while (1)
    {
       PROCESS_YIELD();
       if (ev == PROCESS_EVENT_CONTINUE)
       {
-         //message_data = data;
-         //if (message_data != NULL)
-         //{
-            //if (message_data->ability_target == DEVICE_ABILITY_RELAY)
-            //{
-            //   if (message_data->data_type == DATA_TYPE_COMMAND)
-            //      exe_relay_command(message_data);
-            //
-            //   if (message_data->data_type == DATA_TYPE_SETTINGS)
-            //      settings_change(message_data);
-            //}
-         //}
+         message_data = data;
+         if (message_data->payload[0] == UNWDS_GPIO_MODULE_ID)
+         {
+            uint8_t gpio_cmd = message_data->payload[1];
+            uint8_t command = (gpio_cmd & 0b11100000) >> 6;
+            uint8_t gpio = gpio_cmd & 0b00011111;
+            printf("RELAY: GPIO: %"PRIu8", command: %"PRIu8"\n", gpio, command);
+
+            if (gpio != 14)
+            {
+               printf("Relay: gpio error: %"PRIu8"\n", gpio);
+               udbp_v5_gpio_reply_sender(gpio, UMDK_GPIO_REPLY_ERR_PIN);
+            }
+            else
+            {
+               if (command == UMDK_GPIO_SET_0)
+               {
+                  ti_lib_gpio_clear_dio(BOARD_RELAY);
+                  udbp_v5_gpio_reply_sender(gpio, UMDK_GPIO_REPLY_OK);
+               }
+               else if (command == UMDK_GPIO_SET_1)
+               {
+                  ti_lib_gpio_set_dio(BOARD_RELAY);
+                  udbp_v5_gpio_reply_sender(gpio, UMDK_GPIO_REPLY_OK);
+               }
+               else if (command == UMDK_GPIO_GET)
+               {
+                  udbp_v5_gpio_reply_sender(gpio, UMDK_GPIO_REPLY_ERR_FORMAT);
+               }
+               else if (command == UMDK_GPIO_TOGGLE)
+               {
+                  ti_lib_gpio_toggle_dio(BOARD_RELAY);
+                  udbp_v5_gpio_reply_sender(gpio, UMDK_GPIO_REPLY_OK);
+               }
+               else
+               {
+                  udbp_v5_gpio_reply_sender(gpio, UMDK_GPIO_REPLY_ERR_FORMAT);
+               }
+            }
+         }
       }
    }
 
