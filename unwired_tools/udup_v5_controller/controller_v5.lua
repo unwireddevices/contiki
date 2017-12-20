@@ -259,28 +259,21 @@ end
 --/*------------------------------ Обработка данных, приходящих из MQTT и UART ---------------------------------------------*/--
 
 local function uart_packet_parse(packet)
-   print("rec packet: ", packet)
    local packet_capture_pattern = "160500(%w%w%w%w%w%w%w%w%w%w%w%w%w%w%w%w)(%w%w)(%w%w)(%w%w%w%w)(.+)(%w%w%w%w)"
    local _, _, adress_raw, voltage_raw, parent_rssi_raw, payload_length_raw, payload_raw, crc_raw = string.find(packet, packet_capture_pattern)
-   print_raw(adress_raw, voltage_raw, parent_rssi_raw, payload_length_raw, payload_raw, crc_raw)
+   print("\nRaw packet: ", adress_raw, " ", voltage_raw,  " ", parent_rssi_raw, " ", payload_length_raw, " ", payload_raw, " ", crc_raw)
    if (adress_raw ~= nil and payload_length_raw ~= nil and payload_raw ~= nil and crc_raw ~= nil and voltage_raw ~= nil and parent_rssi_raw ~= nil) then
       local adress_capture_pattern = "(%w%w%w%w)(%w%w%w%w)(%w%w%w%w)(%w%w%w%w)"
-      local payload_length_capture_pattern = "(%w%w)(%w%w)"
-      local crc_capture_pattern = "(%w%w)(%w%w)"
+      local payload_length_capture_pattern, crc_capture_pattern, payload_byte_capture_pattern = "(%w%w)(%w%w)", "(%w%w)(%w%w)", "(%w%w)"
 
-		local _
-		local a = {}
-      local d = {}
-      local payload_length = {}
-      local crc = {}
-      local payload = {}
+		local _, i = nil, 1
+		local a, payload, payload_length, crc = {}, {}, {}, {}
 
 		_, _, a[1], a[2], a[3], a[4]  = string.find(adress_raw, adress_capture_pattern)
       _, _, payload_length[1], payload_length[2] = string.find(payload_length_raw, payload_length_capture_pattern)
       _, _, crc[1], crc[2] = string.find(crc_raw, crc_capture_pattern)
 
-      local i = 1
-      for w in string.gmatch(payload_raw, "(%w%w)") do
+      for w in string.gmatch(payload_raw, payload_byte_capture_pattern) do
          payload[i] = w
          i = i + 1
       end
@@ -291,7 +284,7 @@ local function uart_packet_parse(packet)
       local crc_dec = tonumber(bindechex.Hex2Dec((crc[1] or 00)..(crc[2] or 00)))
       local address_string = a[1]..a[2]..a[3]..a[4]
       local bin_packet = strings.hex_to_bin_string(packet)
-      local bin_packet_no_crc = string.sub(bin_packet, 0, #bin_packet-2)
+      local bin_packet_no_crc = string.sub(bin_packet, 0, #bin_packet-2) --Cut crc bytes(2b)
       local crc_calculated = ansicrc.calc(bin_packet_no_crc)
 
       if (payload_length_dec ~= #payload) then
@@ -416,7 +409,7 @@ local function lanes_uart_parser()
    local port_name = "/dev/ttyATH0"
 
    local buffers = require("lib_buffers")
-   local buffer = buffers.create_buffer()
+   local buffer = buffers.create_buffer(100)
 
    local e, p = rs232.open(port_name)
    if (e ~= rs232.RS232_ERR_NOERROR) then
@@ -450,17 +443,19 @@ local function lanes_uart_parser()
          buffers.add_byte_to_buffer(buffer, data_read)
          buffer_state = buffers.get_buffer(buffer)
          --print(buffer_state)
-         _, _, packet = string.find(buffer_state, "(1605.+\n)")
-         if (packet ~= nil) then
-            linda:set("uart_packet", packet)
-            print(buffer_state)
-            buffers.clean_buffer(buffer)
-         end
-         _, _, message = string.find(buffer_state, "(UDM:.+)\n")
-         if (message ~= nil) then
-            --print(message)
-            --linda:set("uart_packet", packet)
-            buffers.clean_buffer(buffer)
+         if (data_read == "\n") then
+            _, _, packet = string.find(buffer_state, "(1605.+\n)")
+            if (packet ~= nil) then
+               linda:set("uart_packet", packet)
+               --print(buffer_state)
+               buffers.clean_buffer(buffer)
+            end
+            _, _, message = string.find(buffer_state, "(UDM:.+)\n")
+            if (message ~= nil) then
+               print("\n"..message.."\n")
+               --linda:set("uart_packet", packet)
+               buffers.clean_buffer(buffer)
+            end
          end
       end
 

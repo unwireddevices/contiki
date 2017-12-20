@@ -1,10 +1,11 @@
 local buffers = {}
+local buffer_size
 
 --/*---------------------------------------------------------------------------*/--
 
 function buffers.add_byte_to_buffer(buffer, byte)
    table.insert(buffer, byte)
-   while (#buffer > 100) do
+   while (#buffer > buffer_size) do
       table.remove(buffer, 1)
    end
 end
@@ -25,7 +26,8 @@ end
 
 --/*---------------------------------------------------------------------------*/--
 
-function buffers.create_buffer()
+function buffers.create_buffer(size)
+   buffer_size = size
    local buffer = {}
    return buffer
 end
