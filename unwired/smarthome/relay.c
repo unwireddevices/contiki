@@ -65,7 +65,7 @@
 
 /*---------------------------------------------------------------------------*/
 
-#define BOARD_RELAY IOID_14
+#define BOARD_RELAY IOID_16
 
 
 typedef enum {
@@ -99,18 +99,13 @@ AUTOSTART_PROCESSES(&dag_node_process, &main_process);
 
 /*---------------------------------------------------------------------------*/
 
-
-
-void udbp_v5_gpio_reply_sender(uint8_t gpio, uint8_t reply)
+void udbp_v5_gpio_reply_sender(uint8_t reply)
 {
 
    if (node_mode == MODE_NORMAL)
    {
       uip_ipaddr_t addr;
       uip_ip6addr_copy(&addr, &root_addr);
-
-      uint8_t gpio_and_reply = reply << 6;
-      gpio_and_reply |= gpio & 0b00011111;
 
       printf("DAG Node: Send gpio reply packet to DAG-root node\n");
 
@@ -124,7 +119,7 @@ void udbp_v5_gpio_reply_sender(uint8_t gpio, uint8_t reply)
       udp_buffer[5] = get_voltage();
 
       udp_buffer[6] = UNWDS_GPIO_MODULE_ID;
-      udp_buffer[7] = gpio_and_reply;
+      udp_buffer[7] = reply;
 
       simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
       packet_counter_node.u16++;
@@ -153,8 +148,7 @@ PROCESS_THREAD(main_process, ev, data)
    uint8_t gpio_2 = gpio_cmd & 0b00011111;
 
    printf("TEST: GPIO %"PRIu8" and CMD %"PRIu8" => 0x%"PRIXX8" => GPIO %"PRIu8" and CMD %"PRIu8"\n", gpio, command, gpio_cmd, gpio_2, command_2);
-   //014f
-    */
+*/
    while (1)
    {
       PROCESS_YIELD();
@@ -164,39 +158,39 @@ PROCESS_THREAD(main_process, ev, data)
          if (message_data->payload[0] == UNWDS_GPIO_MODULE_ID)
          {
             uint8_t gpio_cmd = message_data->payload[1];
-            uint8_t command = (gpio_cmd & 0b11100000) >> 6;
+            uint8_t command = (gpio_cmd & 0b11100000) >> 5;
             uint8_t gpio = gpio_cmd & 0b00011111;
             printf("RELAY: GPIO: %"PRIu8", command: %"PRIu8"\n", gpio, command);
 
-            if (gpio != 14)
+            if (gpio != BOARD_RELAY)
             {
                printf("Relay: gpio error: %"PRIu8"\n", gpio);
-               udbp_v5_gpio_reply_sender(gpio, UMDK_GPIO_REPLY_ERR_PIN);
+               udbp_v5_gpio_reply_sender(UMDK_GPIO_REPLY_ERR_PIN);
             }
             else
             {
                if (command == UMDK_GPIO_SET_0)
                {
                   ti_lib_gpio_clear_dio(BOARD_RELAY);
-                  udbp_v5_gpio_reply_sender(gpio, UMDK_GPIO_REPLY_OK);
+                  udbp_v5_gpio_reply_sender(UMDK_GPIO_REPLY_OK);
                }
                else if (command == UMDK_GPIO_SET_1)
                {
                   ti_lib_gpio_set_dio(BOARD_RELAY);
-                  udbp_v5_gpio_reply_sender(gpio, UMDK_GPIO_REPLY_OK);
+                  udbp_v5_gpio_reply_sender(UMDK_GPIO_REPLY_OK);
                }
                else if (command == UMDK_GPIO_GET)
                {
-                  udbp_v5_gpio_reply_sender(gpio, UMDK_GPIO_REPLY_ERR_FORMAT);
+                  udbp_v5_gpio_reply_sender(UMDK_GPIO_REPLY_ERR_FORMAT);
                }
                else if (command == UMDK_GPIO_TOGGLE)
                {
                   ti_lib_gpio_toggle_dio(BOARD_RELAY);
-                  udbp_v5_gpio_reply_sender(gpio, UMDK_GPIO_REPLY_OK);
+                  udbp_v5_gpio_reply_sender(UMDK_GPIO_REPLY_OK);
                }
                else
                {
-                  udbp_v5_gpio_reply_sender(gpio, UMDK_GPIO_REPLY_ERR_FORMAT);
+                  udbp_v5_gpio_reply_sender(UMDK_GPIO_REPLY_ERR_FORMAT);
                }
             }
          }
