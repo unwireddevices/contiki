@@ -57,52 +57,61 @@ local DATA_TYPE_JOIN_V5_STAGE_1                 =              "10" --Нода �
 local DATA_TYPE_JOIN_V5_STAGE_2                 =              "11" --Координатор отвечает ноде
 
 
-local PAYLOAD_OFFSET_MODULE_ID = 1
+local UNWDS_GPIO_MODULE_ID = "01"
+local UNWDS_4BTN_MODULE_ID = "02"
+local UNWDS_OPT3001_MODULE_ID = "0F"
+local UNWDS_6LOWPAN_SYSTEM_MODULE_ID = "7F"
 
-local UNWDS_4BTN_MODULE_ID = 2
-local UNWDS_OPT3001_MODULE_ID = 15
 
-local UNWDS_6LOWPAN_SYSTEM_MODULE_ID = 127
-local PAYLOAD_CONFIG_MODULE_ID_OFFSET_PACKET_TYPE = 2
+local DATA_TYPE_MESSAGES = {}
+DATA_TYPE_MESSAGES["0F"] = "Join ok"
 
---/*---------------------------------------------------------------------------*/--
 
-local function get_module_id(payload)
-   return bindechex.Hex2Dec(payload[PAYLOAD_OFFSET_MODULE_ID])
+--/*------------------------------ Системные функции ---------------------------------------------*/--
+
+local function send_to_uart(packet)
+   --print("uart packet send: ", packet)
+   linda:set("uart_new_data", packet)
 end
-
---/*---------------------------------------------------------------------------*/--
-
-local function get_module_config_packet_type(payload)
-   return bindechex.Hex2Dec(payload[PAYLOAD_CONFIG_MODULE_ID_OFFSET_PACKET_TYPE])
-end
-
---/*---------------------------------------------------------------------------*/--
 
 local function send_to_mqtt(json_text, topic)
-   print(topic, ":\n", json_text)
+   --print(topic, ":\n", json_text)
    mqtt_client:publish(topic, json_text)
 end
 
---/*------------------------------ Обработка разных типов системных пакетов ---------------------------------------------*/--
-
-local function join_data_processing(address_string, voltage, parent_rssi, payload)
-   local json_table = {}
-   json_table.data = {}
-   --json_table.data.device_group = device_group[current_device_group] or current_device_group
-   --json_table.data.sleep_type = device_sleep_type[current_sleep_type] or current_sleep_type
-
-   json_table.status = {}
-   json_table.status.devEUI = address_string
-   json_table.status.rssi = parent_rssi
-   json_table.status.temperature = 0
-   json_table.status.battery = voltage
-   json_table.status.date = os.date("!%FT%T.%uZ")
-   local json_text = cjson.encode(json_table)
-   send_to_mqtt(json_text, "devices/6lowpan/"..address_string.."/join")
+local function publish_error_message(error_message)
+   mqtt_client:publish("error", error_message)
+   print(error_message)
 end
 
---/*---------------------------------------------------------------------------*/--
+local function net_packet_construct(address, payload)
+   local UDUP_V5_MAGIC_BYTE = "16"
+   local UDUP_V5_PROTOCOL_VERSION = "05"
+   local UDUP_V5_COMMAND_TYPE_NET_PACKET = "00"
+
+   local payload_length_dec = #payload / 2
+   local payload_length_hex_b1, payload_length_hex_b2  = bindechex.Dec2Hex_augment_2b(payload_length_dec, 4)
+
+   local packet = ""
+   packet = packet .. UDUP_V5_MAGIC_BYTE
+   packet = packet .. UDUP_V5_PROTOCOL_VERSION
+   packet = packet .. UDUP_V5_COMMAND_TYPE_NET_PACKET
+   packet = packet .. address
+   packet = packet .. payload_length_hex_b1
+   packet = packet .. payload_length_hex_b2
+
+   packet = packet .. payload
+
+   local packet_crc_dec = ansicrc.calc_hex(packet)
+   local packet_crc_hex_b1, packet_crc_hex_b2  = bindechex.Dec2Hex_augment_2b(packet_crc_dec, 4)
+
+   packet = packet .. packet_crc_hex_b1
+   packet = packet .. packet_crc_hex_b2
+
+   send_to_uart(packet)
+end
+
+--/*------------------------------ Обработка разных типов приходящих системных пакетов ---------------------------------------------*/--
 
 local function status_data_processing(address_string, voltage, parent_rssi, payload)
    local json_table = {}
@@ -122,10 +131,12 @@ local function status_data_processing(address_string, voltage, parent_rssi, payl
    send_to_mqtt(json_text, "devices/6lowpan/"..address_string.."/status")
 end
 
+--/*---------------------------------------------------------------------------*/--
+
 local function message_data_processing(address_string, voltage, parent_rssi, payload)
    local json_table = {}
    json_table.data = {}
-   json_table.data.message = payload[3]
+   json_table.data.message = DATA_TYPE_MESSAGES[payload[3]] or payload[3]
 
    json_table.status = {}
    json_table.status.devEUI = address_string
@@ -137,7 +148,6 @@ local function message_data_processing(address_string, voltage, parent_rssi, pay
    send_to_mqtt(json_text, "devices/6lowpan/"..address_string.."/message")
 end
 
---/*------------------------------ Обработка пакетов UNWDS ---------------------------------------------*/--
 
 local function unwds_opt3001_data_processing(address_string, voltage, parent_rssi, payload)
 
@@ -191,10 +201,68 @@ end
 
 --/*---------------------------------------------------------------------------*/--
 
-local function packet_parse(packet)
+local function unwds_gpio_data_processing(address_string, voltage, parent_rssi, payload)
+   local json_table = {}
+   json_table.data = {}
+
+   local GPIO_MODULE_ANSWER = {}
+   GPIO_MODULE_ANSWER["00"] = "UMDK_GPIO_REPLY_OK_0"
+	GPIO_MODULE_ANSWER["01"] = "UMDK_GPIO_REPLY_OK_1"
+	GPIO_MODULE_ANSWER["02"] = "UMDK_GPIO_REPLY_OK"
+	GPIO_MODULE_ANSWER["03"] = "UMDK_GPIO_REPLY_ERR_PIN"
+	GPIO_MODULE_ANSWER["04"] = "UMDK_GPIO_REPLY_ERR_FORMAT"
+   GPIO_MODULE_ANSWER["05"] = "UMDK_GPIO_REPLY_OK_AINAF"
+   GPIO_MODULE_ANSWER["06"] = "UMDK_GPIO_REPLY_OK_ALL"
+
+   local answer_byte = payload[2]
+   json_table.data.answer = GPIO_MODULE_ANSWER[answer_byte]
+
+   json_table.status = {}
+   json_table.status.devEUI = address_string
+   json_table.status.rssi = parent_rssi
+   json_table.status.temperature = 0
+   json_table.status.battery = voltage
+   json_table.status.date = os.date("!%FT%T.%uZ")
+
+   local json_text = cjson.encode(json_table)
+   send_to_mqtt(json_text, "devices/6lowpan/"..address_string.."/gpio")
+end
+
+
+--/*------------------------------ Обработка исходящих пакетов UNWDS ---------------------------------------------*/--
+
+local function gpio_message_create(address, gpio_cmd, gpio_num, gpio_state)
+   local payload = ""
+   local command_gpio_byte
+   local int_command
+
+   if (gpio_state == 0) then
+      int_command = 1
+   elseif (gpio_state == 1) then
+      int_command = 2
+   end
+
+   if (gpio_cmd == "set") then
+      gpio_num = bit.tobit(gpio_num)
+      int_command = bit.tobit(int_command)
+
+      local int_command_shift = bit.lshift(int_command, 6)
+      command_gpio_byte = bit.bor(int_command_shift, gpio_num)
+   end
+
+   payload = payload .. UNWDS_GPIO_MODULE_ID
+   payload = payload .. bindechex.Dec2Hex_augment(command_gpio_byte)
+
+   net_packet_construct(address, payload)
+end
+
+--/*------------------------------ Обработка данных, приходящих из MQTT и UART ---------------------------------------------*/--
+
+local function uart_packet_parse(packet)
+   print("rec packet: ", packet)
    local packet_capture_pattern = "160500(%w%w%w%w%w%w%w%w%w%w%w%w%w%w%w%w)(%w%w)(%w%w)(%w%w%w%w)(.+)(%w%w%w%w)"
    local _, _, adress_raw, voltage_raw, parent_rssi_raw, payload_length_raw, payload_raw, crc_raw = string.find(packet, packet_capture_pattern)
-   --print_raw(adress_raw, voltage_raw, parent_rssi_raw, payload_length_raw, payload_raw, crc_raw)
+   print_raw(adress_raw, voltage_raw, parent_rssi_raw, payload_length_raw, payload_raw, crc_raw)
    if (adress_raw ~= nil and payload_length_raw ~= nil and payload_raw ~= nil and crc_raw ~= nil and voltage_raw ~= nil and parent_rssi_raw ~= nil) then
       local adress_capture_pattern = "(%w%w%w%w)(%w%w%w%w)(%w%w%w%w)(%w%w%w%w)"
       local payload_length_capture_pattern = "(%w%w)(%w%w)"
@@ -219,7 +287,7 @@ local function packet_parse(packet)
 
       local parent_rssi = (tonumber(bindechex.Hex2Dec(parent_rssi_raw or 00)))-200
       local voltage = (((tonumber(bindechex.Hex2Dec(voltage_raw or 00)))*50)+2000)
-      local payload_length_dec = tonumber(bindechex.Hex2Dec((payload_length[2] or 00)..(payload_length[1] or 00)))
+      local payload_length_dec = tonumber(bindechex.Hex2Dec((payload_length[1] or 00)..(payload_length[2] or 00)))
       local crc_dec = tonumber(bindechex.Hex2Dec((crc[1] or 00)..(crc[2] or 00)))
       local address_string = a[1]..a[2]..a[3]..a[4]
       local bin_packet = strings.hex_to_bin_string(packet)
@@ -235,66 +303,86 @@ local function packet_parse(packet)
          return
       end
 
-      if (get_module_id(payload) == UNWDS_6LOWPAN_SYSTEM_MODULE_ID) then
-         if (get_module_config_packet_type(payload) == DATA_TYPE_JOIN_V5_STAGE_1) then
+      local module_id = payload[1]
+      if (module_id == UNWDS_6LOWPAN_SYSTEM_MODULE_ID) then
+         local packet_type = payload[2]
+         if (packet_type == DATA_TYPE_JOIN_V5_STAGE_1) then
             print("Not parse join stage 1 packet(it is normal)")
             --join_data_processing(address_string, voltage, parent_rssi, payload)
-         elseif (get_module_config_packet_type(payload) == DATA_TYPE_STATUS) then
+         elseif (packet_type == DATA_TYPE_STATUS) then
             status_data_processing(address_string, voltage, parent_rssi, payload)
-         elseif (get_module_config_packet_type(payload) == DATA_TYPE_MESSAGE) then
+         elseif (packet_type == DATA_TYPE_MESSAGE) then
             message_data_processing(address_string, voltage, parent_rssi, payload)
          else
-            print("Non-corrent packet type: ", get_module_config_packet_type(payload))
+            print("Non-corrent packet type: ", packet_type, "\t", payload_raw)
          end
-      elseif (get_module_id(payload) == UNWDS_OPT3001_MODULE_ID) then
+      elseif (module_id == UNWDS_OPT3001_MODULE_ID) then
          unwds_opt3001_data_processing(address_string, voltage, parent_rssi, payload)
-      elseif (get_module_id(payload) == UNWDS_4BTN_MODULE_ID) then
+      elseif (module_id == UNWDS_4BTN_MODULE_ID) then
          unwds_4btn_data_processing(address_string, voltage, parent_rssi, payload)
+      elseif (module_id == UNWDS_GPIO_MODULE_ID) then
+         unwds_gpio_data_processing(address_string, voltage, parent_rssi, payload)
       else
-         print("Non-corrent module id: ", get_module_id(payload))
+         print("Non-corrent module id: ", module_id, "\t", payload_raw)
       end
 
---[[
-      print_n("payload:")
-      for i2 = 1, #payload do
-         print_n(payload[i2].."  ")
-      end
-      print_n("\n")
-]]
 
---[[
-		if (end_1 ~= nil and end_2 ~= nil) then
-			packet_processing(a, d)
-		else
-			print(string.format("Not parse adress(%s) or data(%s) in packet"), tostring(end_1), tostring(end_2))
-			print(packet)
-			print(adress)
-			print(adress_capturing)
-			print(raw_data)
-			print(data_capturing)
-      end
-]]
 	else
 		print("Not parse packet: "..packet)
 	end
 end
 
-local function uart_packet_send(packet)
-   linda:set("uart_new_data", packet)
-end
+local function mqtt_message_parse(topic, message)
+   local topic_capture_pattern = "devices/(.+)/(.+)/(.+)"
+   local _, _, main_target, address, sub_target = string.find(topic, topic_capture_pattern)
 
-local function mqtt_callback(topic, message)
-   if (topic == "uart/#") then
-      uart_packet_send(message)
+   print("MQTT: ", (topic or "nil"), ": ", (message or "nil"))
+   print("MQTT: main_target: ", (main_target or "nil"), ", address: ", (address or "nil"), ", sub_target: ", (sub_target or "nil"))
+
+   if (main_target ~= "6lowpan") then
+      return
    end
-   print("MQTT: ", topic, ": ", message)
-end
 
+   if (address == "6lowpan_uart")  then
+      send_to_uart(message)
+      return
+   end
+
+   if (sub_target == "gpio") then
+      local gpio_capture_pattern = "^(%a%a%a)%s(%d%d-)%s(%d)$"
+      local _, _, gpio_cmd, gpio_num, gpio_state = string.find(message, gpio_capture_pattern)
+      if (gpio_cmd ~= nil and gpio_num ~= nil and gpio_state ~= nil) then
+         print("MQTT: gpio_cmd: ", gpio_cmd, ", gpio_num: ", gpio_num, ", gpio_state: ", gpio_state)
+         if (gpio_cmd == "set" or gpio_cmd == "get") then
+            gpio_state = tonumber(gpio_state)
+            gpio_num = tonumber(gpio_num)
+            if (gpio_state ~= 0 and gpio_state ~= 1) then
+               publish_error_message("Non-correct gpio state(0 or 1): "..(message or ""))
+               return
+            end
+            if (gpio_num < 0 or gpio_num > 50) then
+               publish_error_message("Non-correct gpio num(0-50): "..(message or ""))
+               return
+            end
+            gpio_message_create(address, gpio_cmd, gpio_num, gpio_state)
+         else
+            publish_error_message("Non-correct gpio cmd(set or get): "..(message or ""))
+            return
+         end
+      else
+         --publish_error_message("Non-correct gpio message: "..(message or ""))
+         return
+      end
+
+   end
+
+
+end
 
 --/*---------------------------------------------------------------------------*/--
 
 local function main_cycle()
-   mqtt_client = mqtt.client.create("localhost", 1883, mqtt_callback)
+   mqtt_client = mqtt.client.create("localhost", 1883, mqtt_message_parse)
    local mqtt_err = mqtt_client:connect("lua_parser")
    if (mqtt_err ~= nil) then
       print(mqtt_err)
@@ -303,8 +391,7 @@ local function main_cycle()
    print("MQTT: Connected")
 
    mqtt_client:subscribe({"devices/6lowpan/#"})
-   mqtt_client:subscribe({"uart/#"})
-   print("MQTT: Subscribed to devices/6lowpan/# and uart/#")
+   print("MQTT: Subscribed to devices/6lowpan/#")
 
 	while true do
       socket.sleep(0.01)
@@ -313,8 +400,8 @@ local function main_cycle()
       if (uart_packet ~= nil) then
          linda:set("uart_packet", nil)
          --print(uart_packet)
-         mqtt_client:publish("uart/", uart_packet)
-         packet_parse(uart_packet)
+         --mqtt_client:publish("devices/6lowpan/uart/", uart_packet)
+         uart_packet_parse(uart_packet)
 		end
 	end
 end
@@ -344,19 +431,19 @@ local function lanes_uart_parser()
    p:set_flow_control(rs232.RS232_FLOW_OFF)
 
    local _, data_read, packet, message
-   local buffer_state
+   local buffer_state, uart_new_data
 
    print("UART: Parser active")
 
    while true do
-      local uart_new_data = linda:get("uart_new_data")
+
+      uart_new_data = linda:get("uart_new_data")
       if (uart_new_data ~= nil) then
-         for i = 1, #uart_new_data do
-            p:write(uart_new_data[i])
-            --socket.sleep(0.006)
-         end
+         p:write(uart_new_data)
+         p:write("\n")
          linda:set("uart_new_data", nil)
       end
+
 
       _, data_read = p:read(1, 1)
       if (data_read ~= nil) then
@@ -366,14 +453,17 @@ local function lanes_uart_parser()
          _, _, packet = string.find(buffer_state, "(1605.+\n)")
          if (packet ~= nil) then
             linda:set("uart_packet", packet)
+            print(buffer_state)
             buffers.clean_buffer(buffer)
          end
-         _, _, message = string.find(buffer_state, "(UDM:.+\n)")
+         _, _, message = string.find(buffer_state, "(UDM:.+)\n")
          if (message ~= nil) then
-            print(message)
+            --print(message)
+            --linda:set("uart_packet", packet)
             buffers.clean_buffer(buffer)
          end
       end
+
    end
 
 end
@@ -394,4 +484,4 @@ end
 --/*---------------------------------------------------------------------------*/--
 
 entry_point()
---packet_parse("16050002124B000939300B1AB010000286FFFFFFFFFFFFFFFFFFFFFFFFFFFFA978")
+

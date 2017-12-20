@@ -227,26 +227,34 @@ end
 
 
 
-function Hex2Dec(s)
-
--- s	-> hexadecimal string
-
-local s = Hex2Bin(s)
-
+function Hex2Dec(s) -- s	-> hexadecimal string
+   local s = Hex2Bin(s)
 	return tonumber(Bin2Dec(s))
-
 end
 
 
 
 function Dec2Hex(s)
-
--- s	-> Base10 string
-
 	s = string.format("%x", s)
-
 	return s
+end
 
+function Dec2Hex_augment(s, l)
+   if l == nil then l = 2 end
+   s = string.format("%x", s)
+
+   while (#s < l) do
+      s = "0"..s
+   end
+
+   return s
+end
+
+function Dec2Hex_augment_2b(s, l)
+   s = Dec2Hex_augment(s, 4)
+   local b1 = string.sub(s, 1, 2)
+	local b2 = string.sub(s, 3, 4)
+   return b1, b2
 end
 
 
@@ -506,7 +514,7 @@ function BShRight(v, nb)
 
 -- s	-> binary string of v
 
-local s = Hex2Bin(v)
+   local s = Hex2Bin(v)
 
 	while (string.len(s) < 32) do
 		s = "0000"..s
@@ -529,7 +537,7 @@ function BShLeft(v, nb)
 
 -- s	-> binary string of v
 
-local s = Hex2Bin(v)
+   local s = Hex2Bin(v)
 
 	while (string.len(s) < 32) do
 		s = "0000"..s

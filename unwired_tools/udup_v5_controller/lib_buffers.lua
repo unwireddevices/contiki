@@ -4,7 +4,7 @@ local buffers = {}
 
 function buffers.add_byte_to_buffer(buffer, byte)
    table.insert(buffer, byte)
-   while (#buffer > 95) do
+   while (#buffer > 100) do
       table.remove(buffer, 1)
    end
 end

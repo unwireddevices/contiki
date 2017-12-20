@@ -1,4 +1,6 @@
 local ansicrc = {}
+local strings = require("lib_strings")
+string.fromhex = strings.fromhex
 
 function ansicrc.calc(s)
    local bit = require "bit"
@@ -16,6 +18,15 @@ function ansicrc.calc(s)
        end
    end
    return crc
+end
+
+function ansicrc.calc_hex(s)
+   local bin_s = ""
+
+   for w in string.gmatch(s, "(%w%w)") do
+      bin_s = bin_s .. w:fromhex()
+   end
+   return ansicrc.calc(bin_s)
 end
 
 --/*---------------------------------------------------------------------------*/--
