@@ -153,7 +153,7 @@ local function unwds_opt3001_data_processing(address_string, voltage, parent_rss
 
    local json_table = {}
    json_table.data = {}
-   json_table.data.luminocity = 0
+   json_table.data.luminocity = tonumber(bindechex.Hex2Dec((payload[3] or 00)..(payload[2] or 00)))
 
    json_table.status = {}
    json_table.status.devEUI = address_string
