@@ -652,16 +652,16 @@ PROCESS_THREAD(main_root_process, ev, data)
       {
          disable_interrupts();
          udup_v5_data_iterator--;
+/*
+         printf("UDM: HEX bytes(%"PRIu8"):", udup_v5_data_iterator);
+         for (uint16_t i = 0; i < udup_v5_data_iterator; i++)
+            printf("%"PRIXX8" ", udup_v5_rc_uart_rx_buffer[i]);
+         printf("\n");
+*/
          hex_to_bin_errno_t convert_status = convert_hex_to_bin();
          if (convert_status == HEX2BIN_SUCCESS)
          {
             udup_v5_data_iterator = udup_v5_data_iterator/2;
-/*
-            printf("HEX2BIN bytes(%"PRIu8"):", udup_v5_data_iterator);
-            for (uint16_t i = 0; i < udup_v5_data_iterator; i++)
-               printf("%"PRIXX8" ", udup_v5_rc_uart_rx_buffer[i]);
-            printf("\n");
-*/
             udup_v5_data_iterator--;
             udup_v5_data_process();
          }
