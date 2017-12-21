@@ -223,12 +223,41 @@ local function unwds_gpio_data_processing(address_string, voltage, parent_rssi, 
 end
 
 
---/*------------------------------ Обработка исходящих пакетов UNWDS ---------------------------------------------*/--
+--/*------------------------------ Создание 6LOWPAN пакетов ---------------------------------------------*/--
 
-local function gpio_message_create(address, gpio_cmd, gpio_num, gpio_state)
+local function gpio_message_create(address, message)
+   local gpio_capture_pattern = "^(%a%a%a)%s(%d%d-)%s(%d)$" --"set 14 1" or "get 14"
+   local _, _, gpio_cmd, gpio_num, gpio_state = string.find(message, gpio_capture_pattern)
+   gpio_state = tonumber(gpio_state)
+   gpio_num = tonumber(gpio_num)
+   if (gpio_cmd == nil or gpio_num == nil) then
+      return
+   end
+   if (gpio_cmd ~= "set" or gpio_cmd ~= "get") then
+      publish_error_message("Non-correct gpio cmd(set or get): "..(message or ""))
+      return
+   end
+   if (gpio_num == nil or (gpio_num < 0 or gpio_num > 50)) then
+      publish_error_message("Non-correct gpio num(0-50): "..(message or ""))
+   end
+   if (gpio_cmd ~= "set" and (gpio_state == nil or gpio_state ~= 0 or gpio_state ~= 1)) then
+      publish_error_message("Non-correct gpio state(0 or 1): "..(message or ""))
+      return
+   end
+
+   print("MQTT gpio parser: gpio_cmd: ", (gpio_cmd or "nil"), ", gpio_num: ", (gpio_num or "nil"), ", gpio_state: ", (gpio_state or "nil"), ", address: ", (address or "nil"))
+
    local payload = ""
    local command_gpio_byte
    local int_command
+
+   if (gpio_cmd ~= "get" and gpio_cmd ~= "set") then
+      return
+   end
+
+   if (gpio_state ~= 0 and gpio_state ~= 1) then
+      return
+   end
 
    if (gpio_state == 0) then
       int_command = 1
@@ -244,7 +273,7 @@ local function gpio_message_create(address, gpio_cmd, gpio_num, gpio_state)
       command_gpio_byte = bit.bor(int_command_shift, gpio_num)
    elseif (gpio_cmd == "get") then
       --command_gpio_byte =
-      publish_error_message("Not supported")
+      publish_error_message("GPIO get not supported")
    end
 
    payload = payload .. UNWDS_GPIO_MODULE_ID
@@ -253,11 +282,33 @@ local function gpio_message_create(address, gpio_cmd, gpio_num, gpio_state)
    net_packet_send(address, payload)
 end
 
-local function opt3001_message_create(address, opt3001_cmd, opt3001_period)
+local function opt3001_message_create(address, message)
+   local opt3001_capture_pattern = "([_%a]+)%s(%d*)" --"set_period 1" or "poll"
+   local _, _, opt3001_cmd, opt3001_period = string.find(message, opt3001_capture_pattern)
+
+   opt3001_period = tonumber(opt3001_period)
+
+   if (opt3001_cmd == nil) then
+      return
+   end
+   if (opt3001_cmd ~= "set_period" and opt3001_cmd ~= "poll") then
+      publish_error_message("Non-correct opt3001 command(poll or set_period): "..(message or ""))
+      return
+   end
+   if (opt3001_cmd == "set_period" and opt3001_period == nil) then
+      publish_error_message("Non-correct opt3001 period: "..(message or ""))
+      return
+   end
+   if (opt3001_cmd == "set_period" and opt3001_period > 255) then
+      publish_error_message("Non-correct opt3001 period(>255): "..(message or ""))
+      return
+   end
+   print("MQTT opt3001 parser: opt3001_cmd: ", (opt3001_cmd or "nil"), ", opt3001_period: ", (opt3001_period or "nil"), ", address: ", (address or "nil"))
+
    local payload = ""
 
    local UMDK_OPT3001_CMD_SET_PERIOD = "00"
-	local UMDK_OPT3001_CMD_POLL = "01"
+   local UMDK_OPT3001_CMD_POLL = "01"
 
    payload = payload .. UNWDS_OPT3001_MODULE_ID
 
@@ -274,7 +325,7 @@ local function opt3001_message_create(address, opt3001_cmd, opt3001_period)
    net_packet_send(address, payload)
 end
 
---/*------------------------------ Обработка данных, приходящих из MQTT и UART ---------------------------------------------*/--
+--/*------------------------------ Обработка MQTT -> 6LOWPAN и 6LOWPAN -> MQTT пакетов ---------------------------------------------*/--
 
 local function uart_packet_parse(packet)
    local packet_capture_pattern = "160500(%w%w%w%w%w%w%w%w%w%w%w%w%w%w%w%w)(%w%w)(%w%w)(%w%w%w%w)(.+)(%w%w%w%w)"
@@ -344,11 +395,16 @@ local function uart_packet_parse(packet)
 end
 
 local function mqtt_message_parse(topic, message)
+   local json_capture_pattern = "(%b{})"
+   local _, _, json = string.find(message, json_capture_pattern)
+   if (json ~= nil) then
+      return
+   end
+
    local topic_capture_pattern = "devices/(.+)/(.+)/(.+)"
    local _, _, main_target, address, sub_target = string.find(topic, topic_capture_pattern)
 
-   print("MQTT: ", (topic or "nil"), ": ", (message or "nil"))
-   print("MQTT: main_target: ", (main_target or "nil"), ", address: ", (address or "nil"), ", sub_target: ", (sub_target or "nil"))
+   print("MQTT->6LP: ", (topic or "nil"), ": ", (message or "nil"))
 
    if (main_target ~= "6lowpan") then
       return
@@ -359,41 +415,12 @@ local function mqtt_message_parse(topic, message)
       return
    end
 
+   --print("MQTT->6LP: main_target: ", (main_target or "nil"), ", address: ", (address or "nil"), ", sub_target: ", (sub_target or "nil"))
+
    if (sub_target == "gpio") then
-      local gpio_capture_pattern = "^(%a%a%a)%s(%d%d-)%s(%d)$"
-      local _, _, gpio_cmd, gpio_num, gpio_state = string.find(message, gpio_capture_pattern)
-      if (gpio_cmd ~= nil and gpio_num ~= nil and gpio_state ~= nil) then
-         print("MQTT: gpio_cmd: ", gpio_cmd, ", gpio_num: ", gpio_num, ", gpio_state: ", gpio_state)
-         if (gpio_cmd == "set" or gpio_cmd == "get") then
-            gpio_state = tonumber(gpio_state)
-            gpio_num = tonumber(gpio_num)
-            if (gpio_state ~= 0 and gpio_state ~= 1) then
-               publish_error_message("Non-correct gpio state(0 or 1): "..(message or ""))
-               return
-            end
-            if (gpio_num < 0 or gpio_num > 50) then
-               publish_error_message("Non-correct gpio num(0-50): "..(message or ""))
-               return
-            end
-            gpio_message_create(address, gpio_cmd, gpio_num, gpio_state)
-         else
-            publish_error_message("Non-correct gpio cmd(set or get): "..(message or ""))
-            return
-         end
-      else
-         --publish_error_message("Non-correct gpio message: "..(message or ""))
-         return
-      end
+      gpio_message_create(address, message)
    elseif (sub_target == "opt3001") then
-      local opt3001_capture_pattern = "([_%a]+)%s(%d+)"
-      local _, _, opt3001_cmd, opt3001_period = string.find(message, opt3001_capture_pattern)
-      print("MQTT: opt3001_cmd: ", (opt3001_cmd or "nil"), ", opt3001_period: ", (opt3001_period or "nil"))
-      if (opt3001_cmd ~= nil) then
-         opt3001_message_create(address, opt3001_cmd, opt3001_period)
-      else
-         --publish_error_message("Non-correct opt3001 cmd(poll or set_period): "..(message or ""))
-         return
-      end
+      opt3001_message_create(address, message)
    end
 
 
