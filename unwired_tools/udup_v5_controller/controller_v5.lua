@@ -74,9 +74,9 @@ local function send_to_uart(packet)
    linda:set("uart_new_data", packet)
 end
 
-local function send_to_mqtt(json_text, topic)
-   --print(topic, ":\n", json_text)
-   mqtt_client:publish(topic, json_text)
+local function send_to_mqtt(text, topic)
+   --print(topic, ":\n", text)
+   mqtt_client:publish(topic, text)
 end
 
 local function publish_error_message(error_message)
@@ -84,7 +84,7 @@ local function publish_error_message(error_message)
    print(error_message)
 end
 
-local function net_packet_construct(address, payload)
+local function net_packet_send(address, payload)
    local UDUP_V5_MAGIC_BYTE = "16"
    local UDUP_V5_PROTOCOL_VERSION = "05"
    local UDUP_V5_COMMAND_TYPE_NET_PACKET = "00"
@@ -108,6 +108,7 @@ local function net_packet_construct(address, payload)
    packet = packet .. packet_crc_hex_b1
    packet = packet .. packet_crc_hex_b2
 
+   print("Send packet: ", packet)
    send_to_uart(packet)
 end
 
@@ -131,8 +132,6 @@ local function status_data_processing(address_string, voltage, parent_rssi, payl
    send_to_mqtt(json_text, "devices/6lowpan/"..address_string.."/status")
 end
 
---/*---------------------------------------------------------------------------*/--
-
 local function message_data_processing(address_string, voltage, parent_rssi, payload)
    local json_table = {}
    json_table.data = {}
@@ -147,7 +146,6 @@ local function message_data_processing(address_string, voltage, parent_rssi, pay
    local json_text = cjson.encode(json_table)
    send_to_mqtt(json_text, "devices/6lowpan/"..address_string.."/message")
 end
-
 
 local function unwds_opt3001_data_processing(address_string, voltage, parent_rssi, payload)
 
@@ -165,8 +163,6 @@ local function unwds_opt3001_data_processing(address_string, voltage, parent_rss
    local json_text = cjson.encode(json_table)
    send_to_mqtt(json_text, "devices/6lowpan/"..address_string.."/opt3001")
 end
-
---/*---------------------------------------------------------------------------*/--
 
 local function unwds_4btn_data_processing(address_string, voltage, parent_rssi, payload)
 
@@ -198,8 +194,6 @@ local function unwds_4btn_data_processing(address_string, voltage, parent_rssi, 
    local json_text = cjson.encode(json_table)
    send_to_mqtt(json_text, "devices/6lowpan/"..address_string.."/4btn")
 end
-
---/*---------------------------------------------------------------------------*/--
 
 local function unwds_gpio_data_processing(address_string, voltage, parent_rssi, payload)
    local json_table = {}
@@ -248,12 +242,36 @@ local function gpio_message_create(address, gpio_cmd, gpio_num, gpio_state)
 
       local int_command_shift = bit.lshift(int_command, 6)
       command_gpio_byte = bit.bor(int_command_shift, gpio_num)
+   elseif (gpio_cmd == "get") then
+      --command_gpio_byte =
+      publish_error_message("Not supported")
    end
 
    payload = payload .. UNWDS_GPIO_MODULE_ID
    payload = payload .. bindechex.Dec2Hex_augment(command_gpio_byte)
 
-   net_packet_construct(address, payload)
+   net_packet_send(address, payload)
+end
+
+local function opt3001_message_create(address, opt3001_cmd, opt3001_period)
+   local payload = ""
+
+   local UMDK_OPT3001_CMD_SET_PERIOD = "00"
+	local UMDK_OPT3001_CMD_POLL = "01"
+
+   payload = payload .. UNWDS_OPT3001_MODULE_ID
+
+   if (opt3001_cmd == "set_period") then
+      opt3001_period = tonumber(opt3001_period) or 0
+      if opt3001_period > 255 then opt3001_period = 255 end
+      if opt3001_period < 0 then opt3001_period = 1 end
+      payload = payload .. UMDK_OPT3001_CMD_SET_PERIOD
+      payload = payload .. bindechex.Dec2Hex_augment(opt3001_period)
+   elseif (opt3001_cmd == "poll") then
+      payload = payload .. UMDK_OPT3001_CMD_POLL
+   end
+
+   net_packet_send(address, payload)
 end
 
 --/*------------------------------ Обработка данных, приходящих из MQTT и UART ---------------------------------------------*/--
@@ -366,7 +384,16 @@ local function mqtt_message_parse(topic, message)
          --publish_error_message("Non-correct gpio message: "..(message or ""))
          return
       end
-
+   elseif (sub_target == "opt3001") then
+      local opt3001_capture_pattern = "([_%a]+)%s(%d+)"
+      local _, _, opt3001_cmd, opt3001_period = string.find(message, opt3001_capture_pattern)
+      print("MQTT: opt3001_cmd: ", (opt3001_cmd or "nil"), ", opt3001_period: ", (opt3001_period or "nil"))
+      if (opt3001_cmd ~= nil) then
+         opt3001_message_create(address, opt3001_cmd, opt3001_period)
+      else
+         --publish_error_message("Non-correct opt3001 cmd(poll or set_period): "..(message or ""))
+         return
+      end
    end
 
 
@@ -385,6 +412,8 @@ local function main_cycle()
 
    mqtt_client:subscribe({"devices/6lowpan/#"})
    print("MQTT: Subscribed to devices/6lowpan/#")
+
+   send_to_mqtt("6lowpan<->MQTT LUA parser start", "/devices/6lowpan/system")
 
 	while true do
       socket.sleep(0.01)
@@ -409,7 +438,9 @@ local function lanes_uart_parser()
    local port_name = "/dev/ttyATH0"
 
    local buffers = require("lib_buffers")
-   local buffer = buffers.create_buffer(100)
+   local buffer = buffers.create_buffer(150)
+
+   local strings = require("lib_strings")
 
    local e, p = rs232.open(port_name)
    if (e ~= rs232.RS232_ERR_NOERROR) then
@@ -432,11 +463,14 @@ local function lanes_uart_parser()
 
       uart_new_data = linda:get("uart_new_data")
       if (uart_new_data ~= nil) then
-         p:write(uart_new_data)
+         local table_segments = strings.cut(uart_new_data, 30)
+         for i = 1, #table_segments do
+            p:write(table_segments[i])
+            socket.sleep(0.006)
+         end
          p:write("\n")
          linda:set("uart_new_data", nil)
       end
-
 
       _, data_read = p:read(1, 1)
       if (data_read ~= nil) then
