@@ -65,8 +65,8 @@
 
 /*---------------------------------------------------------------------------*/
 
-#define BOARD_RELAY IOID_16
-
+#define BOARD_RELAY_1 IOID_16
+#define BOARD_RELAY_2 IOID_17
 
 typedef enum {
 	UMDK_GPIO_REPLY_OK_0 = 0,
@@ -136,7 +136,8 @@ PROCESS_THREAD(main_process, ev, data)
    PROCESS_PAUSE();
 
    printf("Unwired relay device. HELL-IN-CODE free. I hope.\n");
-   ti_lib_ioc_pin_type_gpio_output(BOARD_RELAY);
+   ti_lib_ioc_pin_type_gpio_output(BOARD_RELAY_1);
+   ti_lib_ioc_pin_type_gpio_output(BOARD_RELAY_2);
 /*
    uint8_t command = 1;
    uint8_t gpio = 15;
@@ -162,36 +163,41 @@ PROCESS_THREAD(main_process, ev, data)
             uint8_t gpio = gpio_cmd & 0b00011111;
             printf("RELAY: GPIO: %"PRIu8", command: %"PRIu8"\n", gpio, command);
 
-            if (gpio != BOARD_RELAY)
-            {
-               printf("Relay: gpio error: %"PRIu8"\n", gpio);
-               udbp_v5_gpio_reply_sender(UMDK_GPIO_REPLY_ERR_PIN);
-            }
-            else
+            if (gpio == BOARD_RELAY_1 || gpio == BOARD_RELAY_2)
             {
                if (command == UMDK_GPIO_SET_0)
                {
-                  ti_lib_gpio_clear_dio(BOARD_RELAY);
+                  ti_lib_gpio_clear_dio(gpio);
                   udbp_v5_gpio_reply_sender(UMDK_GPIO_REPLY_OK);
                }
                else if (command == UMDK_GPIO_SET_1)
                {
-                  ti_lib_gpio_set_dio(BOARD_RELAY);
+                  ti_lib_gpio_set_dio(gpio);
                   udbp_v5_gpio_reply_sender(UMDK_GPIO_REPLY_OK);
                }
                else if (command == UMDK_GPIO_GET)
                {
-                  udbp_v5_gpio_reply_sender(UMDK_GPIO_REPLY_ERR_FORMAT);
+                  uint32_t curret_gpio_status = ti_lib_gpio_read_dio(gpio);
+                  if (curret_gpio_status == 1)
+                     udbp_v5_gpio_reply_sender(UMDK_GPIO_REPLY_OK_1);
+                  else
+                     udbp_v5_gpio_reply_sender(UMDK_GPIO_REPLY_OK_0);
                }
                else if (command == UMDK_GPIO_TOGGLE)
                {
-                  ti_lib_gpio_toggle_dio(BOARD_RELAY);
+                  ti_lib_gpio_toggle_dio(gpio);
                   udbp_v5_gpio_reply_sender(UMDK_GPIO_REPLY_OK);
                }
                else
                {
                   udbp_v5_gpio_reply_sender(UMDK_GPIO_REPLY_ERR_FORMAT);
                }
+
+            }
+            else
+            {
+               printf("Relay: gpio error: %"PRIu8"\n", gpio);
+               udbp_v5_gpio_reply_sender(UMDK_GPIO_REPLY_ERR_PIN);
             }
          }
       }
