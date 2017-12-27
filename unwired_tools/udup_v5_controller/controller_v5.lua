@@ -56,16 +56,20 @@ local DATA_TYPE_RESERVED_3                      =              "0F" --Не ис�
 local DATA_TYPE_JOIN_V5_STAGE_1                 =              "10" --Нода посылает запрос координатору
 local DATA_TYPE_JOIN_V5_STAGE_2                 =              "11" --Координатор отвечает ноде
 
+local UNWDS_GPIO_MODULE_ID = bindechex.Dec2Hex_augment(1)
+local UNWDS_4BTN_MODULE_ID = bindechex.Dec2Hex_augment(2)
 
-local UNWDS_GPIO_MODULE_ID = "01"
-local UNWDS_4BTN_MODULE_ID = "02"
-local UNWDS_OPT3001_MODULE_ID = "0F"
-local UNWDS_6LOWPAN_SYSTEM_MODULE_ID = "7F"
+local UNWDS_OPT3001_MODULE_ID = bindechex.Dec2Hex_augment(15)
 
+ --/* Customer 100 to 125*/--
+local UNWDS_FIREBUTTON_MODULE_ID = bindechex.Dec2Hex_augment(101)
+local UNWDS_SMOKESENSOR_MODULE_ID = bindechex.Dec2Hex_augment(102)
+
+--/* System module 126 */--
+local UNWDS_6LOWPAN_SYSTEM_MODULE_ID = bindechex.Dec2Hex_augment(127)
 
 local DATA_TYPE_MESSAGES = {}
-DATA_TYPE_MESSAGES["0F"] = "join successful"
-
+DATA_TYPE_MESSAGES["0F"] = "Join ok"
 
 --/*------------------------------ Системные функции ---------------------------------------------*/--
 
@@ -90,7 +94,7 @@ local function net_packet_send(address, payload)
    local UDUP_V5_COMMAND_TYPE_NET_PACKET = "00"
 
    local payload_length_dec = #payload / 2
-   local payload_length_hex_b1, payload_length_hex_b2  = bindechex.Dec2Hex_augment_2b(payload_length_dec, 4)
+   local payload_length_hex_b1, payload_length_hex_b2  = bindechex.Dec2Hex_uint16_2(payload_length_dec, 4)
 
    local packet = ""
    packet = packet .. UDUP_V5_MAGIC_BYTE
@@ -103,7 +107,7 @@ local function net_packet_send(address, payload)
    packet = packet .. payload
 
    local packet_crc_dec = ansicrc.calc_hex(packet)
-   local packet_crc_hex_b1, packet_crc_hex_b2  = bindechex.Dec2Hex_augment_2b(packet_crc_dec, 4)
+   local packet_crc_hex_b1, packet_crc_hex_b2  = bindechex.Dec2Hex_uint16_2(packet_crc_dec, 4)
 
    packet = packet .. packet_crc_hex_b1
    packet = packet .. packet_crc_hex_b2

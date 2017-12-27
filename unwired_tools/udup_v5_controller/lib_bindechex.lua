@@ -232,25 +232,19 @@ function Hex2Dec(s) -- s	-> hexadecimal string
 	return tonumber(Bin2Dec(s))
 end
 
-
-
 function Dec2Hex(s)
-	s = string.format("%x", s)
+	s = string.format("%X", s)
 	return s
 end
 
 function Dec2Hex_augment(s, l)
    if l == nil then l = 2 end
-   s = string.format("%x", s)
-
-   while (#s < l) do
-      s = "0"..s
-   end
-
+   local format = "%0"..l.."X"
+   s = string.format(format, s)
    return s
 end
 
-function Dec2Hex_augment_2b(s, l)
+function Dec2Hex_uint16_2(s)
    s = Dec2Hex_augment(s, 4)
    local b1 = string.sub(s, 1, 2)
 	local b2 = string.sub(s, 3, 4)
