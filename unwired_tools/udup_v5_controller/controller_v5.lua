@@ -464,8 +464,7 @@ local function lanes_uart_parser()
    local rs232 = require("luars232")
    local port_name = "/dev/ttyATH0"
 
-   local buffers = require("lib_buffers")
-   local buffer = buffers.create_buffer(150)
+   local buffers = require("lib_buffers2")
 
    local strings = require("lib_strings")
 
@@ -481,8 +480,10 @@ local function lanes_uart_parser()
    p:set_stop_bits(rs232.RS232_STOP_1)
    p:set_flow_control(rs232.RS232_FLOW_OFF)
 
-   local _, data_read, packet, message
+   local _, byte_read, packet, message
    local buffer_state, uart_new_data
+
+   buffers.create_buffer(150)
 
    print("UART: Parser active")
 
@@ -499,23 +500,23 @@ local function lanes_uart_parser()
          linda:set("uart_new_data", nil)
       end
 
-      _, data_read = p:read(1, 1)
-      if (data_read ~= nil) then
-         buffers.add_byte_to_buffer(buffer, data_read)
-         buffer_state = buffers.get_buffer(buffer)
+      _, byte_read = p:read(1, 1)
+      if (byte_read ~= nil) then
+         buffers.add_byte_to_buffer(byte_read)
+         buffer_state = buffers.get_buffer()
          --print(buffer_state)
-         if (data_read == "\n") then
+         if (byte_read == "\n") then
             _, _, packet = string.find(buffer_state, "(1605.+\n)")
             if (packet ~= nil) then
                linda:set("uart_packet", packet)
                --print(buffer_state)
-               buffers.clean_buffer(buffer)
+               buffers.clean_buffer()
             end
             _, _, message = string.find(buffer_state, "(UDM:.+)\n")
             if (message ~= nil) then
                print("\n"..message.."\n")
                --linda:set("uart_packet", packet)
-               buffers.clean_buffer(buffer)
+               buffers.clean_buffer()
             end
          end
       end
