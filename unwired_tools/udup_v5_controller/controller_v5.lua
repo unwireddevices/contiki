@@ -64,7 +64,7 @@ local UNWDS_6LOWPAN_SYSTEM_MODULE_ID = "7F"
 
 
 local DATA_TYPE_MESSAGES = {}
-DATA_TYPE_MESSAGES["0F"] = "Join ok"
+DATA_TYPE_MESSAGES["0F"] = "join successful"
 
 
 --/*------------------------------ Системные функции ---------------------------------------------*/--
