@@ -431,8 +431,7 @@ void udbp_v5_message_sender(uint8_t message_type, uint8_t data_1, uint8_t data_2
 void udbp_v5_status_packet_sender(const uip_ipaddr_t *parent_addr,
                         uint32_t uptime_raw,
                         int16_t rssi_parent_raw,
-                        uint8_t temp,
-                        uint8_t voltage)
+                        uint8_t temp)
 {
    if (parent_addr == NULL)
       return;
@@ -776,10 +775,9 @@ PROCESS_THREAD(status_send_process, ev, data)
          const uip_ipaddr_t *ipaddr_parent = rpl_get_parent_ipaddr(dag->preferred_parent);
          const struct link_stats *stat_parent = rpl_get_parent_link_stats(dag->preferred_parent);
          uint8_t temp = batmon_sensor.value(BATMON_SENSOR_TYPE_TEMP);
-         uint8_t voltage = ( (batmon_sensor.value(BATMON_SENSOR_TYPE_VOLT) * 125) >> 5 ) / VOLTAGE_PRESCALER;
          if (ipaddr_parent != NULL && stat_parent != NULL)
          {
-            udbp_v5_status_packet_sender(ipaddr_parent, rtc_s(), stat_parent->rssi, temp, voltage);
+            udbp_v5_status_packet_sender(ipaddr_parent, rtc_s(), stat_parent->rssi, temp);
          }
          non_answered_packet++;
          if (non_answered_packet != 1)
