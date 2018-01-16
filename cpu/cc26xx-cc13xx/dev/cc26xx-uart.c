@@ -67,8 +67,7 @@ static int (*input_handler)(unsigned char c);
 static bool
 usable(void)
 {
-  if(BOARD_IOID_UART_RX == IOID_UNUSED ||
-     BOARD_IOID_UART_TX == IOID_UNUSED ||
+  if(BOARD_IOID_UART_TX == IOID_UNUSED ||
      CC26XX_UART_CONF_ENABLE == 0) {
     return false;
   }

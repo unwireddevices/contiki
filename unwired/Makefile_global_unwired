@@ -8,8 +8,7 @@ ifndef CPU
 endif
 
 ifndef BOARD
-  BOARD = udboards
-  ${info Not BOARD define, use: "BOARD=srf06" or "BOARD=udboards". Set default: $(BOARD)}
+  ${info Not BOARD define, use: "BOARD=xxx"}
 endif
 
 

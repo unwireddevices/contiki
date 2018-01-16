@@ -993,11 +993,20 @@ PROCESS_THREAD(dag_node_process, ev, data)
    process_start(&dag_node_button_process, NULL);
    process_start(&maintenance_process, NULL);
 
-   serial_shell_init();
-   shell_reboot_init();
-   shell_time_init();
-   unwired_shell_init();
-   printf("DAG Node: Shell activated, type \"help\" for command list\n");
+   if (BOARD_IOID_UART_RX == IOID_UNUSED)
+   {
+      printf("DAG Node: Shell not active, uart RX set to IOID_UNUSED\n");
+      cc26xx_uart_set_input(NULL);
+   }
+   else
+   {
+      serial_shell_init();
+      shell_reboot_init();
+      shell_time_init();
+      unwired_shell_init();
+      printf("DAG Node: Shell activated, type \"help\" for command list\n");
+   }
+
 
    SENSORS_ACTIVATE(batmon_sensor);
 
