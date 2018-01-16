@@ -67,15 +67,6 @@
    UART_INT_FE | UART_INT_RT | UART_INT_TX | \
    UART_INT_RX | UART_INT_CTS)
 
-
-#define UART_ROOT_RX IOID_26
-#define UART_ROOT_TX IOID_25
-
-#define  UART_NORMAL_TX BOARD_IOID_UART_TX
-#define  UART_NORMAL_RX BOARD_IOID_UART_RX
-#define  UART_ALT_TX UART_ROOT_TX
-#define  UART_ALT_RX UART_ROOT_RX
-
 /*---------------------------------------------------------------------------*/
 
 /* Buttons on DIO 1 */
@@ -137,10 +128,14 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 
    root_node_initialize();
 
-   printf("UDM: UART change to alt(RX: %"PRIu16", TX: %"PRIu16")\n", UART_ALT_RX, UART_ALT_TX);
-   off_uart(UART_NORMAL_RX, UART_NORMAL_TX);
-   on_uart(UART_ALT_RX, UART_ALT_TX, 115200);
-   printf("UDM: Alt UART active\n");
+
+   if (BOARD_IOID_UART_TX != BOARD_IOID_ALT_UART_TX || BOARD_IOID_UART_RX != BOARD_IOID_ALT_UART_RX)
+   {
+      printf("UDM: UART change to alt(RX: %"PRIu16", TX: %"PRIu16")\n", BOARD_IOID_ALT_UART_RX, BOARD_IOID_ALT_UART_TX);
+      off_uart(BOARD_IOID_UART_RX, BOARD_IOID_UART_TX);
+      on_uart(BOARD_IOID_ALT_UART_RX, BOARD_IOID_ALT_UART_TX, 115200);
+      printf("UDM: Alt UART active\n");
+   }
 
    while (1)
    {
