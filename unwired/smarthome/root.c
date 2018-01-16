@@ -105,8 +105,8 @@ void off_uart(uint32_t rx_dio, uint32_t tx_dio)
 
 void on_uart(uint32_t rx_dio, uint32_t tx_dio, uint32_t baud_rate)
 {
-   ti_lib_ioc_pin_type_gpio_output(UART_NORMAL_TX);
-   ti_lib_gpio_set_dio(UART_NORMAL_TX);
+   ti_lib_ioc_pin_type_gpio_output(tx_dio);
+   ti_lib_gpio_set_dio(tx_dio);
    while(ti_lib_uart_busy(UART0_BASE));
    ti_lib_ioc_pin_type_uart(UART0_BASE, rx_dio, tx_dio, IOID_UNUSED, IOID_UNUSED);
    ti_lib_uart_config_set_exp_clk(UART0_BASE, ti_lib_sys_ctrl_clock_get(), baud_rate,
