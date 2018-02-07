@@ -251,6 +251,13 @@ function Dec2Hex_uint16_2(s)
    return b1, b2
 end
 
+function Dec2Hex_augment_3b(s, l)
+   s = Dec2Hex_augment(s, 6)
+   local b1 = string.sub(s, 1, 2)
+   local b2 = string.sub(s, 3, 4)
+   local b3 = string.sub(s, 5, 6)
+   return b1, b2, b3
+end
 
 
 
