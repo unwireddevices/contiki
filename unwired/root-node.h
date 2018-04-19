@@ -72,4 +72,8 @@ void udp_data_receiver(struct simple_udp_connection *connection,
 
 int uart_data_receiver_udup_v5(unsigned char uart_char);
 
+void set_uart_r(void);
+void unset_uart_r(void);
+uint8_t uart_status_r(void);
+
 /*---------------------------------------------------------------------------*/

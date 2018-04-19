@@ -117,6 +117,7 @@ void hexraw_print(uint32_t flash_length, uint8_t *flash_read_data_buffer);
 void hexview_print(uint32_t flash_length, uint8_t *flash_read_data_buffer, uint32_t offset);
 void flash_damp_hex(uint8_t mode);
 uint16_t crc16_arc(uint8_t *data, uint16_t len);
+uint16_t crc16_modbus(uint8_t *data, uint16_t len);
 uint8_t get_voltage();
 uint8_t get_parent_rssi();
 uint8_t get_temperature();
@@ -125,6 +126,7 @@ uint8_t get_temperature();
 str2int_errno_t hex_str2uint16(uint16_t *out, char *s);
 str2int_errno_t hex_str2uint16(uint16_t *out, char *s);
 str2int_errno_t dec_str2uint8(uint8_t *out, char *s);
+str2int_errno_t dec_str2uint32(uint32_t *out, char *s);
 str2int_errno_t hex_str2uint8(uint8_t *out, char *s);
 /*---------------------------------------------------------------------------*/
 

@@ -145,6 +145,28 @@ uint16_t crc16_arc(uint8_t *data, uint16_t len)
 
 /*---------------------------------------------------------------------------*/
 
+uint16_t crc16_modbus(uint8_t *data, uint16_t len)
+{
+   uint16_t crc = 0xFFFF;
+   uint16_t j;
+   int i;
+   // Note: 0xA001 is the reflection of 0x8005
+   for (j = len; j > 0; j--)
+   {
+      crc ^= *data++;
+      for (i = 0; i < 8; i++)
+      {
+         if (crc & 1)
+            crc = (crc >> 1) ^ 0xA001;
+         else
+            crc >>= 1;
+      }
+   }
+   return (crc);
+}
+
+/*---------------------------------------------------------------------------*/
+
 uint8_t get_voltage()
 {
    return (uint8_t)((((batmon_sensor.value(BATMON_SENSOR_TYPE_VOLT) * 125) >> 5)-2000)/50);
@@ -238,5 +260,24 @@ str2int_errno_t dec_str2uint8(uint8_t *out, char *s) {
     if (*end != '\0')
         return STR2INT_INCONVERTIBLE;
     *out = (uint8_t)l;
+    return STR2INT_SUCCESS;
+}
+
+/*---------------------------------------------------------------------------*/
+
+str2int_errno_t dec_str2uint32(uint32_t *out, char *s) {
+    char *end;
+    if (s[0] == '\0' || isspace((unsigned char) s[0]))
+        return STR2INT_INCONVERTIBLE;
+    errno = 0;
+    long l = strtol(s, &end, 10);
+    /* Both checks are needed because INT_MAX == LONG_MAX is possible. */
+    if (l > 4294967294 || (errno == ERANGE && l == LONG_MAX))
+        return STR2INT_OVERFLOW;
+    if (l < 0 || (errno == ERANGE && l == LONG_MIN))
+        return STR2INT_UNDERFLOW;
+    if (*end != '\0')
+        return STR2INT_INCONVERTIBLE;
+    *out = (uint32_t)l;
     return STR2INT_SUCCESS;
 }

@@ -63,10 +63,12 @@ struct interpocess_message
 };
 
 void udbp_v5_message_sender(uint8_t message_type, uint8_t data_1, uint8_t data_2);
-void uart_console(unsigned char uart_char);
+void udbp_v5_uart_to_root_sender(char* data);
+//void uart_console(unsigned char uart_char); //ХЗ
 //void send_time_sync_req_packet();
 void led_mode_set(uint8_t mode);
-void udbp_v5_join_stage_3_sender(const uip_ipaddr_t *dest_addr);
+//void udbp_v5_join_stage_3_sender(const uip_ipaddr_t *dest_addr);
+bool wait_response_status(void);
 
 PROCESS_NAME(dag_node_process);
 PROCESS_NAME(dag_node_button_process);

@@ -60,14 +60,18 @@
 
 #include "rtc-common.h"
 #include "system-common.h"
+#include "dev/watchdog.h"
 
 #include "dag_node.h"
 
 #include "xxf_types_helper.h"
 #include "ud_binary_protocol.h"
 
-/*---------------------------------------------------------------------------*/
+#include "../../unwired/int-flash-common.h"
+#include "../../unwired/crypto-common.h"
 
+/*---------------------------------------------------------------------------*/
+extern uint32_t serial;
 /*---------------------------------------------------------------------------*/
 PROCESS(unwired_shell_time_process, "time");
 SHELL_COMMAND(unwired_shell_time_command, "time", "time: show the current node time in unix epoch", &unwired_shell_time_process);
@@ -95,6 +99,9 @@ SHELL_COMMAND(unwired_shell_address_command, "address", "address: show net addre
 
 PROCESS(unwired_shell_test_process, "test");
 SHELL_COMMAND(unwired_shell_test_command, "test", "test: test func", &unwired_shell_test_process);
+
+PROCESS(unwired_shell_serial_process, "serial");
+SHELL_COMMAND(unwired_shell_serial_command, "serial", "serial <set/get> <serial number>: set/get serial number", &unwired_shell_serial_process);
 
 /*---------------------------------------------------------------------------*/
 
@@ -403,17 +410,157 @@ PROCESS_THREAD(unwired_shell_test_process, ev, data)
 
 /*---------------------------------------------------------------------------*/
 
+PROCESS_THREAD(unwired_shell_serial_process, ev, data)
+{
+	uint8_t max_args = 2;
+	char *args[max_args+1]; //necessary to allocate on one pointer more
+	uint8_t argc = 0;
+
+	PROCESS_BEGIN();
+
+	argc = parse_args(data, args, max_args);
+	if (argc < 1)
+	{
+		printf("Serial: No args! Use \"serial <set/get> <serial number>\"\n");
+		PROCESS_EXIT();
+	}
+
+	if(!strncmp(args[0], "get", 3))
+	{
+		if(serial != 0xFFFFFFFF)
+			printf("Serial: %lu\n", serial);
+		else
+			printf("Serial number is not still installed\n");
+		//
+		uint8_t aes_key[16] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0x00, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
+		uint8_t aes_bufer_in[16] = {0xDE, 0xAD, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+		uint8_t aes_bufer_out[16];
+		uint8_t nonce_key[16] = {0xDE, 0xAD, 0xDE, 0xAD, 0xDE, 0xAD, 0xDE, 0xAD, 0xDE, 0xAD, 0xDE, 0xAD, 0xDE, 0xAD, 0xDE, 0xAD};
+
+		for (uint16_t i = 0; i < 16; i++)
+		{
+			printf(" %"PRIXX8, aes_bufer_in[i]);
+		}
+	    printf("\n");
+		
+		for (uint16_t i = 0; i < 16; i++)
+		{
+			printf(" %"PRIXX8, aes_bufer_out[i]);
+		}
+	    printf("\n\n");
+		
+		aes_ecb_encrypt((uint32_t*)aes_key, (uint32_t*)aes_bufer_in, (uint32_t*)aes_bufer_out);
+		
+		for (uint16_t i = 0; i < 16; i++)
+		{
+			printf(" %"PRIXX8, aes_bufer_in[i]);
+		}
+	    printf("\n");
+		
+		for (uint16_t i = 0; i < 16; i++)
+		{
+			printf(" %"PRIXX8, aes_bufer_out[i]);
+		}
+	    printf("\n\n");
+		
+		aes_ecb_decrypt((uint32_t*)aes_key, (uint32_t*)aes_bufer_out, (uint32_t*)aes_bufer_in);
+		
+		for (uint16_t i = 0; i < 16; i++)
+		{
+			printf(" %"PRIXX8, aes_bufer_out[i]);
+		}
+	    printf("\n");
+		
+		for (uint16_t i = 0; i < 16; i++)
+		{
+			printf(" %"PRIXX8, aes_bufer_in[i]);
+		}
+	    printf("\n\n");
+		
+		//uint8_t aes_bufer_in[16] = {0xDE, 0xAD, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+		aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_bufer_in, (uint32_t*)aes_bufer_out, 16);
+		
+		for (uint16_t i = 0; i < 16; i++)
+		{
+			printf(" %"PRIXX8, aes_bufer_in[i]);
+		}
+	    printf("\n");
+		
+		for (uint16_t i = 0; i < 16; i++)
+		{
+			printf(" %"PRIXX8, aes_bufer_out[i]);
+		}
+	    printf("\n\n");
+		
+		aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_bufer_out, (uint32_t*)aes_bufer_in, 16);
+		
+		for (uint16_t i = 0; i < 16; i++)
+		{
+			printf(" %"PRIXX8, aes_bufer_out[i]);
+		}
+	    printf("\n");
+		
+		for (uint16_t i = 0; i < 16; i++)
+		{
+			printf(" %"PRIXX8, aes_bufer_in[i]);
+		}
+	    printf("\n\n");
+		
+		PROCESS_EXIT();
+	}
+
+	if(!strncmp(args[0], "set", 3))
+	{
+		uint32_t serial_set = 0;
+		str2int_errno_t status = dec_str2uint32(&serial_set, args[1]);
+
+		uint32_t serial_min = 0;
+		uint32_t serial_max = 999999;
+
+		if (status != STR2INT_SUCCESS)
+		{
+			printf("Serial set error: Incorrect serial number arg\n");
+			PROCESS_EXIT();
+		}
+		else
+		{
+			if (serial_set > serial_max || serial_set < serial_min)
+			{
+				printf("Serial set error: Select a serial in the range %"PRIu32"-%"PRIu32"\n", serial_min, serial_max);
+				PROCESS_EXIT();
+			}
+			else
+			{
+				serial = serial_set;
+				user_flash_update_byte(0, (uint8_t)((serial >> 24) & 0xFF));
+				user_flash_update_byte(1, (uint8_t)((serial >> 16) & 0xFF));
+				user_flash_update_byte(2, (uint8_t)((serial >> 8) & 0xFF));
+				user_flash_update_byte(3, (uint8_t)(serial & 0xFF));
+				printf("Serial set: %lu\n", serial_set);
+				watchdog_reboot();
+				PROCESS_EXIT();
+			}
+		}
+	}
+   
+	printf("\n");
+	PROCESS_END();
+}
+
+/*---------------------------------------------------------------------------*/
+
 void unwired_shell_init(void)
 {
-  shell_register_command(&unwired_shell_time_command);
-  shell_register_command(&unwired_shell_uptime_command);
-  shell_register_command(&unwired_shell_timesync_command);
-  shell_register_command(&unwired_shell_status_command);
-  shell_register_command(&unwired_shell_test_command);
-  shell_register_command(&unwired_shell_channel_command);
-  shell_register_command(&unwired_shell_panid_command);
-  shell_register_command(&unwired_shell_bootloader_command);
-  shell_register_command(&unwired_shell_address_command);
+	shell_register_command(&unwired_shell_time_command);
+	shell_register_command(&unwired_shell_uptime_command);
+	shell_register_command(&unwired_shell_timesync_command);
+	shell_register_command(&unwired_shell_status_command);
+	shell_register_command(&unwired_shell_test_command);
+	shell_register_command(&unwired_shell_channel_command);
+	shell_register_command(&unwired_shell_panid_command);
+	shell_register_command(&unwired_shell_bootloader_command);
+	shell_register_command(&unwired_shell_address_command);
+	shell_register_command(&unwired_shell_serial_command);
 }
 
 /*---------------------------------------------------------------------------*/

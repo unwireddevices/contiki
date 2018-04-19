@@ -74,7 +74,8 @@
 
  */
 #define BOARD_IOID_LED_A          IOID_22 //led on radio-board
-#define BOARD_IOID_LED_B          IOID_25 //on UMDK-BUTTON
+#define BOARD_IOID_LED_B          IOID_21 //on UMDK-BUTTON
+//#define BOARD_IOID_LED_B          IOID_25 //on UMDK-BUTTON
 #define BOARD_IOID_LED_C          IOID_26 //on UMDK-BUTTON
 #define BOARD_IOID_LED_D          IOID_28 //on UMDK-BUTTON
 #define BOARD_IOID_LED_E          IOID_28 //on UMDK-BUTTON
@@ -83,8 +84,8 @@
 #define BOARD_LED_C               (1 << BOARD_IOID_LED_C)
 #define BOARD_LED_D               (1 << BOARD_IOID_LED_D)
 #define BOARD_LED_E               (1 << BOARD_IOID_LED_E)
-#define BOARD_LED_ALL             (BOARD_LED_A | BOARD_LED_B | BOARD_LED_C | \
-                                   BOARD_LED_D | BOARD_LED_E)
+//#define BOARD_LED_ALL             (BOARD_LED_A | BOARD_LED_B | BOARD_LED_C | BOARD_LED_D | BOARD_LED_E)
+#define BOARD_LED_ALL             (BOARD_LED_A | BOARD_LED_B)
 
 /*---------------------------------------------------------------------------*/
 /**
@@ -119,12 +120,16 @@
 #define BOARD_IOID_UART_RX        IOID_2
 #define BOARD_IOID_ALT_UART_TX    IOID_25
 #define BOARD_IOID_ALT_UART_RX    IOID_26
+#define BOARD_IOID_CAN_UART_TX    IOID_29 //
+#define BOARD_IOID_CAN_UART_RX    IOID_30 //
 #define BOARD_IOID_UART_CTS       IOID_UNUSED
 #define BOARD_IOID_UART_RTS       IOID_UNUSED
 #define BOARD_UART_RX             (1 << BOARD_IOID_UART_RX)
 #define BOARD_UART_TX             (1 << BOARD_IOID_UART_TX)
 #define BOARD_UART_CTS            (1 << BOARD_IOID_UART_CTS)
 #define BOARD_UART_RTS            (1 << BOARD_IOID_UART_RTS)
+#define RS485_DE 				  IOID_29 //
+#define RS485_RE 				  IOID_30 //
 /** @} */
 /*---------------------------------------------------------------------------*/
 /**

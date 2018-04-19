@@ -55,6 +55,7 @@
 #include "sys/clock.h"
 #include "shell.h"
 #include "serial-shell.h"
+#include "dev/serial-line.h" //
 #include "button-sensor.h"
 #include "batmon-sensor.h"
 #include "radio_power.h"
@@ -104,7 +105,18 @@
 #define FALSE                                   0x00
 #define TRUE                                    0x01
 
-#define MAX_NON_ANSWERED_PINGS                  3
+#define MAX_NON_ANSWERED_PINGS	3
+
+#define WAIT_RESPONSE			0.150 	//Максимальное время ожидания ответа от счетчика в секундах
+
+#define RS485_DE 				IOID_29 //
+#define RS485_RE 				IOID_30 //
+
+#define AES128_PACKAGE_LENGTH	16	//Длина пакета AES-128
+
+#define CC26XX_UART_INTERRUPT_ALL (UART_INT_OE | UART_INT_BE | UART_INT_PE | \
+   UART_INT_FE | UART_INT_RT | UART_INT_TX | \
+   UART_INT_RX | UART_INT_CTS)
 
 /*---------------------------------------------------------------------------*/
 
@@ -128,9 +140,18 @@ volatile uint8_t fw_error_counter = 0;
 
 uint32_t ota_image_current_offset = 0;
 
+extern uint32_t serial;
+
+static struct ctimer wait_response;
+static bool wait_response_slave = 0;
+
 rpl_dag_t *rpl_probing_dag;
 
 volatile uint8_t process_message = 0;
+
+uint8_t aes_key[16] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0x00, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
+uint8_t aes_buffer[128];
+uint8_t nonce_key[16];
 
 /*---------------------------------------------------------------------------*/
 
@@ -144,18 +165,362 @@ PROCESS(fw_update_process, "FW OTA update process");
 
 /*---------------------------------------------------------------------------*/
 
-static void udbp_v5_join_stage_2_handler(const uip_ipaddr_t *sender_addr,
-                                    const uint8_t *data,
-                                    uint16_t datalen)
+static void wait_response_reset(void *ptr)
 {
-      uip_ipaddr_copy(&root_addr, sender_addr);
-      process_post(&dag_node_process, PROCESS_EVENT_CONTINUE, NULL);
-      etimer_set(&maintenance_timer, 0);
-      packet_counter_node.u16 = 0;
+   wait_response_slave = 0;
 }
 
 /*---------------------------------------------------------------------------*/
 
+bool wait_response_status(void)
+{
+   return wait_response_slave;
+}
+
+/*---------------------------------------------------------------------------*/
+
+static void udbp_v5_uart_from_air_to_tx_handler(const uip_ipaddr_t *sender_addr,
+												const uint8_t *data,
+												uint16_t datalen)
+{
+	//Дешифрово4kа
+	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[UDBP_V5_HEADER_LENGTH], (uint32_t*)(aes_buffer), (datalen - UDBP_V5_HEADER_LENGTH));
+	
+	
+	//ti_lib_gpio_set_dio(RS485_DE);
+	//ti_lib_gpio_set_dio(RS485_RE);
+	
+	ti_lib_uart_int_disable(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
+    ti_lib_uart_int_clear(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
+	
+	for(uint16_t i = 0; i < aes_buffer[2]; i++)
+		cc26xx_uart_write_byte(aes_buffer[i + 3]);
+	
+	while(ti_lib_uart_busy(UART0_BASE));
+	//ti_lib_uart_fifo_disable(UART0_BASE);
+	//ti_lib_uart_fifo_enable(UART0_BASE);
+	while(ti_lib_uart_chars_avail(UART0_BASE))
+	{
+		UARTCharGetNonBlocking(UART0_BASE);
+	}
+	ti_lib_uart_int_clear(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
+	ti_lib_uart_int_enable(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
+	reset_uart();
+	wait_response_slave = 1;
+	ctimer_set(&wait_response, (WAIT_RESPONSE * CLOCK_SECOND), wait_response_reset, NULL);
+	
+	
+	//ti_lib_gpio_clear_dio(RS485_DE);
+	//ti_lib_gpio_clear_dio(RS485_RE);
+}
+/*---------------------------------------------------------------------------*/
+static uint8_t iterator_to_byte(uint8_t iterator)
+{
+	if(iterator <= 16)
+		return 16;
+	if((iterator > 16) && (iterator <= 32))
+		return 32;
+	if((iterator > 32) && (iterator <= 48))
+		return 48;
+	if((iterator > 48) && (iterator <= 64))
+		return 64;
+	if((iterator > 64) && (iterator <= 80))
+		return 80;
+	if((iterator > 80) && (iterator <= 96))
+		return 96;
+	if((iterator > 96) && (iterator <= 112))
+		return 112;
+	if((iterator > 112) && (iterator <= 128))
+		return 128;
+	return 0;
+}
+/*---------------------------------------------------------------------------*/
+void udbp_v5_uart_to_root_sender(char* data)
+{
+	if (node_mode == 2) //MODE_NOTROOT_SLEEP
+	{
+		watchdog_reboot();
+	}
+
+	if (node_mode == MODE_NORMAL)
+	{
+		uint16_t crc_uart;
+		crc_uart = crc16_modbus((uint8_t*)&data[1], (data[0] - 2));
+		
+		if(data[0] > 6)
+		{
+			if(crc_uart != (uint16_t)((data[((uint8_t)(data[0]))] << 8) | data[(data[0]-1)]))
+			{
+				return; //CRC16 не совпала
+			}
+		}
+		else
+		{
+			return; //Слишком маленькая длина фрейма 4 байта адреса и 2 CRC16
+		}
+		
+		uip_ipaddr_t addr;
+		uip_ip6addr_copy(&addr, &root_addr);
+
+		uint8_t payload_length = iterator_to_byte(data[0] + 3);//data[0] + 2;
+		uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
+		udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
+		udp_buffer[1] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;//packet_counter_node.u8[0];
+		udp_buffer[2] = UART_FROM_RX_TO_AIR;//packet_counter_node.u8[1];
+		udp_buffer[3] = get_parent_rssi();
+		udp_buffer[4] = get_temperature();
+		udp_buffer[5] = get_voltage();
+
+		aes_buffer[0] = packet_counter_node.u8[0];//UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
+		aes_buffer[1] = packet_counter_node.u8[1];//UART_FROM_RX_TO_AIR;
+		aes_buffer[2] = data[0];
+		
+		for(uint8_t i = 3; i < payload_length; i++)
+		{
+		if(i < (data[0] + 3))
+			aes_buffer[i] = data[i-2];
+		else
+			aes_buffer[i] = 0x00;
+		}
+	
+		aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[UDBP_V5_HEADER_LENGTH]), payload_length);
+
+
+		//for(uint8_t i = 1; i < (data[0] + 1); i++) /*Копирование из буфера приема UART*/
+		//	udp_buffer[i+7] = data[i];
+		  
+		  
+		//udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH - 2] = 0x12;//(uint8_t)(crc_uart >> 8);//CRC16
+		//udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH - 1] = 0x34;//(uint8_t)(crc_uart & 0xFF);//CRC16
+		
+		//udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH - 2] = (uint8_t)((uint16_t)((data[(data[0])] << 8) | data[(data[0]-1)]) >> 8);//CRC16
+		//udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH - 1] = (uint8_t)((uint16_t)((data[(data[0])] << 8) | data[(data[0]-1)]) & 0xFF);//CRC16
+/*
+		udp_buffer[8] = DATA_RESERVED;
+		udp_buffer[9] = DATA_RESERVED;
+		udp_buffer[10] = DATA_RESERVED;
+		udp_buffer[11] = DATA_RESERVED;
+		udp_buffer[12] = DATA_RESERVED;
+		udp_buffer[13] = DATA_RESERVED;
+		udp_buffer[14] = DATA_RESERVED;
+		udp_buffer[15] = DATA_RESERVED;
+		udp_buffer[16] = DATA_RESERVED;
+		udp_buffer[17] = DATA_RESERVED;
+		udp_buffer[18] = DATA_RESERVED;
+		udp_buffer[19] = DATA_RESERVED;
+		udp_buffer[20] = DATA_RESERVED;
+		udp_buffer[21] = DATA_RESERVED;
+ */
+
+		net_on(RADIO_ON_TIMER_OFF);
+		simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
+		packet_counter_node.u16++;
+		led_mode_set(LED_FLASH);
+   }
+}
+/*---------------------------------------------------------------------------*/
+
+void udbp_v5_join_stage_1_sender(const uip_ipaddr_t *dest_addr)
+{
+	printf("udbp_v5_join_stage_1_sender\n");
+	if (dest_addr == NULL)
+		return;
+
+	uip_ipaddr_t addr;
+	uip_ip6addr_copy(&addr, dest_addr);
+	
+	if(uart_status() == 0)
+	{
+		printf("DAG Node: Send join packet to DAG-root node: ");
+		uip_debug_ipaddr_print(&addr);
+		printf("\n");
+	}
+
+	uint8_t payload_length = 8 + 4; //4 serial
+	uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
+	udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
+	udp_buffer[1] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;//packet_counter_node.u8[0];
+	udp_buffer[2] = DATA_TYPE_JOIN_V5_STAGE_1;//packet_counter_node.u8[1];
+	udp_buffer[3] = get_parent_rssi();
+	udp_buffer[4] = get_temperature();
+	udp_buffer[5] = get_voltage();
+
+	udp_buffer[6] = packet_counter_node.u8[0];//UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
+	udp_buffer[7] = packet_counter_node.u8[1];//DATA_TYPE_JOIN_V5_STAGE_1;
+	udp_buffer[8] = CURRENT_DEVICE_GROUP;
+	udp_buffer[9] = CURRENT_DEVICE_SLEEP_TYPE;
+	udp_buffer[10] = CURRENT_ABILITY_1BYTE;
+	udp_buffer[11] = CURRENT_ABILITY_2BYTE;
+	udp_buffer[12] = CURRENT_ABILITY_3BYTE;
+	udp_buffer[13] = CURRENT_ABILITY_4BYTE;
+	
+	udp_buffer[14] = (uint8_t)((serial >> 24) & 0xFF);	// SERIAL 00  00  92  F6
+	udp_buffer[15] = (uint8_t)((serial >> 16) & 0xFF); 	// SERIAL
+	udp_buffer[16] = (uint8_t)((serial >> 8) & 0xFF);  	// SERIAL
+	udp_buffer[17] = (uint8_t)(serial & 0xFF);			// SERIAL
+/*
+	udp_buffer[18] = DATA_RESERVED;
+	udp_buffer[19] = DATA_RESERVED;
+	udp_buffer[20] = DATA_RESERVED;
+	udp_buffer[21] = DATA_RESERVED;
+ */
+
+	simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
+}
+/*---------------------------------------------------------------------------*/
+//udbp_v5_join_stage_2_handler
+static void udbp_v5_join_stage_3_sender(const uip_ipaddr_t *dest_addr,
+										const uint8_t *data,
+										uint16_t datalen)
+{
+	printf("udbp_v5_join_stage_3_sender\n");
+	if (dest_addr == NULL)
+		return;
+	
+	uip_ipaddr_t addr;
+	uip_ip6addr_copy(&addr, dest_addr);
+	
+	if(uart_status() == 0)
+	{
+		printf("DAG Node: Send join packet stage 3 to DAG-root node:");
+		uip_debug_ipaddr_print(&addr);
+		printf("\n");
+	}
+	
+	uint8_t payload_length = 2 + 4 + 16; //2 header + 4 serial + 16 AES
+	uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
+	udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
+	udp_buffer[1] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;//packet_counter_node.u8[0];
+	udp_buffer[2] = DATA_TYPE_JOIN_V5_STAGE_3;//packet_counter_node.u8[1];
+	udp_buffer[3] = get_parent_rssi();
+	udp_buffer[4] = get_temperature();
+	udp_buffer[5] = get_voltage();
+
+	udp_buffer[6] = packet_counter_node.u8[0];//UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
+	udp_buffer[7] = packet_counter_node.u8[1];//DATA_TYPE_JOIN_V5_STAGE_3;
+	
+	udp_buffer[8] = (uint8_t)((serial >> 24) & 0xFF);	// SERIAL 00  00  92  F6
+	udp_buffer[9] = (uint8_t)((serial >> 16) & 0xFF); 	// SERIAL
+	udp_buffer[10] = (uint8_t)((serial >> 8) & 0xFF);  	// SERIAL
+	udp_buffer[11] = (uint8_t)(serial & 0xFF);			// SERIAL
+	
+	aes_ecb_decrypt((uint32_t*)aes_key, (uint32_t*)&data[8], (uint32_t*)aes_buffer);
+	nonce_key[0] = aes_buffer[0];
+	nonce_key[1] = aes_buffer[1];
+	nonce_key[2] = aes_buffer[0];
+	nonce_key[3] = aes_buffer[1];
+	nonce_key[4] = aes_buffer[0];
+	nonce_key[5] = aes_buffer[1];
+	nonce_key[6] = aes_buffer[0];
+	nonce_key[7] = aes_buffer[1];
+	nonce_key[8] = aes_buffer[0];
+	nonce_key[9] = aes_buffer[1];
+	nonce_key[10] = aes_buffer[0];
+	nonce_key[11] = aes_buffer[1];
+	nonce_key[12] = aes_buffer[0];
+	nonce_key[13] = aes_buffer[1];
+	nonce_key[14] = aes_buffer[0];
+	nonce_key[15] = aes_buffer[1];
+	
+	for (uint16_t i = 0; i < 16; i++)
+	{
+		printf(" %"PRIXX8, nonce_key[i]);
+	}
+	printf("\n");
+	
+	for (uint16_t i = 0; i < 16; i++)
+	{
+		printf(" %"PRIXX8, aes_buffer[i]);
+	}
+	printf("\n");
+	
+	for (uint16_t i = 0; i < 16; i++)
+	{
+		printf(" %"PRIXX8, udp_buffer[i+12]);
+	}
+	printf("\n");
+	
+	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[12]), 16);
+	
+/*	
+	udp_buffer[12] = DATA_RESERVED;
+	udp_buffer[13] = DATA_RESERVED;
+	udp_buffer[14] = DATA_RESERVED;
+	udp_buffer[15] = DATA_RESERVED;
+	udp_buffer[16] = DATA_RESERVED;
+	udp_buffer[17] = DATA_RESERVED;
+	udp_buffer[18] = DATA_RESERVED;
+	udp_buffer[19] = DATA_RESERVED;
+	udp_buffer[20] = DATA_RESERVED;
+	udp_buffer[21] = DATA_RESERVED;
+ */
+
+	simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
+
+	//uip_ipaddr_copy(&root_addr, sender_addr);
+	//process_post(&dag_node_process, PROCESS_EVENT_CONTINUE, NULL);
+	//etimer_set(&maintenance_timer, 0);
+	//packet_counter_node.u16 = 0;
+}
+/*---------------------------------------------------------------------------*/
+static void udbp_v5_join_stage_4_handler(const uip_ipaddr_t *sender_addr,
+										const uint8_t *data,
+										uint16_t datalen)
+{
+	printf("udbp_v5_join_stage_4_handler\n");
+	
+	if (sender_addr == NULL)
+		return;
+			
+	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[8], (uint32_t*)(aes_buffer), 16);
+		
+	for (uint16_t i = 0; i < 16; i++)
+	{
+		printf(" %"PRIXX8, nonce_key[i]);
+	}
+	printf("\n");
+	
+	for (uint16_t i = 0; i < 16; i++)
+	{
+		printf(" %"PRIXX8, data[i+8]);
+	}
+	printf("\n");
+	
+	for (uint16_t i = 0; i < 16; i++)
+	{
+		printf(" %"PRIXX8, aes_buffer[i]);
+	}
+	printf("\n");
+	
+	if( (aes_buffer[0] == 0x00)  &&
+		(aes_buffer[1] == 0x00)  &&
+		(aes_buffer[2] == 0x00)  &&
+		(aes_buffer[3] == 0x00)  &&
+		(aes_buffer[4] == 0x00)  &&
+		(aes_buffer[5] == 0x00)  &&
+		(aes_buffer[6] == 0x00)  &&
+		(aes_buffer[7] == 0x00)  &&
+		(aes_buffer[8] == 0x00)  &&
+		(aes_buffer[9] == 0x00)  &&
+		(aes_buffer[10] == 0x00) &&
+		(aes_buffer[11] == 0x00) &&
+		(aes_buffer[12] == 0x00) &&
+		(aes_buffer[13] == 0x00) &&
+		(aes_buffer[14] == 0x00) &&
+		(aes_buffer[15] == 0x00))
+	{
+		uip_ipaddr_copy(&root_addr, sender_addr); //Авторизован
+		process_post(&dag_node_process, PROCESS_EVENT_CONTINUE, NULL);
+		etimer_set(&maintenance_timer, 0);
+		packet_counter_node.u16 = 0;
+		return;
+	}
+	
+	printf("Authorisation Error\n");
+	//Не авторизован
+	
+}
+/*---------------------------------------------------------------------------*/
 /*
 static void command_settings_handler(const uip_ipaddr_t *sender_addr,
                                     const uint8_t *data,
@@ -173,14 +538,15 @@ static void command_settings_handler(const uip_ipaddr_t *sender_addr,
 /*---------------------------------------------------------------------------*/
 
 static void udbp_v5_ack_handler(const uip_ipaddr_t *sender_addr,
-                        const uint8_t *data,
-                        uint16_t datalen)
+								const uint8_t *data,
+								uint16_t datalen)
 {
-      non_answered_packet = 0;
-      printf("DAG Node: ACK packet received, non-answered packet counter: %"PRId8" \n", non_answered_packet);
-      net_off(RADIO_OFF_NOW);
-      process_message = PT_MESSAGE_ACK_RECIEVED;
-      process_post_synch(&main_process, PROCESS_EVENT_MSG, (process_data_t)&process_message);
+	non_answered_packet = 0;
+	if(uart_status() == 0)
+		printf("DAG Node: ACK packet received, non-answered packet counter: %"PRId8" \n", non_answered_packet);
+	net_off(RADIO_OFF_NOW);
+	process_message = PT_MESSAGE_ACK_RECIEVED;
+	process_post_synch(&main_process, PROCESS_EVENT_MSG, (process_data_t)&process_message);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -250,14 +616,17 @@ static void udp_receiver(struct simple_udp_connection *c,
       //uint8_t packet_type = data[2]; //deprecated
       //uint8_t packet_subtype = data[3]; //deprecated
 
-      printf("DAG Node: UDP packet received(%"PRIu8"): ", datalen);
-      for (uint16_t i = 0; i < datalen; i++)
-         printf("%"PRIXX8, data[i]);
-      printf("\n");
+	  if(uart_status() == 0)
+	  {
+		printf("DAG Node: UDP packet received(%"PRIu8"): ", datalen);
+			for (uint16_t i = 0; i < datalen; i++)
+				printf("%"PRIXX8, data[i]);
+			printf("\n");
+	  }
 
-      if (protocol_version == PROTOCOL_VERSION_V1 && device_version == CURRENT_DEVICE_VERSION)
+     if (protocol_version == PROTOCOL_VERSION_V1 && device_version == CURRENT_DEVICE_VERSION)
       {
-/*
+/* 
             if (packet_type == DATA_TYPE_COMMAND || data[2] == DATA_TYPE_SETTINGS)
                   command_settings_handler(sender_addr, data, datalen);
 
@@ -305,40 +674,52 @@ static void udp_receiver(struct simple_udp_connection *c,
       }
       else if (protocol_version == UDBP_PROTOCOL_VERSION_V5)
       {
-         uint8_t endpoint = data[6];
+         uint8_t endpoint = data[UDUP_V5_MODULE_ID];
          if (endpoint == UNWDS_6LOWPAN_SYSTEM_MODULE_ID)
          {
-            uint8_t packet_type = data[7];
+            uint8_t packet_type = data[UDUP_V5_PACKET_TYPE];
             if (packet_type == DATA_TYPE_JOIN_V5_STAGE_2)
             {
-               udbp_v5_join_stage_2_handler(sender_addr, data, datalen);
+				udbp_v5_join_stage_3_sender(sender_addr, data, datalen);
+            }
+			else if (packet_type == DATA_TYPE_JOIN_V5_STAGE_4)
+            {
+				udbp_v5_join_stage_4_handler(sender_addr, data, datalen);
             }
             else if (packet_type == DATA_TYPE_ACK)
             {
-               udbp_v5_ack_handler(sender_addr, data, datalen);
+				udbp_v5_ack_handler(sender_addr, data, datalen);
+            }
+			else if (packet_type == UART_FROM_AIR_TO_TX)
+            {
+				udbp_v5_uart_from_air_to_tx_handler(sender_addr, data, datalen);
             }
             else
             {
-               printf("DAG Node: Incompatible packet type(endpoint UNWDS_6LOWPAN_SYSTEM_MODULE_ID): %"PRIXX8"\n", packet_type);
+				if(uart_status() == 0)
+					printf("DAG Node: Incompatible packet type(endpoint UNWDS_6LOWPAN_SYSTEM_MODULE_ID): %"PRIXX8"\n", packet_type);
             }
          }
          else
          {
             for (uint16_t i = 0; i < datalen-6; i++)
                message_for_main_process.payload[i] = data[i+6];
-
-            printf("DAG Node: Message for module received(%"PRIu8"): ", datalen-6);
-            for (uint16_t i = 0; i < datalen-6; i++)
-               printf("%"PRIXX8, message_for_main_process.payload[i]);
-            printf("\n");
-
+			
+			if(uart_status() == 0)
+			{
+				printf("DAG Node: Message for module received(%"PRIu8"): ", datalen-6);
+				for (uint16_t i = 0; i < datalen-6; i++)
+					printf("%"PRIXX8, message_for_main_process.payload[i]);
+				printf("\n");
+			}
             process_post(&main_process, PROCESS_EVENT_CONTINUE, &message_for_main_process);
          }
 
       }
       else
       {
-         printf("DAG Node: Incompatible protocol version: %"PRIXX8"\n", protocol_version);
+		if(uart_status() == 0)
+			printf("DAG Node: Incompatible protocol version: %"PRIXX8"\n", protocol_version);
       }
 
    led_mode_set(LED_FLASH);
@@ -384,46 +765,47 @@ void send_time_sync_req_packet()
 
 void udbp_v5_message_sender(uint8_t message_type, uint8_t data_1, uint8_t data_2)
 {
-   if (node_mode != MODE_NORMAL)
-      return;
+	if (node_mode != MODE_NORMAL)
+		return;
 
-   uip_ipaddr_t addr;
-   uip_ip6addr_copy(&addr, &root_addr);
+	uip_ipaddr_t addr;
+	uip_ip6addr_copy(&addr, &root_addr);
+		
+	if(uart_status() == 0)
+		printf("DAG Node: Send message packet to DAG-root node\n");
 
-   printf("DAG Node: Send message packet to DAG-root node\n");
+	uint8_t payload_length = 5;
+	uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
+	udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
+	udp_buffer[1] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;//packet_counter_node.u8[0];
+	udp_buffer[2] = DATA_TYPE_MESSAGE;//packet_counter_node.u8[1];
+	udp_buffer[3] = get_parent_rssi();
+	udp_buffer[4] = get_temperature();
+	udp_buffer[5] = get_voltage();
 
-   uint8_t payload_length = 5;
-   uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
-   udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
-   udp_buffer[1] = packet_counter_node.u8[0];
-   udp_buffer[2] = packet_counter_node.u8[1];
-   udp_buffer[3] = get_parent_rssi();
-   udp_buffer[4] = get_temperature();
-   udp_buffer[5] = get_voltage();
-
-   udp_buffer[6] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
-   udp_buffer[7] = DATA_TYPE_MESSAGE;
-   udp_buffer[8] = message_type;
-   udp_buffer[9] = data_1;
-   udp_buffer[10] = data_2;
+	udp_buffer[6] = packet_counter_node.u8[0];//UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
+	udp_buffer[7] = packet_counter_node.u8[1];//DATA_TYPE_MESSAGE;
+	udp_buffer[8] = message_type;
+	udp_buffer[9] = data_1;
+	udp_buffer[10] = data_2;
 /*
-   udp_buffer[11] = DATA_RESERVED;
-   udp_buffer[12] = DATA_RESERVED;
-   udp_buffer[13] = DATA_RESERVED;
-   udp_buffer[14] = DATA_RESERVED;
-   udp_buffer[15] = DATA_RESERVED;
-   udp_buffer[16] = DATA_RESERVED;
-   udp_buffer[17] = DATA_RESERVED;
-   udp_buffer[18] = DATA_RESERVED;
-   udp_buffer[19] = DATA_RESERVED;
-   udp_buffer[20] = DATA_RESERVED;
-   udp_buffer[21] = DATA_RESERVED;
+	udp_buffer[11] = DATA_RESERVED;
+	udp_buffer[12] = DATA_RESERVED;
+	udp_buffer[13] = DATA_RESERVED;
+	udp_buffer[14] = DATA_RESERVED;
+	udp_buffer[15] = DATA_RESERVED;
+	udp_buffer[16] = DATA_RESERVED;
+	udp_buffer[17] = DATA_RESERVED;
+	udp_buffer[18] = DATA_RESERVED;
+	udp_buffer[19] = DATA_RESERVED;
+	udp_buffer[20] = DATA_RESERVED;
+	udp_buffer[21] = DATA_RESERVED;
  */
 
-   net_on(RADIO_ON_TIMER_OFF);
-   simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
-   packet_counter_node.u16++;
-   led_mode_set(LED_FLASH);
+	net_on(RADIO_ON_TIMER_OFF);
+	simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
+	packet_counter_node.u16++;
+	led_mode_set(LED_FLASH);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -433,113 +815,70 @@ void udbp_v5_status_packet_sender(const uip_ipaddr_t *parent_addr,
                         int16_t rssi_parent_raw,
                         uint8_t temp)
 {
-   if (parent_addr == NULL)
-      return;
+	if (parent_addr == NULL)
+		return;
 
-   u8_u32_t uptime;
-   uptime.u32 = uptime_raw;
+	u8_u32_t uptime;
+	uptime.u32 = uptime_raw;
 
-   uip_ipaddr_t addr;
-   uip_ip6addr_copy(&addr, &root_addr);
+	uip_ipaddr_t addr;
+	uip_ip6addr_copy(&addr, &root_addr);
+   
+	if(uart_status() == 0)
+	{
+		printf("DAG Node: Send status packet to DAG-root node: ");
+		uip_debug_ipaddr_print(&addr);
+		printf("\n");
+	}
 
-   printf("DAG Node: Send status packet to DAG-root node: ");
-   uip_debug_ipaddr_print(&addr);
-   printf("\n");
+	uint8_t payload_length = 18;
+	uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
+	udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
+	udp_buffer[1] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;//packet_counter_node.u8[0];
+	udp_buffer[2] = DATA_TYPE_STATUS;//packet_counter_node.u8[1];
+	udp_buffer[3] = get_parent_rssi();
+	udp_buffer[4] = get_temperature();
+	udp_buffer[5] = get_voltage();
 
-   uint8_t payload_length = 18;
-   uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
-   udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
-   udp_buffer[1] = packet_counter_node.u8[0];
-   udp_buffer[2] = packet_counter_node.u8[1];
-   udp_buffer[3] = get_parent_rssi();
-   udp_buffer[4] = get_temperature();
-   udp_buffer[5] = get_voltage();
+	udp_buffer[6] = packet_counter_node.u8[0];//UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
+	udp_buffer[7] = packet_counter_node.u8[1];//DATA_TYPE_STATUS;
+	udp_buffer[8] = parent_addr->u8[8];
+	udp_buffer[9] = parent_addr->u8[9];
+	udp_buffer[10] = parent_addr->u8[10];
+	udp_buffer[11] = parent_addr->u8[11];
+	udp_buffer[12] = parent_addr->u8[12];
+	udp_buffer[13] = parent_addr->u8[13];
+	udp_buffer[14] = parent_addr->u8[14];
+	udp_buffer[15] = parent_addr->u8[15];
+	udp_buffer[16] = uptime.u8[0];
+	udp_buffer[17] = uptime.u8[1];
+	udp_buffer[18] = uptime.u8[2];
+	udp_buffer[19] = uptime.u8[3];
+	udp_buffer[20] = temp;
+	udp_buffer[21] = BIG_VERSION;
 
-   udp_buffer[6] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
-   udp_buffer[7] = DATA_TYPE_STATUS;
-   udp_buffer[8] = parent_addr->u8[8];
-   udp_buffer[9] = parent_addr->u8[9];
-   udp_buffer[10] = parent_addr->u8[10];
-   udp_buffer[11] = parent_addr->u8[11];
-   udp_buffer[12] = parent_addr->u8[12];
-   udp_buffer[13] = parent_addr->u8[13];
-   udp_buffer[14] = parent_addr->u8[14];
-   udp_buffer[15] = parent_addr->u8[15];
-   udp_buffer[16] = uptime.u8[0];
-   udp_buffer[17] = uptime.u8[1];
-   udp_buffer[18] = uptime.u8[2];
-   udp_buffer[19] = uptime.u8[3];
-   udp_buffer[20] = temp;
-   udp_buffer[21] = BIG_VERSION;
-
-   udp_buffer[22] = LITTLE_VERSION;
-   udp_buffer[23] = spi_status;
+	udp_buffer[22] = LITTLE_VERSION;
+	udp_buffer[23] = spi_status;
 /*
-   udp_buffer[24] = DATA_RESERVED;
-   udp_buffer[25] = DATA_RESERVED;
-   udp_buffer[26] = DATA_RESERVED;
-   udp_buffer[27] = DATA_RESERVED;
-   udp_buffer[28] = DATA_RESERVED;
-   udp_buffer[29] = DATA_RESERVED;
-   udp_buffer[30] = DATA_RESERVED;
-   udp_buffer[31] = DATA_RESERVED;
-   udp_buffer[32] = DATA_RESERVED;
-   udp_buffer[33] = DATA_RESERVED;
-   udp_buffer[34] = DATA_RESERVED;
-   udp_buffer[35] = DATA_RESERVED;
-   udp_buffer[36] = DATA_RESERVED;
-   udp_buffer[37] = DATA_RESERVED;
+	udp_buffer[24] = DATA_RESERVED;
+	udp_buffer[25] = DATA_RESERVED;
+	udp_buffer[26] = DATA_RESERVED;
+	udp_buffer[27] = DATA_RESERVED;
+	udp_buffer[28] = DATA_RESERVED;
+	udp_buffer[29] = DATA_RESERVED;
+	udp_buffer[30] = DATA_RESERVED;
+	udp_buffer[31] = DATA_RESERVED;
+	udp_buffer[32] = DATA_RESERVED;
+	udp_buffer[33] = DATA_RESERVED;
+	udp_buffer[34] = DATA_RESERVED;
+	udp_buffer[35] = DATA_RESERVED;
+	udp_buffer[36] = DATA_RESERVED;
+	udp_buffer[37] = DATA_RESERVED;
  */
 
-   net_on(RADIO_ON_TIMER_OFF);
-   simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
-   led_mode_set(LED_FLASH);
-}
-
-
-/*---------------------------------------------------------------------------*/
-
-void udbp_v5_join_stage_1_sender(const uip_ipaddr_t *dest_addr)
-{
-   if (dest_addr == NULL)
-      return;
-
-   uip_ipaddr_t addr;
-   uip_ip6addr_copy(&addr, dest_addr);
-
-   printf("DAG Node: Send join packet to DAG-root node: ");
-   uip_debug_ipaddr_print(&addr);
-   printf("\n");
-
-   uint8_t payload_length = 8;
-   uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
-   udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
-   udp_buffer[1] = packet_counter_node.u8[0];
-   udp_buffer[2] = packet_counter_node.u8[1];
-   udp_buffer[3] = get_parent_rssi();
-   udp_buffer[4] = get_temperature();
-   udp_buffer[5] = get_voltage();
-
-   udp_buffer[6] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
-   udp_buffer[7] = DATA_TYPE_JOIN_V5_STAGE_1;
-   udp_buffer[8] = CURRENT_DEVICE_GROUP;
-   udp_buffer[9] = CURRENT_DEVICE_SLEEP_TYPE;
-   udp_buffer[10] = CURRENT_ABILITY_1BYTE;
-   udp_buffer[11] = CURRENT_ABILITY_2BYTE;
-   udp_buffer[12] = CURRENT_ABILITY_3BYTE;
-   udp_buffer[13] = CURRENT_ABILITY_4BYTE;
-/*
-   udp_buffer[14] = DATA_RESERVED;
-   udp_buffer[15] = DATA_RESERVED;
-   udp_buffer[16] = DATA_RESERVED;
-   udp_buffer[17] = DATA_RESERVED;
-   udp_buffer[18] = DATA_RESERVED;
-   udp_buffer[19] = DATA_RESERVED;
-   udp_buffer[20] = DATA_RESERVED;
-   udp_buffer[21] = DATA_RESERVED;
- */
-
-   simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
+	net_on(RADIO_ON_TIMER_OFF);
+	simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
+	led_mode_set(LED_FLASH);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -573,17 +912,17 @@ void send_fw_chunk_req_packet(uint16_t chunk_num_raw)
 
 void led_mode_set(uint8_t mode)
 {
-   led_mode = mode;
-   if (led_mode == LED_OFF)
-      led_off(LED_A);
+	led_mode = mode;
+	if (led_mode == LED_OFF)
+		led_off(LED_A);
 
-   if (led_mode == LED_ON)
-      led_on(LED_A);
+	if (led_mode == LED_ON)
+		led_on(LED_A);
 
-   if (led_mode == LED_SLOW_BLINK || led_mode == LED_FAST_BLINK || led_mode == LED_FLASH)
-      process_start(&led_process, NULL);
-   else
-      process_exit(&led_process);
+	if (led_mode == LED_SLOW_BLINK || led_mode == LED_FAST_BLINK || led_mode == LED_FLASH)
+		process_start(&led_process, NULL);
+	else
+		process_exit(&led_process);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -649,7 +988,8 @@ PROCESS_THREAD(dag_node_button_process, ev, data)
          if (data == &button_e_sensor_long_click)
          {
             led_mode_set(LED_ON);
-            printf("SYSTEM: Button E long click, reboot\n");
+			if(uart_status() == 0)
+				printf("SYSTEM: Button E long click, reboot\n");
             watchdog_reboot();
          }
       }
@@ -689,7 +1029,8 @@ PROCESS_THREAD(maintenance_process, ev, data)
 
          if (non_answered_packet > MAX_NON_ANSWERED_PINGS)
          {
-            printf("DAG Node: Root not available, reboot\n");
+			if(uart_status() == 0)
+				printf("DAG Node: Root not available, reboot\n");
             watchdog_reboot();
          }
       }
@@ -699,7 +1040,8 @@ PROCESS_THREAD(maintenance_process, ev, data)
          if (CLASS == CLASS_B)
          {
             led_mode_set(LED_OFF);
-            printf("DAG Node: Root not found, sleep\n");
+			if(uart_status() == 0)
+				printf("DAG Node: Root not found, sleep\n");
             if (process_is_running(&dag_node_button_process) == 1)
                process_exit(&dag_node_button_process);
 
@@ -723,7 +1065,8 @@ PROCESS_THREAD(maintenance_process, ev, data)
          if (CLASS == CLASS_C)
          {
             led_mode_set(LED_FAST_BLINK);
-            printf("DAG Node: Root not found, reboot\n"); //почему-то не перезагружается!
+			if(uart_status() == 0)
+				printf("DAG Node: Root not found, reboot\n"); //почему-то не перезагружается!
             watchdog_reboot();
          }
       }
@@ -768,7 +1111,8 @@ PROCESS_THREAD(status_send_process, ev, data)
 
          if (rpl_parent_is_reachable(dag->preferred_parent) == 0)
          {
-            printf("DAG Node: Parent is not reachable\n");
+			if(uart_status() == 0)
+				printf("DAG Node: Parent is not reachable\n");
             watchdog_reboot();
          }
 
@@ -782,18 +1126,21 @@ PROCESS_THREAD(status_send_process, ev, data)
          non_answered_packet++;
          if (non_answered_packet != 1)
          {
-            printf("DAG Node: Non-answered packet counter increase(status message): %"PRId8" \n", non_answered_packet);
+			if(uart_status() == 0)
+				printf("DAG Node: Non-answered packet counter increase(status message): %"PRId8" \n", non_answered_packet);
          }
       }
 
       if (CLASS == CLASS_B)
       {
-         printf("DAG Node: Next status message planned on long interval(%"PRId8" min)\n", LONG_STATUS_INTERVAL/CLOCK_SECOND/60);
-         etimer_set( &status_send_timer, LONG_STATUS_INTERVAL + (random_rand() % LONG_STATUS_INTERVAL) );
+		if(uart_status() == 0)
+			printf("DAG Node: Next status message planned on long interval(%"PRId8" min)\n", LONG_STATUS_INTERVAL/CLOCK_SECOND/60);
+        etimer_set( &status_send_timer, LONG_STATUS_INTERVAL + (random_rand() % LONG_STATUS_INTERVAL) );
       }
       if (CLASS == CLASS_C)
       {
-         printf("DAG Node: Next status message planned on short interval(%"PRId8" min)\n", SHORT_STATUS_INTERVAL/CLOCK_SECOND/60);
+		 if(uart_status() == 0)
+			printf("DAG Node: Next status message planned on short interval(%"PRId8" min)\n", SHORT_STATUS_INTERVAL/CLOCK_SECOND/60);
          etimer_set( &status_send_timer, SHORT_STATUS_INTERVAL + (random_rand() % SHORT_STATUS_INTERVAL) );
       }
 
@@ -807,30 +1154,33 @@ PROCESS_THREAD(status_send_process, ev, data)
 
 PROCESS_THREAD(fw_update_process, ev, data)
 {
-   PROCESS_BEGIN();
+	PROCESS_BEGIN();
 
-   if (ev == PROCESS_EVENT_EXIT)
-      return 1;
+	if (ev == PROCESS_EVENT_EXIT)
+		return 1;
 
-   static uint16_t chunk_num = 0;
-   static struct etimer fw_timer_deadline;
-   static struct etimer fw_timer_delay_chunk;
-   static struct etimer ota_image_erase_timer;
-   static uint32_t page;
+	static uint16_t chunk_num = 0;
+	static struct etimer fw_timer_deadline;
+	static struct etimer fw_timer_delay_chunk;
+	static struct etimer ota_image_erase_timer;
+	static uint32_t page;
 
-   /* Стираем память */
+	/* Стираем память */
 
-   printf("[OTA]: Erasing OTA slot 1 [%#x, %#x)...\n", (ota_images[0]<<12), ((ota_images[0]+25)<<12));
-   for (page=0; page<25; page++)
-   {
-     printf("\r[OTA]: Erasing page %"PRIu32" at 0x%"PRIX32"..", page, (( ota_images[0] + page ) << 12));
-     while( erase_extflash_page( (( ota_images[0] + page ) << 12) ) );
+	if(uart_status() == 0)
+		printf("[OTA]: Erasing OTA slot 1 [%#x, %#x)...\n", (ota_images[0]<<12), ((ota_images[0]+25)<<12));
+	for (page=0; page<25; page++)
+	{
+		if(uart_status() == 0)
+			printf("\r[OTA]: Erasing page %"PRIu32" at 0x%"PRIX32"..", page, (( ota_images[0] + page ) << 12));
+		while( erase_extflash_page( (( ota_images[0] + page ) << 12) ) );
 
-     udbp_v5_message_sender(DEVICE_MESSAGE_OTA_SPI_ERASE_IN_PROGRESS, page, DATA_NONE);
-     etimer_set( &ota_image_erase_timer, (CLOCK_SECOND/20) );
-     PROCESS_WAIT_EVENT_UNTIL( etimer_expired(&ota_image_erase_timer) );
-   }
-   printf("\r[OTA]: OTA slot 1 erased                        \n");
+		udbp_v5_message_sender(DEVICE_MESSAGE_OTA_SPI_ERASE_IN_PROGRESS, page, DATA_NONE);
+		etimer_set( &ota_image_erase_timer, (CLOCK_SECOND/20) );
+		PROCESS_WAIT_EVENT_UNTIL( etimer_expired(&ota_image_erase_timer) );
+	}
+	if(uart_status() == 0)
+		printf("\r[OTA]: OTA slot 1 erased                        \n");
 
 
    /* Начинаем процесс обновления */
@@ -841,12 +1191,14 @@ PROCESS_THREAD(fw_update_process, ev, data)
       if (chunk_num < fw_chunk_quantity.u16) //Если остались незапрошенные пакеты
       {
          //send_fw_chunk_req_packet(chunk_num);
-         printf("\r[OTA]: Request %"PRId16"/%"PRId16" chunk... ", chunk_num + 1, fw_chunk_quantity.u16);
+		 if(uart_status() == 0)
+			printf("\r[OTA]: Request %"PRId16"/%"PRId16" chunk... ", chunk_num + 1, fw_chunk_quantity.u16);
          chunk_num++;
       }
       else //Если все пакеты запрошены
       {
-         printf("\n[OTA]: End chunks\n");
+		 if(uart_status() == 0)
+			printf("\n[OTA]: End chunks\n");
          chunk_num = 0;
          fw_error_counter = 0;
          int crc_status_ota_slot = verify_ota_slot(1);
@@ -857,23 +1209,27 @@ PROCESS_THREAD(fw_update_process, ev, data)
 
          if (crc_status_ota_slot == CORRECT_CRC)
          {
-            printf("[OTA]: New FW in OTA slot 1 correct CRC\n");
+			if(uart_status() == 0)
+				printf("[OTA]: New FW in OTA slot 1 correct CRC\n");
             if (current_firmware.uuid == ota_slot_1_firmware.uuid) //TODO: add univeral uuid(0xFFFFFFFF)
             {
-               printf("[OTA]: New FW in OTA slot 1 correct UUID, set FW_FLAG_NEW_IMG_EXT, reboot\n");
+			   if(uart_status() == 0)
+					printf("[OTA]: New FW in OTA slot 1 correct UUID, set FW_FLAG_NEW_IMG_EXT, reboot\n");
                write_fw_flag(FW_FLAG_NEW_IMG_EXT);
                ti_lib_sys_ctrl_system_reset();
             }
             else
             {
-               printf("[OTA]: New FW in OTA slot 1 non-correct firmware UUID\n");
+			   if(uart_status() == 0)
+					printf("[OTA]: New FW in OTA slot 1 non-correct firmware UUID\n");
                udbp_v5_message_sender(DEVICE_MESSAGE_OTA_NONCORRECT_UUID, DATA_NONE, DATA_NONE);
             }
 
          }
          else
          {
-            printf("[OTA]: New FW in OTA slot 1 non-correct CRC\n");
+			if(uart_status() == 0)
+				printf("[OTA]: New FW in OTA slot 1 non-correct CRC\n");
             udbp_v5_message_sender(DEVICE_MESSAGE_OTA_NONCORRECT_CRC, DATA_NONE, DATA_NONE);
          }
          process_exit(&fw_update_process);
@@ -889,7 +1245,8 @@ PROCESS_THREAD(fw_update_process, ev, data)
       {
          if (fw_error_counter > FW_MAX_ERROR_COUNTER)
          {
-            printf("[OTA]: Not delivered chunk(>%"PRId8" errors), exit\n", FW_MAX_ERROR_COUNTER);
+			if(uart_status() == 0)
+				printf("[OTA]: Not delivered chunk(>%"PRId8" errors), exit\n", FW_MAX_ERROR_COUNTER);
             udbp_v5_message_sender(DEVICE_MESSAGE_OTA_NOT_DELIVERED_CHUNK, DATA_NONE, DATA_NONE);
             process_exit(&fw_update_process);
             chunk_num = 0;
@@ -900,7 +1257,8 @@ PROCESS_THREAD(fw_update_process, ev, data)
          {
             fw_error_counter++;
             chunk_num--;
-            printf("[OTA]: Request %"PRId16"/%"PRId16" chunk again(%"PRId8" errors)\n", chunk_num + 1, fw_chunk_quantity.u16, fw_error_counter);
+			if(uart_status() == 0)
+				printf("[OTA]: Request %"PRId16"/%"PRId16" chunk again(%"PRId8" errors)\n", chunk_num + 1, fw_chunk_quantity.u16, fw_error_counter);
          }
       }
       etimer_set( &fw_timer_delay_chunk, (CLOCK_SECOND/20) ); //Таймер задержки перед запросом следующего чанка
@@ -950,7 +1308,8 @@ PROCESS_THREAD(root_find_process, ev, data)
          else
          {
             node_mode = MODE_NOTROOT;
-            printf("DAG Node: mode set to MODE_NOTROOT\n");
+			if(uart_status() == 0)
+				printf("DAG Node: mode set to MODE_NOTROOT\n");
             process_exit(&maintenance_process);
             process_start(&maintenance_process, NULL);
          }
@@ -984,18 +1343,20 @@ PROCESS_THREAD(dag_node_process, ev, data)
 
    packet_counter_node.u16 = 0;
 
-   printf("Node started, %s mode, %s class, SPI %s, version %"PRIu8".%"PRIu8"\n",
-                rpl_get_mode() == RPL_MODE_LEAF ? "leaf" : "no-leaf",
-                CLASS == CLASS_B ? "B(sleep)" : "C(non-sleep)",
-                spi_status == SPI_EXT_FLASH_ACTIVE ? "active" : "non-active",
-                BIG_VERSION, LITTLE_VERSION);
+   if(uart_status() == 0)
+	   printf("Node started, %s mode, %s class, SPI %s, version %"PRIu8".%"PRIu8"\n",
+					rpl_get_mode() == RPL_MODE_LEAF ? "leaf" : "no-leaf",
+					CLASS == CLASS_B ? "B(sleep)" : "C(non-sleep)",
+					spi_status == SPI_EXT_FLASH_ACTIVE ? "active" : "non-active",
+					BIG_VERSION, LITTLE_VERSION);
 
    process_start(&dag_node_button_process, NULL);
    process_start(&maintenance_process, NULL);
 
-   if (BOARD_IOID_UART_RX == IOID_UNUSED)
+   /*if (BOARD_IOID_UART_RX == IOID_UNUSED)
    {
-      printf("DAG Node: Shell not active, uart RX set to IOID_UNUSED\n");
+	  if(uart_status() == 0)
+		 printf("DAG Node: Shell not active, uart RX set to IOID_UNUSED\n");
       cc26xx_uart_set_input(NULL);
    }
    else
@@ -1004,15 +1365,17 @@ PROCESS_THREAD(dag_node_process, ev, data)
       shell_reboot_init();
       shell_time_init();
       unwired_shell_init();
-      printf("DAG Node: Shell activated, type \"help\" for command list\n");
-   }
+	  if(uart_status() == 0)
+		printf("DAG Node: Shell activated, type \"help\" for command list\n");
+   }*/
 
 
    SENSORS_ACTIVATE(batmon_sensor);
 
    PROCESS_YIELD_UNTIL(ev == PROCESS_EVENT_CONTINUE);
 
-   printf("DAG Node: DAG active, join stage 2 packet received, mode set to MODE_NORMAL\n");
+   if(uart_status() == 0)
+		printf("DAG Node: DAG active, join stage 2 packet received, mode set to MODE_NORMAL\n");
    led_mode_set(LED_SLOW_BLINK);
    node_mode = MODE_NORMAL;
    udbp_v5_message_sender(DEVICE_MESSAGE_JOIN_SUCCESSFUL, DATA_NONE, DATA_NONE);
@@ -1024,7 +1387,8 @@ PROCESS_THREAD(dag_node_process, ev, data)
    {
       if (verify_ota_slot(0) == VERIFY_SLOT_CRC_ERROR)
       {
-         printf("[OTA]: bad golden image, write current FW\n");
+		 if(uart_status() == 0)
+			printf("[OTA]: bad golden image, write current FW\n");
          udbp_v5_message_sender(DEVICE_MESSAGE_OTA_BAD_GOLDEN_IMAGE, DATA_NONE, DATA_NONE);
          backup_golden_image();
          watchdog_reboot();
@@ -1035,10 +1399,12 @@ PROCESS_THREAD(dag_node_process, ev, data)
    if (current_ota_flag_status == FW_FLAG_NEW_IMG_INT)
    {
       write_fw_flag(FW_FLAG_PING_OK);
-      printf("DAG Node: OTA flag changed to FW_FLAG_PING_OK\n");
+	  if(uart_status() == 0)
+		printf("DAG Node: OTA flag changed to FW_FLAG_PING_OK\n");
       udbp_v5_message_sender(DEVICE_MESSAGE_OTA_UPDATE_SUCCESS, DATA_NONE, DATA_NONE);
       node_mode = MODE_NEED_REBOOT;
-      printf("DAG Node: mode set to MODE_NEED_REBOOT(reboot after ota-update)\n");
+	  if(uart_status() == 0)
+		printf("DAG Node: mode set to MODE_NEED_REBOOT(reboot after ota-update)\n");
       process_exit(&maintenance_process);
       process_start(&maintenance_process, NULL);
    }

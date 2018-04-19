@@ -111,6 +111,13 @@ led_blink_long(unsigned char ledv)
     clock_delay(1000);
     show_leds(leds ^ ledv);
 }
+void
+led_blink_very_long(unsigned char ledv)
+{
+    show_leds(leds ^ ledv);
+    clock_delay(10000);
+    show_leds(leds ^ ledv);
+}
 /*---------------------------------------------------------------------------*/
 void
 led_on(unsigned char ledv)

@@ -62,8 +62,11 @@
 #define DATA_TYPE_FIRMWARE_CMD                                  0x0E //Команды OTA
 #define DATA_TYPE_RESERVED_3                                    0x0F //Не используется
 #define DATA_TYPE_JOIN_V5_STAGE_1                               0x10 //Нода посылает запрос координатору
-#define DATA_TYPE_JOIN_V5_STAGE_2                               0x11 //Координатор отвечает ноде
-#define DATA_TYPE_JOIN_V5_STAGE_3                               0x12 //Нода удостоверяет, что получила подтверждение и в сети(для индикации пользователю).
+#define DATA_TYPE_JOIN_V5_STAGE_2                               0x11 //Координатор отправляет ecb_encrypt(nonce=rand())
+#define DATA_TYPE_JOIN_V5_STAGE_3                               0x12 //Нода удостоверяет, что она знает ключь отправляя cbc_encrypt(nonce + 1)
+#define DATA_TYPE_JOIN_V5_STAGE_4                               0x13 //Координатор отвечает ноде что она имеет право быть в сети
+#define UART_FROM_AIR_TO_TX										0x50 //Пакет с UART
+#define UART_FROM_RX_TO_AIR										0x51 //Пакет с UART
 
 /* Reserved data */
 #define DATA_RESERVED                                           0xFF
@@ -223,6 +226,8 @@
 #define UDUP_V5_CR_VOLTAGE_RSSI_LENGTH                          2
 #define UDUP_V5_ADDRESS_LENGTH                                  8
 #define UDUP_V5_HEADER_LENGTH                                   3
+#define UDUP_V5_MODULE_ID 										1
+#define UDUP_V5_PACKET_TYPE										2
 
 #define UDUP_V5_RC_PAYLOAD_OFFSET                               (UDUP_V5_HEADER_LENGTH + UDUP_V5_ADDRESS_LENGTH + UDUP_V5_DATA_LENGTH_LENGTH)
 #define UDUP_V5_CR_PAYLOAD_OFFSET                               (UDUP_V5_HEADER_LENGTH + UDUP_V5_ADDRESS_LENGTH + UDUP_V5_DATA_LENGTH_LENGTH + UDUP_V5_CR_VOLTAGE_RSSI_LENGTH)

@@ -51,6 +51,11 @@
 extern process_event_t serial_line_event_message;
 
 /**
+ * Event posted when uart data has been received.
+ */
+extern process_event_t uart_event_message;
+
+/**
  * Get one byte of input from the serial driver.
  *
  * This function is to be called from the actual RS232 driver to get
@@ -70,6 +75,11 @@ extern process_event_t serial_line_event_message;
 int serial_line_input_byte(unsigned char c);
 
 void serial_line_init(void);
+
+void set_uart(void);
+void unset_uart(void);
+void reset_uart(void);
+bool uart_status(void);
 
 PROCESS_NAME(serial_line_process);
 

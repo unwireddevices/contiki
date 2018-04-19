@@ -302,8 +302,8 @@
 // Select between cache or GPRAM
 //#####################################
 #ifndef SET_CCFG_SIZE_AND_DIS_FLAGS_DIS_GPRAM
-// #define SET_CCFG_SIZE_AND_DIS_FLAGS_DIS_GPRAM        0x0        // Cache is disabled and GPRAM is available at 0x11000000-0x11001FFF
-#define SET_CCFG_SIZE_AND_DIS_FLAGS_DIS_GPRAM           0x1        // Cache is enabled and GPRAM is disabled (unavailable)
+#define SET_CCFG_SIZE_AND_DIS_FLAGS_DIS_GPRAM      		0x0        // Cache is disabled and GPRAM is available at 0x11000000-0x11001FFF
+// #define SET_CCFG_SIZE_AND_DIS_FLAGS_DIS_GPRAM        0x1        // Cache is enabled and GPRAM is disabled (unavailable)
 #endif
 
 //#####################################

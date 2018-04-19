@@ -99,7 +99,7 @@ void periph_crypto_stop()
 void aes_cbc_encrypt(uint32_t *aes_key, uint32_t *nonce, uint32_t *input_data, uint32_t *output_data, uint32_t data_lenth)
 {
    uint8_t key_index = CRYPTO_KEY_AREA_0;
-   aes_cbc_nonce_gen(nonce);
+   //aes_cbc_nonce_gen(nonce);
 
    periph_crypto_run();
    ti_lib_crypto_aes_load_key(aes_key, key_index);
@@ -126,7 +126,7 @@ void aes_cbc_decrypt(uint32_t *aes_key, uint32_t *nonce, uint32_t *input_data, u
 /*---------------------------------------------------------------------------*/
 
 
-void aes_ecb_encrypt(uint32_t *aes_key, uint32_t *nonce, uint32_t *input_data, uint32_t *output_data, uint32_t data_lenth)
+void aes_ecb_encrypt(uint32_t *aes_key, uint32_t *input_data, uint32_t *output_data)
 {
    uint8_t key_index = CRYPTO_KEY_AREA_0;
 
@@ -140,7 +140,7 @@ void aes_ecb_encrypt(uint32_t *aes_key, uint32_t *nonce, uint32_t *input_data, u
 
 /*---------------------------------------------------------------------------*/
 
-void aes_ecb_decrypt(uint32_t *aes_key, uint32_t *nonce, uint32_t *input_data, uint32_t *output_data, uint32_t data_lenth)
+void aes_ecb_decrypt(uint32_t *aes_key, uint32_t *input_data, uint32_t *output_data)
 {
    uint8_t key_index = CRYPTO_KEY_AREA_0;
 

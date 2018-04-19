@@ -27,39 +27,26 @@
 /*---------------------------------------------------------------------------*/
 /**
  * \file
- *         Header file for internal flash read-write functions
+ *         Config file for c-class devices(DC power modules)
  * \author
  *         Vladislav Zaytsev vvzvlad@gmail.com vz@unwds.com
  */
 /*---------------------------------------------------------------------------*/
-#include "contiki.h"
-#include "ud_binary_protocol.h"
+#include "project-conf.h"
+ 
+/* Net tune option */
+#undef UIP_DS6_CONF_PERIOD
+#define UIP_DS6_CONF_PERIOD                      (CLOCK_SECOND/10)
 
-#define USER_FLASH_LENGTH                       100
+/* RPL tune option */
+#undef RPL_CONF_LEAF_ONLY
+#define RPL_CONF_LEAF_ONLY                       0
 
-#define START_USER_FLASH                        0x1E000
-#define END_USER_FLASH                          USER_FLASH_LENGTH + START_USER_FLASH
+#undef RPL_CONF_DIO_INTERVAL_MIN
+#define RPL_CONF_DIO_INTERVAL_MIN                12 //2^X ms, 12(2^12 = 4.096s) default
 
-#define START_ON_LAST_STATE                     0x01
-#define START_ON_ON_STATE                       0x02
-#define START_ON_OFF_STATE                      0x03
+#undef RPL_CONF_DIO_INTERVAL_DOUBLINGS
+#define RPL_CONF_DIO_INTERVAL_DOUBLINGS          4 // RPL_CONF_DIO_INTERVAL_MIN + RPL_CONF_DIO_INTERVAL_DOUBLINGS <= 20
 
-#define POWER_1_DIO                             BOARD_IOID_RELAY_1
-#define POWER_1_CH_LAST_STATE_OFFSET            0x01
-#define POWER_1_CH_START_STATE_OFFSET           0x02
-
-#define POWER_2_DIO                             BOARD_IOID_RELAY_2
-#define POWER_2_CH_LAST_STATE_OFFSET            0x03
-#define POWER_2_CH_START_STATE_OFFSET           0x04
-
-#define OTA_STATUS_FLAG                         0x05
-
-#define BLANK_FLASH_VALUE                       0xFF
-
-/*---------------------------------------------------------------------------*/
-void user_flash_update_byte(uint8_t offset, uint8_t data);
-uint8_t user_flash_read_byte(uint8_t offset);
-void flash_read(uint8_t *pui8DataBuffer, uint32_t ui32Address, uint32_t ui32Count);
-uint32_t flash_write(uint8_t *pui8DataBuffer, uint32_t ui32Address, uint32_t ui32Count);
-
-/*---------------------------------------------------------------------------*/
+//#define RPL_CONF_WITH_DAO_ACK                    1
+//#define RPL_CONF_RPL_REPAIR_ON_DAO_NACK          1

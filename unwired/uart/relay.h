@@ -27,39 +27,24 @@
 /*---------------------------------------------------------------------------*/
 /**
  * \file
- *         Header file for internal flash read-write functions
+ *         Header file for relay service
  * \author
  *         Vladislav Zaytsev vvzvlad@gmail.com vz@unwds.com
  */
 /*---------------------------------------------------------------------------*/
 #include "contiki.h"
-#include "ud_binary_protocol.h"
+#include "net/ip/uip.h"
 
-#define USER_FLASH_LENGTH                       100
-
-#define START_USER_FLASH                        0x1E000
-#define END_USER_FLASH                          USER_FLASH_LENGTH + START_USER_FLASH
-
-#define START_ON_LAST_STATE                     0x01
-#define START_ON_ON_STATE                       0x02
-#define START_ON_OFF_STATE                      0x03
-
-#define POWER_1_DIO                             BOARD_IOID_RELAY_1
-#define POWER_1_CH_LAST_STATE_OFFSET            0x01
-#define POWER_1_CH_START_STATE_OFFSET           0x02
-
-#define POWER_2_DIO                             BOARD_IOID_RELAY_2
-#define POWER_2_CH_LAST_STATE_OFFSET            0x03
-#define POWER_2_CH_START_STATE_OFFSET           0x04
-
-#define OTA_STATUS_FLAG                         0x05
-
-#define BLANK_FLASH_VALUE                       0xFF
+PROCESS_NAME(main_process);
 
 /*---------------------------------------------------------------------------*/
-void user_flash_update_byte(uint8_t offset, uint8_t data);
-uint8_t user_flash_read_byte(uint8_t offset);
-void flash_read(uint8_t *pui8DataBuffer, uint32_t ui32Address, uint32_t ui32Count);
-uint32_t flash_write(uint8_t *pui8DataBuffer, uint32_t ui32Address, uint32_t ui32Count);
+#define CURRENT_DEVICE_SLEEP_TYPE             DEVICE_SLEEP_TYPE_NORMAL
+#define CURRENT_DEVICE_GROUP                  DEVICE_GROUP_RELAY
+#define CURRENT_DEVICE_VERSION                DEVICE_VERSION_V1
+#define CURRENT_PROTOCOL_VERSION              PROTOCOL_VERSION_V1
+#define CURRENT_ABILITY_1BYTE                 0b00000000
+#define CURRENT_ABILITY_2BYTE                 0b00000000
+#define CURRENT_ABILITY_3BYTE                 0b10000000
+#define CURRENT_ABILITY_4BYTE                 0b00000000
 
 /*---------------------------------------------------------------------------*/
