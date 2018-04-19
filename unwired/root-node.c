@@ -185,7 +185,7 @@ uint16_t get_nonce(uint32_t serial)
 	//return 0; //route_table[0].addr; //ВОЗВРАЩАЕТ ЧТО ТАКОГО АДРЕССА НЕТ, А ПОКА ЧТО ХУЕТУ ВОЗВРАЩАЕТ
 }
 /*---------------------------------------------------------------------------*/
-static void unlock_addr(uint32_t serial)
+static void unlock_addr(uint32_t serial,  uint16_t counter)
 {
 	for(uint8_t i = 0; i < route_table_ptr; i++)
 	{
@@ -196,9 +196,27 @@ static void unlock_addr(uint32_t serial)
 			//uip_debug_ipaddr_print(&route_table[i].addr);
 			//printf("route_table_ptr: %i\n", i);
 			if(route_table[i].counter == 0xFFFF) //Проверка на активность.
-				route_table[i].counter = 0x0000;
+				route_table[i].counter = counter;
 		}
 	}
+}
+/*---------------------------------------------------------------------------*/
+static bool valid_counter(uint32_t serial, uint16_t counter)
+{
+	for(uint8_t i = 0; i < route_table_ptr; i++)
+	{
+		if(route_table[i].serial == serial)
+		{
+			if(route_table[i].counter < counter) //Проверка на активность.
+			{
+				route_table[i].counter = counter;
+				return true;
+			}
+			else
+				return false;
+		}
+	}
+	return false;
 }
 /*---------------------------------------------------------------------------*/
 static void udbp_v5_rx_uart_from_air_to_tx_handler(const uip_ip6addr_t *addr, const uint8_t *data, const uint16_t length, uint8_t version)
@@ -209,8 +227,28 @@ static void udbp_v5_rx_uart_from_air_to_tx_handler(const uip_ip6addr_t *addr, co
 	//Дешифрово4kа
 	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[UDBP_V5_HEADER_LENGTH], (uint32_t*)(aes_buffer), (length - UDBP_V5_HEADER_LENGTH));
 	
-	for(uint16_t i = 0; i < aes_buffer[2]; i++)
-		cc26xx_uart_write_byte(aes_buffer[i + 3]);
+	uint32_t serial = ( (aes_buffer[3] << 24) |
+						(aes_buffer[4] << 16) |
+						(aes_buffer[5] << 8)  |
+						(aes_buffer[6] ));
+	uint16_t counter = ((aes_buffer[1] << 8)  |
+						 aes_buffer[0]);
+	
+	if(valid_counter(serial, counter))
+	{
+		for(uint16_t i = 0; i < aes_buffer[2]; i++)
+			cc26xx_uart_write_byte(aes_buffer[i + 3]);
+	}
+	
+	//printf("%lu\n", serial);
+	//printf("%lu\n", counter);
+	//printf("%i\n", valid_counter(serial, counter));
+	
+	//for(uint16_t i = 0; i < 4; i++)
+	//	cc26xx_uart_write_byte((uint8_t)*(&serial[i]));
+	
+	//for(uint16_t i = 0; i < 2; i++)
+	//	cc26xx_uart_write_byte((uint8_t)*(&counter[i]));
 	
 	//for (uint16_t i = 0; i < length - 6; i++) 
 	//{
@@ -222,7 +260,7 @@ static void udbp_v5_rx_uart_from_air_to_tx_handler(const uip_ip6addr_t *addr, co
 
 void udbp_v5_join_stage_2_sender(const uip_ip6addr_t *dest_addr, const uint8_t *data, const uint16_t length, uint8_t version)
 {
-	printf("udbp_v5_join_stage_2_sender\n");
+	//printf("udbp_v5_join_stage_2_sender\n");
 	if (dest_addr == NULL)
 		return;
    
@@ -232,14 +270,14 @@ void udbp_v5_join_stage_2_sender(const uip_ip6addr_t *dest_addr, const uint8_t *
 	uint8_t payload_length = 18; //2 HEADER + 16 AES
 	uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
 	udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
-	udp_buffer[1] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;//packet_counter_root.u8[0];
-	udp_buffer[2] = DATA_TYPE_JOIN_V5_STAGE_2;//packet_counter_root.u8[1];
+	udp_buffer[1] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
+	udp_buffer[2] = DATA_TYPE_JOIN_V5_STAGE_2;
 	udp_buffer[3] = get_parent_rssi();
 	udp_buffer[4] = get_temperature();
 	udp_buffer[5] = get_voltage();
 
-	udp_buffer[6] = packet_counter_root.u8[0];//UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
-	udp_buffer[7] = packet_counter_root.u8[1];//DATA_TYPE_JOIN_V5_STAGE_2;
+	udp_buffer[6] = packet_counter_root.u8[0];
+	udp_buffer[7] = packet_counter_root.u8[1];
 	
 	uint16_t nonce = random_rand();
 		
@@ -247,21 +285,23 @@ void udbp_v5_join_stage_2_sender(const uip_ip6addr_t *dest_addr, const uint8_t *
 						 (data[UDBP_V5_HEADER_LENGTH + 9] << 16) |
 						 (data[UDBP_V5_HEADER_LENGTH + 10] << 8) |
 						 (data[UDBP_V5_HEADER_LENGTH + 11] )), 
-						 addr,
-						 nonce);
+						  addr,
+						  nonce);
 						 
 	aes_buffer[0] = (uint8_t)((nonce >> 8) & 0xFF);
 	aes_buffer[1] = (uint8_t)(nonce & 0xFF);
 	
-	printf(" %"PRIXX8, aes_buffer[0]);
-	printf(" %"PRIXX8, aes_buffer[1]);
-	printf("\n");
+	//printf(" %"PRIXX8, aes_buffer[0]);
+	//printf(" %"PRIXX8, aes_buffer[1]);
+	//printf("\n");
+	
 	
 	for(uint8_t i = 2; i < 16; i++)
 		aes_buffer[i] = 0x00;
 	
 	aes_ecb_encrypt((uint32_t*)aes_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[8]));
 	
+	/*
 	for (uint16_t i = 0; i < 16; i++)
 	{
 		printf(" %"PRIXX8, aes_buffer[i]);
@@ -272,7 +312,9 @@ void udbp_v5_join_stage_2_sender(const uip_ip6addr_t *dest_addr, const uint8_t *
 	{
 		printf(" %"PRIXX8, udp_buffer[i+8]);
 	}
-	printf("\n");
+	*/
+	
+	//printf("\n");
 	
 	//udp_buffer[8] = DATA_RESERVED;
 	//udp_buffer[9] = DATA_RESERVED;
@@ -295,18 +337,18 @@ void udbp_v5_join_stage_2_sender(const uip_ip6addr_t *dest_addr, const uint8_t *
 /*---------------------------------------------------------------------------*/
 void udbp_v5_join_stage_4_sender(const uip_ip6addr_t *dest_addr, const uint8_t *data, const uint16_t length, uint8_t version)
 {
-	printf("udbp_v5_join_stage_4_sender\n");
+	//printf("udbp_v5_join_stage_4_sender\n");
 	if (dest_addr == NULL)
 		return;
 	
 	uip_ipaddr_t addr;
 	uip_ip6addr_copy(&addr, dest_addr);
 	
-	uint16_t nonce = get_nonce((uint32_t) ( (data[UDBP_V5_HEADER_LENGTH + 2] << 24) |
+	uint16_t nonce = get_nonce( (uint32_t) ((data[UDBP_V5_HEADER_LENGTH + 2] << 24) |
 											(data[UDBP_V5_HEADER_LENGTH + 3] << 16) |
 											(data[UDBP_V5_HEADER_LENGTH + 4] << 8)  |
 											(data[UDBP_V5_HEADER_LENGTH + 5] )));
-	
+
 	nonce_key[0] = (uint8_t)((nonce >> 8) & 0xFF);
 	nonce_key[1] = (uint8_t)(nonce & 0xFF);
 	nonce_key[2] = (uint8_t)((nonce >> 8) & 0xFF);
@@ -336,27 +378,32 @@ void udbp_v5_join_stage_4_sender(const uip_ip6addr_t *dest_addr, const uint8_t *
 	{		
 		unlock_addr((uint32_t) ((data[UDBP_V5_HEADER_LENGTH + 2] << 24) |
 								(data[UDBP_V5_HEADER_LENGTH + 3] << 16) |
-								(data[UDBP_V5_HEADER_LENGTH + 4] << 8) |
-								(data[UDBP_V5_HEADER_LENGTH + 5] )));
+								(data[UDBP_V5_HEADER_LENGTH + 4] << 8)  |
+								(data[UDBP_V5_HEADER_LENGTH + 5] )),
+					(uint16_t) ((data[UDBP_V5_HEADER_LENGTH + 1] << 8)  |
+								 data[UDBP_V5_HEADER_LENGTH]));				
 	}
+	
+	//printf("%i\n", (uint16_t) ((data[UDBP_V5_HEADER_LENGTH + 1] << 8)  |
+	//							 data[UDBP_V5_HEADER_LENGTH + 1]));
 						 
 	uint8_t payload_length = 18; //2 HEADER + 16 AES
 	uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
 	udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
-	udp_buffer[1] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID; //packet_counter_root.u8[0];
-	udp_buffer[2] = DATA_TYPE_JOIN_V5_STAGE_4; //packet_counter_root.u8[1];
+	udp_buffer[1] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID; 
+	udp_buffer[2] = DATA_TYPE_JOIN_V5_STAGE_4; 
 	udp_buffer[3] = get_parent_rssi();
 	udp_buffer[4] = get_temperature();
 	udp_buffer[5] = get_voltage();
 
-	udp_buffer[6] = packet_counter_root.u8[0]; //UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
-	udp_buffer[7] = packet_counter_root.u8[1]; //DATA_TYPE_JOIN_V5_STAGE_4;
+	udp_buffer[6] = packet_counter_root.u8[0]; 
+	udp_buffer[7] = packet_counter_root.u8[1]; 
 	
 	for(uint8_t i = 0; i < 16; i++)
 		aes_buffer[i] = 0x00;
 	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[8]), 16);
 	
-	for (uint16_t i = 0; i < 16; i++)
+	/*for (uint16_t i = 0; i < 16; i++)
 	{
 		printf(" %"PRIXX8, nonce_key[i]);
 	}
@@ -372,7 +419,8 @@ void udbp_v5_join_stage_4_sender(const uip_ip6addr_t *dest_addr, const uint8_t *
 	{
 		printf(" %"PRIXX8, udp_buffer[i+8]);
 	}
-	printf("\n");
+	*/
+	//printf("\n"); 
 	
 	//udp_buffer[8] = DATA_RESERVED;
 	//udp_buffer[9] = DATA_RESERVED;
@@ -396,39 +444,39 @@ void udbp_v5_join_stage_4_sender(const uip_ip6addr_t *dest_addr, const uint8_t *
 void udbp_v5_ack_packet_sender(const uip_ip6addr_t *dest_addr)
 {
 	//printf("udbp_v5_ack_packet_sender\n");
-   if (dest_addr == NULL)
-      return;
+	if (dest_addr == NULL)
+		return;
 
-   uip_ipaddr_t addr;
-   uip_ip6addr_copy(&addr, dest_addr);
+	uip_ipaddr_t addr;
+	uip_ip6addr_copy(&addr, dest_addr);
 
-   uint8_t payload_length = 16;
-   uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
-   udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
-   udp_buffer[1] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;//packet_counter_root.u8[0];
-   udp_buffer[2] = DATA_TYPE_ACK;//packet_counter_root.u8[1];
-   udp_buffer[3] = get_parent_rssi();
-   udp_buffer[4] = get_temperature();
-   udp_buffer[5] = get_voltage();
+	uint8_t payload_length = 16;
+	uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
+	udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
+	udp_buffer[1] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
+	udp_buffer[2] = DATA_TYPE_ACK;
+	udp_buffer[3] = get_parent_rssi();
+	udp_buffer[4] = get_temperature();
+	udp_buffer[5] = get_voltage();
 
-   udp_buffer[6] = packet_counter_root.u8[0];//UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
-   udp_buffer[7] = packet_counter_root.u8[1];//DATA_TYPE_ACK;
-   udp_buffer[8] = DATA_RESERVED;
-   udp_buffer[9] = DATA_RESERVED;
-   udp_buffer[10] = DATA_RESERVED;
-   udp_buffer[11] = DATA_RESERVED;
-   udp_buffer[12] = DATA_RESERVED;
-   udp_buffer[13] = DATA_RESERVED;
-   udp_buffer[14] = DATA_RESERVED;
-   udp_buffer[15] = DATA_RESERVED;
-   udp_buffer[16] = DATA_RESERVED;
-   udp_buffer[17] = DATA_RESERVED;
-   udp_buffer[18] = DATA_RESERVED;
-   udp_buffer[19] = DATA_RESERVED;
-   udp_buffer[20] = DATA_RESERVED;
-   udp_buffer[21] = DATA_RESERVED;
-   simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
-   packet_counter_root.u16++;
+	udp_buffer[6] = packet_counter_root.u8[0];
+	udp_buffer[7] = packet_counter_root.u8[1];
+	udp_buffer[8] = DATA_RESERVED;
+	udp_buffer[9] = DATA_RESERVED;
+	udp_buffer[10] = DATA_RESERVED;
+	udp_buffer[11] = DATA_RESERVED;
+	udp_buffer[12] = DATA_RESERVED;
+	udp_buffer[13] = DATA_RESERVED;
+	udp_buffer[14] = DATA_RESERVED;
+	udp_buffer[15] = DATA_RESERVED;
+	udp_buffer[16] = DATA_RESERVED;
+	udp_buffer[17] = DATA_RESERVED;
+	udp_buffer[18] = DATA_RESERVED;
+	udp_buffer[19] = DATA_RESERVED;
+	udp_buffer[20] = DATA_RESERVED;
+	udp_buffer[21] = DATA_RESERVED;
+	simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
+	packet_counter_root.u16++;
 }
 
 /*---------------------------------------------------------------------------*/
@@ -1064,18 +1112,14 @@ static void uart_to_air()
 	uint8_t payload_length = iterator_to_byte(udup_v5_data_iterator + 3);
 	uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
 	udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
-	udp_buffer[1] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;//packet_counter_root.u8[0];
-	udp_buffer[2] = UART_FROM_AIR_TO_TX;//packet_counter_root.u8[1];
+	udp_buffer[1] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
+	udp_buffer[2] = UART_FROM_AIR_TO_TX;
 	udp_buffer[3] = get_parent_rssi();
 	udp_buffer[4] = get_temperature();
 	udp_buffer[5] = get_voltage();
-
-	udp_buffer[6] = packet_counter_root.u8[0];//UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
-	udp_buffer[7] = packet_counter_root.u8[1];//UART_FROM_AIR_TO_TX;
-	udp_buffer[8] = udup_v5_data_iterator;//Длина пакета
 	
-	aes_buffer[0] = packet_counter_root.u8[0];//UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
-	aes_buffer[1] = packet_counter_root.u8[1];//UART_FROM_AIR_TO_TX;
+	aes_buffer[0] = packet_counter_root.u8[0];
+	aes_buffer[1] = packet_counter_root.u8[1];
 	aes_buffer[2] = udup_v5_data_iterator;//Длина пакета
 	
 	for(uint8_t i = 3; i < payload_length; i++)

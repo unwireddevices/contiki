@@ -149,6 +149,8 @@ rpl_dag_t *rpl_probing_dag;
 
 volatile uint8_t process_message = 0;
 
+static volatile union { uint16_t u16; uint8_t u8[2]; } packet_counter_root;
+
 uint8_t aes_key[16] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0x00, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
 uint8_t aes_buffer[128];
 uint8_t nonce_key[16];
@@ -187,31 +189,37 @@ static void udbp_v5_uart_from_air_to_tx_handler(const uip_ipaddr_t *sender_addr,
 	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[UDBP_V5_HEADER_LENGTH], (uint32_t*)(aes_buffer), (datalen - UDBP_V5_HEADER_LENGTH));
 	
 	
-	//ti_lib_gpio_set_dio(RS485_DE);
-	//ti_lib_gpio_set_dio(RS485_RE);
-	
-	ti_lib_uart_int_disable(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
-    ti_lib_uart_int_clear(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
-	
-	for(uint16_t i = 0; i < aes_buffer[2]; i++)
-		cc26xx_uart_write_byte(aes_buffer[i + 3]);
-	
-	while(ti_lib_uart_busy(UART0_BASE));
-	//ti_lib_uart_fifo_disable(UART0_BASE);
-	//ti_lib_uart_fifo_enable(UART0_BASE);
-	while(ti_lib_uart_chars_avail(UART0_BASE))
-	{
-		UARTCharGetNonBlocking(UART0_BASE);
+	if(packet_counter_root.u16 < ((uint16_t)(aes_buffer[1] << 8) | aes_buffer[0]))
+	{		
+		packet_counter_root.u8[0] = aes_buffer[0];
+		packet_counter_root.u8[1] = aes_buffer[1];
+		//ti_lib_gpio_set_dio(RS485_DE);
+		//ti_lib_gpio_set_dio(RS485_RE);
+		
+		
+		ti_lib_uart_int_disable(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
+		ti_lib_uart_int_clear(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
+		
+		for(uint16_t i = 0; i < aes_buffer[2]; i++)
+			cc26xx_uart_write_byte(aes_buffer[i + 3]);
+		
+		while(ti_lib_uart_busy(UART0_BASE));
+		//ti_lib_uart_fifo_disable(UART0_BASE);
+		//ti_lib_uart_fifo_enable(UART0_BASE);
+		while(ti_lib_uart_chars_avail(UART0_BASE))
+		{
+			UARTCharGetNonBlocking(UART0_BASE);
+		}
+		ti_lib_uart_int_clear(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
+		ti_lib_uart_int_enable(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
+		reset_uart();
+		wait_response_slave = 1;
+		ctimer_set(&wait_response, (WAIT_RESPONSE * CLOCK_SECOND), wait_response_reset, NULL);
+		
+		
+		//ti_lib_gpio_clear_dio(RS485_DE);
+		//ti_lib_gpio_clear_dio(RS485_RE);
 	}
-	ti_lib_uart_int_clear(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
-	ti_lib_uart_int_enable(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
-	reset_uart();
-	wait_response_slave = 1;
-	ctimer_set(&wait_response, (WAIT_RESPONSE * CLOCK_SECOND), wait_response_reset, NULL);
-	
-	
-	//ti_lib_gpio_clear_dio(RS485_DE);
-	//ti_lib_gpio_clear_dio(RS485_RE);
 }
 /*---------------------------------------------------------------------------*/
 static uint8_t iterator_to_byte(uint8_t iterator)
@@ -322,7 +330,7 @@ void udbp_v5_uart_to_root_sender(char* data)
 
 void udbp_v5_join_stage_1_sender(const uip_ipaddr_t *dest_addr)
 {
-	printf("udbp_v5_join_stage_1_sender\n");
+	//printf("udbp_v5_join_stage_1_sender\n");
 	if (dest_addr == NULL)
 		return;
 
@@ -373,7 +381,7 @@ static void udbp_v5_join_stage_3_sender(const uip_ipaddr_t *dest_addr,
 										const uint8_t *data,
 										uint16_t datalen)
 {
-	printf("udbp_v5_join_stage_3_sender\n");
+	//printf("udbp_v5_join_stage_3_sender\n");
 	if (dest_addr == NULL)
 		return;
 	
@@ -422,6 +430,7 @@ static void udbp_v5_join_stage_3_sender(const uip_ipaddr_t *dest_addr,
 	nonce_key[14] = aes_buffer[0];
 	nonce_key[15] = aes_buffer[1];
 	
+	/*
 	for (uint16_t i = 0; i < 16; i++)
 	{
 		printf(" %"PRIXX8, nonce_key[i]);
@@ -439,6 +448,7 @@ static void udbp_v5_join_stage_3_sender(const uip_ipaddr_t *dest_addr,
 		printf(" %"PRIXX8, udp_buffer[i+12]);
 	}
 	printf("\n");
+	*/
 	
 	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[12]), 16);
 	
@@ -467,13 +477,14 @@ static void udbp_v5_join_stage_4_handler(const uip_ipaddr_t *sender_addr,
 										const uint8_t *data,
 										uint16_t datalen)
 {
-	printf("udbp_v5_join_stage_4_handler\n");
+	//printf("udbp_v5_join_stage_4_handler\n");
 	
 	if (sender_addr == NULL)
 		return;
 			
 	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[8], (uint32_t*)(aes_buffer), 16);
-		
+	
+	/*
 	for (uint16_t i = 0; i < 16; i++)
 	{
 		printf(" %"PRIXX8, nonce_key[i]);
@@ -491,6 +502,7 @@ static void udbp_v5_join_stage_4_handler(const uip_ipaddr_t *sender_addr,
 		printf(" %"PRIXX8, aes_buffer[i]);
 	}
 	printf("\n");
+	*/
 	
 	if( (aes_buffer[0] == 0x00)  &&
 		(aes_buffer[1] == 0x00)  &&
@@ -509,6 +521,9 @@ static void udbp_v5_join_stage_4_handler(const uip_ipaddr_t *sender_addr,
 		(aes_buffer[14] == 0x00) &&
 		(aes_buffer[15] == 0x00))
 	{
+		packet_counter_root.u8[0] = data[6];
+		packet_counter_root.u8[1] = data[7];
+		//printf("%i\n", packet_counter_root.u16);////////////////////////////////////////
 		uip_ipaddr_copy(&root_addr, sender_addr); //Авторизован
 		process_post(&dag_node_process, PROCESS_EVENT_CONTINUE, NULL);
 		etimer_set(&maintenance_timer, 0);
