@@ -151,12 +151,24 @@ volatile uint8_t process_message = 0;
 
 static volatile union { uint16_t u16; uint8_t u8[2]; } packet_counter_root;
 
-uint8_t aes_key[16] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0x00, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
-uint8_t aes_buffer[128];
-uint8_t nonce_key[16];
+static uint8_t aes_buffer[128];
+static uint8_t aes_key[16];
+static uint8_t nonce_key[16];
 
+static struct eeprom 
+{
+    uint8_t channel; 
+    uint16_t panid;
+	uint32_t serial;
+	uint8_t aes_key[16];
+	bool serial_configured;
+	bool aes_key_configured;
+};
+
+static struct eeprom eeprom_settings;
 /*---------------------------------------------------------------------------*/
 
+PROCESS(settings_init, "initializing settings");
 PROCESS(dag_node_process, "DAG-node process");
 PROCESS(dag_node_button_process, "DAG-node button process");
 PROCESS(root_find_process, "Root find process");
@@ -165,6 +177,50 @@ PROCESS(maintenance_process, "Maintenance process");
 PROCESS(led_process, "Led process");
 PROCESS(fw_update_process, "FW OTA update process");
 
+/*---------------------------------------------------------------------------*/
+void aes128_key_update(const uint8_t *aes_key_new)
+{	
+	eeprom_settings.aes_key_configured = false;
+	
+	for(uint8_t i = 0; i < 16; i++)
+		eeprom_settings.aes_key[i] = aes_key_new[i];
+	
+	write_eeprom(((uint32_t*)&eeprom_settings), sizeof(eeprom_settings));
+	
+	watchdog_reboot();
+}
+/*---------------------------------------------------------------------------*/
+uint32_t* get_aes128_key(void)
+{
+	return (uint32_t*)aes_key;
+}
+/*---------------------------------------------------------------------------*/
+void serial_update(uint32_t serial_new)
+{
+	eeprom_settings.serial_configured = false;
+	eeprom_settings.serial = serial_new;
+	
+	write_eeprom(((uint32_t*)&eeprom_settings), sizeof(eeprom_settings));
+	
+	watchdog_reboot();
+}
+/*---------------------------------------------------------------------------*/
+uint32_t get_serial(void)
+{
+	return serial;
+}
+/*---------------------------------------------------------------------------*/
+void channel_update(uint8_t channel_new)
+{
+	eeprom_settings.channel = channel_new;
+	write_eeprom(((uint32_t*)&eeprom_settings), sizeof(eeprom_settings));
+}
+/*---------------------------------------------------------------------------*/
+void panid_update(uint16_t panid_new)
+{
+	eeprom_settings.panid = panid_new;
+	write_eeprom(((uint32_t*)&eeprom_settings), sizeof(eeprom_settings));
+}
 /*---------------------------------------------------------------------------*/
 
 static void wait_response_reset(void *ptr)
@@ -941,7 +997,98 @@ void led_mode_set(uint8_t mode)
 }
 
 /*---------------------------------------------------------------------------*/
+PROCESS_THREAD(settings_init, ev, data)
+{
+	PROCESS_BEGIN();
+	if (ev == PROCESS_EVENT_EXIT)
+		return 1;
 
+	read_eeprom(&eeprom_settings, sizeof(eeprom_settings));
+	
+	if(eeprom_settings.serial_configured == true)
+	{
+		if(eeprom_settings.aes_key_configured == true)
+		{
+			if((eeprom_settings.channel != 26) && (eeprom_settings.panid != 0xAABB))
+			{
+				eeprom_settings.channel = 26;
+				eeprom_settings.panid = 0xAABB;
+				write_eeprom(&eeprom_settings, sizeof(eeprom_settings));
+			}
+		}
+	}
+
+	if(!eeprom_settings.serial_configured) 
+	{
+		serial = eeprom_settings.serial;
+		printf("Serial: %lu\n", serial);
+	}
+	else
+	{
+		printf("Serial number not declared\n******************************\n***PLEASE SET SERIAL NUMBER***\n******************************\n");
+		led_mode_set(LED_FAST_BLINK);
+		
+		while(eeprom_settings.serial_configured)
+		{
+			PROCESS_YIELD();
+		}	
+	}
+	
+	if(!eeprom_settings.aes_key_configured) 
+	{
+		printf("AES-128 key:");
+		for (uint8_t i = 0; i < 16; i++)
+		{
+			aes_key[i] = eeprom_settings.aes_key[i];
+			printf(" %"PRIXX8, aes_key[i]);
+		}
+		printf("\n");
+	}
+	else
+	{
+		printf("AES-128 key not declared\n******************************\n******PLEASE SET AES KEY******\n******************************\n");
+		led_mode_set(LED_FAST_BLINK);
+		while(eeprom_settings.aes_key_configured)
+		{
+			PROCESS_YIELD();
+		}		
+	}
+	
+	radio_value_t channel = 0;
+	NETSTACK_RADIO.get_value(RADIO_PARAM_CHANNEL, &channel);
+	
+	if(channel != eeprom_settings.channel)
+	{
+		NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, eeprom_settings.channel);
+		
+		if (ti_lib_chipinfo_chip_family_is_cc26xx())
+		{
+			uint32_t freq_mhz = (2405 + 5 * (eeprom_settings.channel - 11));
+			printf("Changed the radio-channel to: %"PRIint" (%"PRIu32" MHz)\n", (int)eeprom_settings.channel, freq_mhz);
+		}
+
+		if (ti_lib_chipinfo_chip_family_is_cc13xx())
+		{
+			uint32_t freq_khz = 863125 + (eeprom_settings.channel * 200);
+			printf("Changed the radio-channel to: %"PRIint" (%"PRIu32" kHz)\n", (int)eeprom_settings.channel, freq_khz);
+		}
+	}
+	
+	if (ti_lib_chipinfo_chip_family_is_cc26xx())
+	{
+		radio_value_t panid = 0;
+		NETSTACK_RADIO.get_value(RADIO_PARAM_PAN_ID, &panid);
+		
+		if(panid != eeprom_settings.panid)
+		{
+			NETSTACK_RADIO.set_value(RADIO_PARAM_PAN_ID, eeprom_settings.panid);
+			printf("PAN ID changed to: %"PRIXX16"\n", eeprom_settings.panid);
+		}
+	}
+	process_post(&main_process, PROCESS_EVENT_CONTINUE, NULL);
+	PROCESS_END();
+}
+/*---------------------------------------------------------------------------*/
 PROCESS_THREAD(led_process, ev, data)
 {
    PROCESS_BEGIN();

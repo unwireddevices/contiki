@@ -47,51 +47,75 @@
 #include "ud_binary_protocol.h"
 #include "xxf_types_helper.h"
 
+/*---------------------------------------------------------------------------*/
+
+uint32_t write_eeprom(uint8_t *pui8DataBuffer, uint32_t ui32Count)
+{
+	ti_lib_flash_sector_erase(START_USER_FLASH);
+	uint32_t write_status = ti_lib_flash_program(pui8DataBuffer, START_USER_FLASH, ui32Count);
+	return write_status;
+}
+
+/*---------------------------------------------------------------------------*/
+
+void read_eeprom(uint8_t *pui8DataBuffer, uint32_t ui32Count)
+{
+	uint32_t old_vims_state = ti_lib_vims_mode_get(VIMS_BASE);
+	ti_lib_vims_mode_set(VIMS_BASE, VIMS_MODE_DISABLED);
+	uint8_t *pui8ReadAddress = (uint8_t *)START_USER_FLASH;
+	while (ui32Count--)
+	{
+		*pui8DataBuffer++ = *pui8ReadAddress++;
+	}
+	ti_lib_vims_mode_set(VIMS_BASE, old_vims_state);
+}
+
+/*---------------------------------------------------------------------------*/
 void user_flash_update_byte(uint8_t offset, uint8_t data)
 {
-   uint32_t old_vims_state = ti_lib_vims_mode_get(VIMS_BASE);
-   ti_lib_vims_mode_set(VIMS_BASE, VIMS_MODE_DISABLED);
+	uint32_t old_vims_state = ti_lib_vims_mode_get(VIMS_BASE);
+	ti_lib_vims_mode_set(VIMS_BASE, VIMS_MODE_DISABLED);
 
-   uint8_t buffer[USER_FLASH_LENGTH];
-   flash_read(buffer, START_USER_FLASH, USER_FLASH_LENGTH);
-   buffer[offset] = data;
+	uint8_t buffer[USER_FLASH_LENGTH];
+	flash_read(buffer, START_USER_FLASH, USER_FLASH_LENGTH);
+	buffer[offset] = data;
 
-   ti_lib_vims_mode_set(VIMS_BASE, old_vims_state);
+	ti_lib_vims_mode_set(VIMS_BASE, old_vims_state);
 
-   ti_lib_flash_sector_erase(START_USER_FLASH);
-   ti_lib_flash_program(buffer, START_USER_FLASH, USER_FLASH_LENGTH);
+	ti_lib_flash_sector_erase(START_USER_FLASH);
+	ti_lib_flash_program(buffer, START_USER_FLASH, USER_FLASH_LENGTH);
 }
 
 /*---------------------------------------------------------------------------*/
 
 uint8_t user_flash_read_byte(uint8_t offset)
 {
-   uint32_t old_vims_state = ti_lib_vims_mode_get(VIMS_BASE);
-   ti_lib_vims_mode_set(VIMS_BASE, VIMS_MODE_DISABLED);
-   uint32_t address = offset + START_USER_FLASH;
-   uint8_t data = *(uint8_t *)address;
-   ti_lib_vims_mode_set(VIMS_BASE, old_vims_state);
-   return data;
+	uint32_t old_vims_state = ti_lib_vims_mode_get(VIMS_BASE);
+	ti_lib_vims_mode_set(VIMS_BASE, VIMS_MODE_DISABLED);
+	uint32_t address = offset + START_USER_FLASH;
+	uint8_t data = *(uint8_t *)address;
+	ti_lib_vims_mode_set(VIMS_BASE, old_vims_state);
+	return data;
 }
 
 /*---------------------------------------------------------------------------*/
 
 void flash_read(uint8_t *pui8DataBuffer, uint32_t ui32Address, uint32_t ui32Count)
 {
-   uint32_t old_vims_state = ti_lib_vims_mode_get(VIMS_BASE);
-   ti_lib_vims_mode_set(VIMS_BASE, VIMS_MODE_DISABLED);
-   uint8_t *pui8ReadAddress = (uint8_t *)ui32Address;
-   while (ui32Count--)
-   {
-      *pui8DataBuffer++ = *pui8ReadAddress++;
-   }
-   ti_lib_vims_mode_set(VIMS_BASE, old_vims_state);
+	uint32_t old_vims_state = ti_lib_vims_mode_get(VIMS_BASE);
+	ti_lib_vims_mode_set(VIMS_BASE, VIMS_MODE_DISABLED);
+	uint8_t *pui8ReadAddress = (uint8_t *)ui32Address;
+	while (ui32Count--)
+	{
+		*pui8DataBuffer++ = *pui8ReadAddress++;
+	}
+	ti_lib_vims_mode_set(VIMS_BASE, old_vims_state);
 }
 
 /*---------------------------------------------------------------------------*/
 
 uint32_t flash_write(uint8_t *pui8DataBuffer, uint32_t ui32Address, uint32_t ui32Count)
 {
-   uint32_t write_status = ti_lib_flash_program(pui8DataBuffer, ui32Address, ui32Count);
-   return write_status;
+	uint32_t write_status = ti_lib_flash_program(pui8DataBuffer, ui32Address, ui32Count);
+	return write_status;
 }

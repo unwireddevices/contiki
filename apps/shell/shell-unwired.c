@@ -72,6 +72,7 @@
 
 /*---------------------------------------------------------------------------*/
 extern uint32_t serial;
+//extern aes_key;
 /*---------------------------------------------------------------------------*/
 PROCESS(unwired_shell_time_process, "time");
 SHELL_COMMAND(unwired_shell_time_command, "time", "time: show the current node time in unix epoch", &unwired_shell_time_process);
@@ -103,97 +104,99 @@ SHELL_COMMAND(unwired_shell_test_command, "test", "test: test func", &unwired_sh
 PROCESS(unwired_shell_serial_process, "serial");
 SHELL_COMMAND(unwired_shell_serial_command, "serial", "serial <set/get> <serial number>: set/get serial number", &unwired_shell_serial_process);
 
+PROCESS(unwired_shell_cryptokey_process, "cryptokey");
+SHELL_COMMAND(unwired_shell_cryptokey_command, "cryptokey", "cryptokey <set/get> <AES-128 Key(xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx)>: set/get AES-128 Key", &unwired_shell_cryptokey_process);
+
 /*---------------------------------------------------------------------------*/
 
 static uint8_t parse_args(char *args_string, char **args, uint8_t max_args)
 {
-   uint8_t i = 0;
-   args[i] = strtok(args_string," ");
-   while (args[i] != NULL && i != max_args)
-   {
-      i++;
-      args[i] = strtok(NULL," ");
-   }
-   return i;
+	uint8_t i = 0;
+	args[i] = strtok(args_string," ");
+	while (args[i] != NULL && i != max_args)
+	{
+		i++;
+		args[i] = strtok(NULL," ");
+	}
+	return i;
 }
 
 /*---------------------------------------------------------------------------*/
 
 PROCESS_THREAD(unwired_shell_uptime_process, ev, data)
 {
-  PROCESS_BEGIN();
-  printf( "Uptime: %" PRIu32 " sec, %" PRIu16 " ms\n", rtc_s(), rtc_ms());
-  printf("\n");
-  PROCESS_END();
+	PROCESS_BEGIN();
+	printf( "Uptime: %" PRIu32 " sec, %" PRIu16 " ms\n", rtc_s(), rtc_ms());
+	printf("\n");
+	PROCESS_END();
 }
 
 /*---------------------------------------------------------------------------*/
 
 PROCESS_THREAD(unwired_shell_time_process, ev, data)
 {
-  PROCESS_BEGIN();
-  time_data_t time = get_epoch_time();
-  printf( "RTC: %" PRIu32 " sec, %" PRIu16 " ms\n", time.seconds, time.milliseconds);
-  printf("\n");
-  PROCESS_END();
+	PROCESS_BEGIN();
+	time_data_t time = get_epoch_time();
+	printf( "RTC: %" PRIu32 " sec, %" PRIu16 " ms\n", time.seconds, time.milliseconds);
+	printf("\n");
+	PROCESS_END();
 }
 
 /*---------------------------------------------------------------------------*/
 
 PROCESS_THREAD(unwired_shell_status_process, ev, data)
 {
-   PROCESS_BEGIN();
-   rpl_dag_t *dag = rpl_get_any_dag();
+	PROCESS_BEGIN();
+	rpl_dag_t *dag = rpl_get_any_dag();
 
-   if (dag)
-   {
-      uip_ipaddr_t *ipaddr_parent = rpl_get_parent_ipaddr(dag->preferred_parent);
-      printf("STATUS: rpl parent ip address: ");
-      uip_debug_ipaddr_print(ipaddr_parent);
-      printf("\n");
+	if(dag)
+	{
+		uip_ipaddr_t *ipaddr_parent = rpl_get_parent_ipaddr(dag->preferred_parent);
+		printf("STATUS: rpl parent ip address: ");
+		uip_debug_ipaddr_print(ipaddr_parent);
+		printf("\n");
 
-      uip_ipaddr_t dag_id_addr = dag->dag_id;
-      printf("STATUS: rpl dag root ip address: ");
-      uip_debug_ipaddr_print(&dag_id_addr);
-      printf("\n");
+		uip_ipaddr_t dag_id_addr = dag->dag_id;
+		printf("STATUS: rpl dag root ip address: ");
+		uip_debug_ipaddr_print(&dag_id_addr);
+		printf("\n");
 
-      const struct link_stats *stat_parent = rpl_get_parent_link_stats(dag->preferred_parent);
-      printf("STATUS: rpl parent last tx: %u sec ago\n", (unsigned)((clock_time() - stat_parent->last_tx_time) / (CLOCK_SECOND)));
+		const struct link_stats *stat_parent = rpl_get_parent_link_stats(dag->preferred_parent);
+		printf("STATUS: rpl parent last tx: %u sec ago\n", (unsigned)((clock_time() - stat_parent->last_tx_time) / (CLOCK_SECOND)));
 
-      printf("STATUS: rpl parent rssi: %" PRId16 "\n", stat_parent->rssi);
+		printf("STATUS: rpl parent rssi: %" PRId16 "\n", stat_parent->rssi);
 
-      int parent_is_reachable = rpl_parent_is_reachable(dag->preferred_parent);
-      printf("STATUS: rpl parent is reachable: %" PRId16 "\n", parent_is_reachable);
+		int parent_is_reachable = rpl_parent_is_reachable(dag->preferred_parent);
+		printf("STATUS: rpl parent is reachable: %" PRId16 "\n", parent_is_reachable);
+	}
+	else
+	{
+		printf("STATUS: not join to net, net status not available\n");
+	}
+	uint8_t temp = (uint8_t)batmon_sensor.value(BATMON_SENSOR_TYPE_TEMP);
+	printf("STATUS: temp: %"PRIu8"C, voltage: %"PRId16"mv\n", temp, ((batmon_sensor.value(BATMON_SENSOR_TYPE_VOLT) * 125) >> 5));
 
-   }
-   else
-   {
-      printf("STATUS: not join to net, net status not available\n");
-   }
-   uint8_t temp = (uint8_t)batmon_sensor.value(BATMON_SENSOR_TYPE_TEMP);
-   printf("STATUS: temp: %"PRIu8"C, voltage: %"PRId16"mv\n", temp, ((batmon_sensor.value(BATMON_SENSOR_TYPE_VOLT) * 125) >> 5));
-
-   printf("\n");
-   PROCESS_END();
+	printf("\n");
+	PROCESS_END();
 }
 
 /*---------------------------------------------------------------------------*/
 
 PROCESS_THREAD(unwired_shell_timesync_process, ev, data)
 {
-  PROCESS_BEGIN();
-  //send_time_sync_req_packet();
-  PROCESS_END();
+	PROCESS_BEGIN();
+	//send_time_sync_req_packet();
+	PROCESS_END();
 }
 
 /*---------------------------------------------------------------------------*/
 
 PROCESS_THREAD(unwired_shell_bootloader_process, ev, data)
 {
-  PROCESS_BEGIN();
-  printf("Bootloader: bootloader activate\n");
-  ti_lib_flash_sector_erase(0x0001F000);
-  PROCESS_END();
+	PROCESS_BEGIN();
+	printf("Bootloader: bootloader activate\n");
+	ti_lib_flash_sector_erase(0x0001F000);
+	PROCESS_END();
 }
 
 /*---------------------------------------------------------------------------*/
@@ -201,35 +204,35 @@ PROCESS_THREAD(unwired_shell_bootloader_process, ev, data)
 
 PROCESS_THREAD(unwired_shell_address_process, ev, data)
 {
-   PROCESS_BEGIN();
-   rpl_dag_t *dag = rpl_get_any_dag();
+	PROCESS_BEGIN();
+	rpl_dag_t *dag = rpl_get_any_dag();
 
-   if (dag)
-   {
-      uip_ipaddr_t ipaddr_node = dag->dag_id;
-      printf("ADDRESS: node full ipv6 address: ");
-      uip_debug_ipaddr_print(&ipaddr_node);
-      printf("\n");
+	if (dag)
+	{
+		uip_ipaddr_t ipaddr_node = dag->dag_id;
+		printf("ADDRESS: node full ipv6 address: ");
+		uip_debug_ipaddr_print(&ipaddr_node);
+		printf("\n");
 
-      printf("ADDRESS: unwired net address: ");
-      printf("%"PRIXX8"%"PRIXX8"%"PRIXX8"%"PRIXX8"%"PRIXX8"%"PRIXX8"%"PRIXX8"%"PRIXX8"",
-      ((uint8_t *)&ipaddr_node)[8],
-      ((uint8_t *)&ipaddr_node)[9],
-      ((uint8_t *)&ipaddr_node)[10],
-      ((uint8_t *)&ipaddr_node)[11],
-      ((uint8_t *)&ipaddr_node)[12],
-      ((uint8_t *)&ipaddr_node)[13],
-      ((uint8_t *)&ipaddr_node)[14],
-      ((uint8_t *)&ipaddr_node)[15]);
-      printf("\n");
-   }
-   else
-   {
-      printf("ADDRESS: not join to net, local address not available\n");
-   }
+		printf("ADDRESS: unwired net address: ");
+		printf("%"PRIXX8"%"PRIXX8"%"PRIXX8"%"PRIXX8"%"PRIXX8"%"PRIXX8"%"PRIXX8"%"PRIXX8"",
+		((uint8_t *)&ipaddr_node)[8],
+		((uint8_t *)&ipaddr_node)[9],
+		((uint8_t *)&ipaddr_node)[10],
+		((uint8_t *)&ipaddr_node)[11],
+		((uint8_t *)&ipaddr_node)[12],
+		((uint8_t *)&ipaddr_node)[13],
+		((uint8_t *)&ipaddr_node)[14],
+		((uint8_t *)&ipaddr_node)[15]);
+		printf("\n");
+	}
+	else
+	{
+		printf("ADDRESS: not join to net, local address not available\n");
+	}
 
-   printf("\n");
-   PROCESS_END();
+	printf("\n");
+	PROCESS_END();
 }
 
 
@@ -237,154 +240,157 @@ PROCESS_THREAD(unwired_shell_address_process, ev, data)
 
 PROCESS_THREAD(unwired_shell_channel_process, ev, data)
 {
-   uint8_t max_args = 2;
-   char *args[max_args+1]; //necessary to allocate on one pointer more
-   uint8_t argc = 0;
+	uint8_t max_args = 2;
+	char *args[max_args+1]; //necessary to allocate on one pointer more
+	uint8_t argc = 0;
 
-   PROCESS_BEGIN();
+	PROCESS_BEGIN();
 
-   argc = parse_args(data, args, max_args);
-   if (argc < 1)
-   {
-      printf("Channel: No args! Use \"channel <set/get> <num>\"\n");
-      printf("\n");
-      PROCESS_EXIT();
-   }
+	argc = parse_args(data, args, max_args);
+	if (argc < 1)
+	{
+		printf("Channel: No args! Use \"channel <set/get> <num>\"\n");
+		printf("\n");
+		PROCESS_EXIT();
+	}
 
-   if (!strncmp(args[0], "get", 3))
-   {
-      radio_value_t channel = 0;
-      NETSTACK_RADIO.get_value(RADIO_PARAM_CHANNEL, &channel);
+	if (!strncmp(args[0], "get", 3))
+	{
+		radio_value_t channel = 0;
+		NETSTACK_RADIO.get_value(RADIO_PARAM_CHANNEL, &channel);
 
-      if (ti_lib_chipinfo_chip_family_is_cc26xx())
-      {
-         uint32_t freq_mhz = (2405 + 5 * (channel - 11));
-         printf("Channel get: Current radio-channel: %"PRIint" (%"PRIu32" MHz)\n", (int)channel, freq_mhz);
-      }
+		if (ti_lib_chipinfo_chip_family_is_cc26xx())
+		{
+			uint32_t freq_mhz = (2405 + 5 * (channel - 11));
+			printf("Channel get: Current radio-channel: %"PRIint" (%"PRIu32" MHz)\n", (int)channel, freq_mhz);
+		}
 
-      if (ti_lib_chipinfo_chip_family_is_cc13xx())
-      {
-         uint32_t freq_khz = 863125 + (channel * 200);
-         printf("Channel get: Current radio-channel: %"PRIint" (%"PRIu32" kHz)\n", (int)channel, freq_khz);
-      }
-   }
+		if (ti_lib_chipinfo_chip_family_is_cc13xx())
+		{
+			uint32_t freq_khz = 863125 + (channel * 200);
+			printf("Channel get: Current radio-channel: %"PRIint" (%"PRIu32" kHz)\n", (int)channel, freq_khz);
+		}
+	}
 
-   if (!strncmp(args[0], "set", 3))
-   {
-      uint8_t channel = 0;
-      str2int_errno_t status = dec_str2uint8(&channel, args[1]);
+	if (!strncmp(args[0], "set", 3))
+	{
+		uint8_t channel = 0;
+		str2int_errno_t status = dec_str2uint8(&channel, args[1]);
 
-      uint8_t cc1310_max_channel = 33;
-      uint8_t cc1310_min_channel = 0;
+		uint8_t cc1310_max_channel = 33;
+		uint8_t cc1310_min_channel = 0;
 
-      uint8_t cc2650_min_channel = 11;
-      uint8_t cc2650_max_channel = 26;
+		uint8_t cc2650_min_channel = 11;
+		uint8_t cc2650_max_channel = 26;
 
-      if (status != STR2INT_SUCCESS)
-      {
-         printf("Channel set error: Incorrect channel number arg\n");
-         printf("\n");
-         PROCESS_EXIT();
-      }
+		if (status != STR2INT_SUCCESS)
+		{
+			printf("Channel set error: Incorrect channel number arg\n");
+			printf("\n");
+			PROCESS_EXIT();
+		}
 
 
-      if (ti_lib_chipinfo_chip_family_is_cc26xx())
-      {
-         if (channel > cc2650_max_channel || channel < cc2650_min_channel)
-            printf("Channel set error: Select a channel in the range %"PRIu8"-%"PRIu8"\n", cc2650_min_channel, cc2650_max_channel);
-         else
-         {
-            uint32_t freq_mhz = (2405 + 5 * (channel - 11));
-            printf("Channel: Set new radio-channel: %"PRIu8" (%"PRIu32" MHz)\n", channel, freq_mhz);
-            NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, channel);
-         }
-      }
+		if (ti_lib_chipinfo_chip_family_is_cc26xx())
+		{
+			if (channel > cc2650_max_channel || channel < cc2650_min_channel)
+				printf("Channel set error: Select a channel in the range %"PRIu8"-%"PRIu8"\n", cc2650_min_channel, cc2650_max_channel);
+			else
+			{
+				uint32_t freq_mhz = (2405 + 5 * (channel - 11));
+				printf("Channel: Set new radio-channel: %"PRIu8" (%"PRIu32" MHz)\n", channel, freq_mhz);
+				NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, channel);
+				channel_update(channel);
+			}
+		}
 
-      if (ti_lib_chipinfo_chip_family_is_cc13xx())
-      {
-         if (channel > cc1310_max_channel || channel < cc1310_min_channel)
-            printf("Channel set error: Select a channel in the range %"PRIu8"-%"PRIu8"\n", cc1310_min_channel, cc1310_max_channel);
-         else if (channel == 30 || channel == 29)
-         {
-            uint32_t freq_khz = 863125 + (channel * 200);
-            printf("Channel: Set new radio-channel: %"PRIu8" (%"PRIu32" kHz)\n", channel, freq_khz);
-            NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, channel);
-         }
-         else
-         {
-            printf("Channel set error: Сhannel %" PRIu8 " is not available in the current region(only 29/30 ch). ¯\\_(ツ)_/¯\n", channel);
-            printf("\n");
-            PROCESS_EXIT();
-         }
-      }
-   }
+		if (ti_lib_chipinfo_chip_family_is_cc13xx())
+		{
+			if (channel > cc1310_max_channel || channel < cc1310_min_channel)
+				printf("Channel set error: Select a channel in the range %"PRIu8"-%"PRIu8"\n", cc1310_min_channel, cc1310_max_channel);
+			else if (channel == 30 || channel == 29)
+			{
+				uint32_t freq_khz = 863125 + (channel * 200);
+				printf("Channel: Set new radio-channel: %"PRIu8" (%"PRIu32" kHz)\n", channel, freq_khz);
+				NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, channel);
+				channel_update(channel);
+			}
+			else
+			{
+				printf("Channel set error: Сhannel %" PRIu8 " is not available in the current region(only 29/30 ch). ¯\\_(ツ)_/¯\n", channel);
+				printf("\n");
+				PROCESS_EXIT();
+			}
+		}
+	}
 
-   printf("\n");
-   PROCESS_END();
+	printf("\n");
+	PROCESS_END();
 }
 
 /*---------------------------------------------------------------------------*/
 
 PROCESS_THREAD(unwired_shell_panid_process, ev, data)
 {
-   uint8_t max_args = 2;
-   char *args[max_args+1]; //necessary to allocate on one pointer more
-   uint8_t argc = 0;
+	uint8_t max_args = 2;
+	char *args[max_args+1]; //necessary to allocate on one pointer more
+	uint8_t argc = 0;
 
-   PROCESS_BEGIN();
+	PROCESS_BEGIN();
 
-   argc = parse_args(data, args, max_args);
-   if (argc < 1)
-   {
-      printf("PAN ID: No args! Use \"panid <set/get> <panid(ABCD)>\", value in hex\n");
-      PROCESS_EXIT();
-   }
+	argc = parse_args(data, args, max_args);
+	if (argc < 1)
+	{
+		printf("PAN ID: No args! Use \"panid <set/get> <panid(ABCD)>\", value in hex\n");
+		PROCESS_EXIT();
+	}
 
-   if (!strncmp(args[0], "get", 3))
-   {
-      if (ti_lib_chipinfo_chip_family_is_cc26xx())
-      {
-         radio_value_t panid = 0;
-         NETSTACK_RADIO.get_value(RADIO_PARAM_PAN_ID, &panid);
-         printf("PAN ID: Current ID %"PRIXX16"\n", panid);
-      }
-      else
-      {
-         printf("PAN ID: Not support in cc1310\n");
-      }
+	if (!strncmp(args[0], "get", 3))
+	{
+		if (ti_lib_chipinfo_chip_family_is_cc26xx())
+		{
+			radio_value_t panid = 0;
+			NETSTACK_RADIO.get_value(RADIO_PARAM_PAN_ID, &panid);
+			printf("PAN ID: Current ID %"PRIXX16"\n", panid);
+		}
+		else
+		{
+			printf("PAN ID: Not support in cc1310\n");
+		}
 
-   }
+	}
 
-   if (!strncmp(args[0], "set", 3))
-   {
-      if (ti_lib_chipinfo_chip_family_is_cc26xx())
-      {
-         uint16_t panid = 0;
-         str2int_errno_t status = hex_str2uint16(&panid, args[0]);
-         if (status != STR2INT_SUCCESS)
-         {
-            printf("PAN ID set error: Incorrect id value\n");
-            printf("\n");
-            PROCESS_EXIT();
-         }
-         NETSTACK_RADIO.set_value(RADIO_PARAM_PAN_ID, panid);
-         printf("PAN ID: Set new ID %"PRIXX16"\n", panid);
-      }
-      else
-      {
-         frame802154_set_pan_id(0xAAA);
-         //printf("PAN ID: Not support in cc1310\n");
-      }
-   }
+	if (!strncmp(args[0], "set", 3))
+	{
+		if (ti_lib_chipinfo_chip_family_is_cc26xx())
+		{
+			uint16_t panid = 0;
+			str2int_errno_t status = hex_str2uint16(&panid, args[1]);
+			if (status != STR2INT_SUCCESS)
+			{
+				printf("PAN ID set error: Incorrect id value\n");
+				printf("\n");
+				PROCESS_EXIT();
+			}
+			NETSTACK_RADIO.set_value(RADIO_PARAM_PAN_ID, panid);
+			panid_update(panid);
+			printf("PAN ID: Set new ID %"PRIXX16"\n", panid);
+		}
+		else
+		{
+			frame802154_set_pan_id(0xAAA);
+			//printf("PAN ID: Not support in cc1310\n");
+		}
+	}
 
 
-   if (!strncmp(args[0], "aaa", 3))
-   {
-      frame802154_set_pan_id(0xAAA);
-   }
+	if (!strncmp(args[0], "aaa", 3))
+	{
+		frame802154_set_pan_id(0xAAA);
+	}
 
-   printf("\n");
-   PROCESS_END();
+	printf("\n");
+	PROCESS_END();
 }
 
 /*---------------------------------------------------------------------------*/
@@ -392,20 +398,21 @@ PROCESS_THREAD(unwired_shell_panid_process, ev, data)
 PROCESS_THREAD(unwired_shell_test_process, ev, data)
 {
 /*
-   uint8_t max_args = 1;
-   uint8_t argc;
-   char *args[max_args+1];
+	uint8_t max_args = 1;
+	uint8_t argc;
+	char *args[max_args+1];
 */
-   PROCESS_BEGIN();
+	PROCESS_BEGIN();
+	printf("Test: ");
 /*
-   argc = parse_args(data, args, max_args);
-   uint16_t value = 0;
-   str2int_errno_t status = hex_str2uint16(&value, args[0]);
-   printf("Hex convert: %"PRIu16"(%"PRIXX16"), %"PRIint"\n", value, value, (int)status);
+	argc = parse_args(data, args, max_args);
+	uint16_t value = 0;
+	str2int_errno_t status = hex_str2uint16(&value, args[0]);
+	printf("Hex convert: %"PRIu16"(%"PRIXX16"), %"PRIint"\n", value, value, (int)status);
 
-   printf("\n");
+	printf("\n");
 */
-   PROCESS_END();
+	PROCESS_END();
 }
 
 /*---------------------------------------------------------------------------*/
@@ -427,85 +434,8 @@ PROCESS_THREAD(unwired_shell_serial_process, ev, data)
 
 	if(!strncmp(args[0], "get", 3))
 	{
-		if(serial != 0xFFFFFFFF)
-			printf("Serial: %lu\n", serial);
-		else
-			printf("Serial number is not still installed\n");
-		//
-		uint8_t aes_key[16] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0x00, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
-		uint8_t aes_bufer_in[16] = {0xDE, 0xAD, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-		uint8_t aes_bufer_out[16];
-		uint8_t nonce_key[16] = {0xDE, 0xAD, 0xDE, 0xAD, 0xDE, 0xAD, 0xDE, 0xAD, 0xDE, 0xAD, 0xDE, 0xAD, 0xDE, 0xAD, 0xDE, 0xAD};
-
-		for (uint16_t i = 0; i < 16; i++)
-		{
-			printf(" %"PRIXX8, aes_bufer_in[i]);
-		}
-	    printf("\n");
-		
-		for (uint16_t i = 0; i < 16; i++)
-		{
-			printf(" %"PRIXX8, aes_bufer_out[i]);
-		}
-	    printf("\n\n");
-		
-		aes_ecb_encrypt((uint32_t*)aes_key, (uint32_t*)aes_bufer_in, (uint32_t*)aes_bufer_out);
-		
-		for (uint16_t i = 0; i < 16; i++)
-		{
-			printf(" %"PRIXX8, aes_bufer_in[i]);
-		}
-	    printf("\n");
-		
-		for (uint16_t i = 0; i < 16; i++)
-		{
-			printf(" %"PRIXX8, aes_bufer_out[i]);
-		}
-	    printf("\n\n");
-		
-		aes_ecb_decrypt((uint32_t*)aes_key, (uint32_t*)aes_bufer_out, (uint32_t*)aes_bufer_in);
-		
-		for (uint16_t i = 0; i < 16; i++)
-		{
-			printf(" %"PRIXX8, aes_bufer_out[i]);
-		}
-	    printf("\n");
-		
-		for (uint16_t i = 0; i < 16; i++)
-		{
-			printf(" %"PRIXX8, aes_bufer_in[i]);
-		}
-	    printf("\n\n");
-		
-		//uint8_t aes_bufer_in[16] = {0xDE, 0xAD, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-		aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_bufer_in, (uint32_t*)aes_bufer_out, 16);
-		
-		for (uint16_t i = 0; i < 16; i++)
-		{
-			printf(" %"PRIXX8, aes_bufer_in[i]);
-		}
-	    printf("\n");
-		
-		for (uint16_t i = 0; i < 16; i++)
-		{
-			printf(" %"PRIXX8, aes_bufer_out[i]);
-		}
-	    printf("\n\n");
-		
-		aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_bufer_out, (uint32_t*)aes_bufer_in, 16);
-		
-		for (uint16_t i = 0; i < 16; i++)
-		{
-			printf(" %"PRIXX8, aes_bufer_out[i]);
-		}
-	    printf("\n");
-		
-		for (uint16_t i = 0; i < 16; i++)
-		{
-			printf(" %"PRIXX8, aes_bufer_in[i]);
-		}
-	    printf("\n\n");
-		
+		printf("Serial: %lu\n", get_serial());
+		//printf("Serial number is not still installed\n");
 		PROCESS_EXIT();
 	}
 
@@ -531,13 +461,8 @@ PROCESS_THREAD(unwired_shell_serial_process, ev, data)
 			}
 			else
 			{
-				serial = serial_set;
-				user_flash_update_byte(0, (uint8_t)((serial >> 24) & 0xFF));
-				user_flash_update_byte(1, (uint8_t)((serial >> 16) & 0xFF));
-				user_flash_update_byte(2, (uint8_t)((serial >> 8) & 0xFF));
-				user_flash_update_byte(3, (uint8_t)(serial & 0xFF));
 				printf("Serial set: %lu\n", serial_set);
-				watchdog_reboot();
+				serial_update(serial_set);
 				PROCESS_EXIT();
 			}
 		}
@@ -548,7 +473,70 @@ PROCESS_THREAD(unwired_shell_serial_process, ev, data)
 }
 
 /*---------------------------------------------------------------------------*/
+PROCESS_THREAD(unwired_shell_cryptokey_process, ev, data)
+{
+	uint8_t max_args = 17;
+	char *args[max_args+1]; //necessary to allocate on one pointer more
+	uint8_t argc = 0;
 
+	PROCESS_BEGIN();
+	
+	argc = parse_args(data, args, max_args);
+	if(argc == 0)
+	{
+		printf("CryptoKey: No args! Use \"cryptokey <set/get> <AES-128 Key(xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx)>\"\n");
+		PROCESS_EXIT();
+	}
+
+	if(argc == 1)
+	{
+		if(!strncmp(args[0], "get", 3))
+		{
+			uint8_t *key = get_aes128_key();
+			printf("AES-128 Key:");
+			for (uint8_t i = 0; i < 16; i++)
+				printf(" %"PRIXX8, key[i]);
+			printf("\n");
+			PROCESS_EXIT();
+		}
+	}
+
+	if(argc == 17)
+	{
+		if(!strncmp(args[0], "set", 3))
+		{
+			uint8_t new_aes128_key[16];
+			
+			for(uint8_t i = 0; i < 16; i++)
+			{
+				str2int_errno_t status = hex_str2uint8(&new_aes128_key[i], args[i + 1]); 
+				
+				if (status != STR2INT_SUCCESS)
+				{
+					printf("AES-128 Key set error: Incorrect key arg\n");
+					PROCESS_EXIT();
+				}	
+			}
+			
+			aes128_key_update(new_aes128_key);
+			
+			uint8_t *key = get_aes128_key();
+			printf("AES-128 Key set:");
+			for (uint8_t i = 0; i < 16; i++)
+				printf(" %"PRIXX8, key[i]);
+			printf("\n");
+			
+			PROCESS_EXIT();
+		}
+	}
+	
+	printf("AES-128 Key set error: Incorrect key arg\n");
+	printf("Use \"cryptokey <set/get> <AES-128 Key(xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx)>\"\n");
+	printf("\n");
+	PROCESS_END();
+}
+
+/*---------------------------------------------------------------------------*/
 void unwired_shell_init(void)
 {
 	shell_register_command(&unwired_shell_time_command);
@@ -561,6 +549,7 @@ void unwired_shell_init(void)
 	shell_register_command(&unwired_shell_bootloader_command);
 	shell_register_command(&unwired_shell_address_command);
 	shell_register_command(&unwired_shell_serial_command);
+	shell_register_command(&unwired_shell_cryptokey_command);
 }
 
 /*---------------------------------------------------------------------------*/

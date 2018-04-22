@@ -154,13 +154,14 @@ PROCESS_THREAD(main_process, ev, data)
 	
 	//PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&shell_off));
 	
-	serial = ((user_flash_read_byte(0) << 24) |
-			 (user_flash_read_byte(1) << 16)  |
-			 (user_flash_read_byte(2) << 8)   |
-			 user_flash_read_byte(3));
+	//settings_init();
 	
-	static struct etimer shell_off;
-	etimer_set(&shell_off, CLOCK_SECOND * 15);
+	
+	
+	//serial = ((user_flash_read_byte(0) << 24) |
+	//		 (user_flash_read_byte(1) << 16)  |
+	//		 (user_flash_read_byte(2) << 8)   |
+	//		 user_flash_read_byte(3));
 	
 	if (BOARD_IOID_UART_RX == IOID_UNUSED)
 	{
@@ -176,6 +177,21 @@ PROCESS_THREAD(main_process, ev, data)
 		printf("DAG Node: Shell activated, type \"help\" for command list\n");
 	}
 	
+	//settings_init();
+	process_start(&settings_init, NULL);
+	
+	PROCESS_YIELD_UNTIL(ev == PROCESS_EVENT_CONTINUE);
+	
+	process_exit(&settings_init);
+	
+	process_start(&dag_node_process, NULL);
+	
+	static struct etimer shell_off;
+	etimer_set(&shell_off, CLOCK_SECOND * 15);
+	
+	PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&shell_off));
+	
+	/*
 	if(serial != 0xFFFFFFFF)
 	{
 		printf("Serial: %lu\n", serial);
@@ -196,6 +212,7 @@ PROCESS_THREAD(main_process, ev, data)
 			}
 		}	
 	}
+	*/
 	
 	//if (BOARD_IOID_UART_TX != BOARD_IOID_ALT_UART_TX || BOARD_IOID_UART_RX != BOARD_IOID_ALT_UART_RX)
 	if (BOARD_IOID_UART_TX != BOARD_IOID_CAN_UART_TX || BOARD_IOID_CAN_UART_RX != BOARD_IOID_ALT_UART_RX)

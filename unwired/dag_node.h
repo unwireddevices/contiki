@@ -62,6 +62,15 @@ struct interpocess_message
    volatile uint8_t payload[16];
 };
 
+//void settings_init(void);
+
+uint32_t* get_aes128_key(void);
+void aes128_key_update(const uint8_t *aes_key_new);
+void serial_update(uint32_t serial_new);
+uint32_t get_serial(void);
+void channel_update(uint8_t channel_new);
+void panid_update(uint16_t panid_new);
+
 void udbp_v5_message_sender(uint8_t message_type, uint8_t data_1, uint8_t data_2);
 void udbp_v5_uart_to_root_sender(char* data);
 //void uart_console(unsigned char uart_char); //ХЗ
@@ -70,6 +79,7 @@ void led_mode_set(uint8_t mode);
 //void udbp_v5_join_stage_3_sender(const uip_ipaddr_t *dest_addr);
 bool wait_response_status(void);
 
+PROCESS_NAME(settings_init);
 PROCESS_NAME(dag_node_process);
 PROCESS_NAME(dag_node_button_process);
 PROCESS_NAME(root_find_process);

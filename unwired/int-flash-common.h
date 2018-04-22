@@ -57,6 +57,8 @@
 #define BLANK_FLASH_VALUE                       0xFF
 
 /*---------------------------------------------------------------------------*/
+uint32_t write_eeprom(uint8_t *pui8DataBuffer, uint32_t ui32Count);
+void read_eeprom(uint8_t *pui8DataBuffer, uint32_t ui32Count);
 void user_flash_update_byte(uint8_t offset, uint8_t data);
 uint8_t user_flash_read_byte(uint8_t offset);
 void flash_read(uint8_t *pui8DataBuffer, uint32_t ui32Address, uint32_t ui32Count);

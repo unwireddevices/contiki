@@ -38,260 +38,92 @@ MEMORY
 }
 
 
+Available commands:	
 
-uint8_t len
+address: show net address	
+	ADDRESS: not join to net, local address not available
+	ADDRESS: node full ipv6 address: FD00::0212:4B00:0C46:8905
+	ADDRESS: unwired net address: 02124B000C468905
+	//Link layer addr: 00:12:4b:00:0c:46:7c:81
+	//Node UD address: 02124B000C467C81
+
+bootloader: bootloader start
+
+channel <set/get> <num>: set/get radio channel
+	Channel get: Current radio-channel: 26 (2480 MHz)
+
+help: shows this help
+	Available commands:
+	address: show net address
+	bootloader: bootloader start
+	channel <set/get> <num>: set/get radio channel
+	help: shows this help
+	panid <set/get> <panid(ABCD)>: set/get panid
+	randwait <maxtime> <command>: wait for a random time before running a command
+	reboot: reboot the system
+	repeat <num> <time> <command>: run a command every <time> seconds
+	serial <set/get> <serial number>: set/get serial number
+	status: show node status
+	test: test func
+	time: show the current node time in unix epoch
+	timesync: sync time now
+	uptime: show the current node uptime
+	
+	
+panid <set/get> <panid(ABCD)>: set/get panid
+	PAN ID: Current ID AABB
+	
+randwait <maxtime> <command>: wait for a random time before running a command
+
+reboot: reboot the system
+
+repeat <num> <time> <command>: run a command every <time> seconds
+
+serial <set/get> <serial number>: set/get serial number
+	Serial: 37622
+	
+status: show node status
+	STATUS: rpl parent ip address: FE80::0212:4B00:0C46:8905
+	STATUS: rpl dag root ip address: FD00::0212:4B00:0C46:8905
+	STATUS: rpl parent last tx: 6 sec ago
+	STATUS: rpl parent rssi: -53
+	STATUS: rpl parent is reachable: 1
+	STATUS: temp: 21C, voltage: 3320mv
+
+test: test func
+
+time: show the current node time in unix epoch
+	RTC: 104 sec, 101 ms
+
+timesync: sync time now
+
+uptime: show the current node uptime
+	Uptime: 1 sec, 178 ms
+
+
+Available commands:
+
+channel <set/get> <num>: set/get radio channel
+panid <set/get> <panid(ABCD)>: set/get panid
+serial <set/get> <serial number>: set/get serial number
 
 
 
+Channel: 26 //uint8_t channel;
+PAN ID: 0xAABB //uint16_t panid;
+Serial: 37622 //uint32_t serial;
+AES128: 11 22 33 44 55 66 77 88 99 00 AA BB CC DD EE FF //uint8_t aes_key[16];
 
-
-
-
-
-
-
-static void uart_to_air()
+struct eeprom 
 {
-	uip_ipaddr_t addr = find_addr((uint32_t)((udup_v5_rc_uart_rx_buffer[0] << 24) |
-											 (udup_v5_rc_uart_rx_buffer[1] << 16) |
-											 (udup_v5_rc_uart_rx_buffer[2] << 8)  |
-											  udup_v5_rc_uart_rx_buffer[3]));
-											  
-	uip_ip6addr_t addr_not_found;
-	uip_ip6addr(&addr_not_found, 0, 0, 0, 0, 0, 0, 0, 0);
-	
-	if((((&addr)->u16[0])  == 0x00)  &&
-		(((&addr)->u16[0])  == 0x00) &&
-		(((&addr)->u16[0])  == 0x00) &&
-		(((&addr)->u16[0])  == 0x00) &&
-		(((&addr)->u16[0])  == 0x00) &&
-		(((&addr)->u16[0])  == 0x00) &&
-		(((&addr)->u16[0])  == 0x00) &&
-		(((&addr)->u16[0])  == 0x00))	
-	{	
-		return; //Нету такого адреса
-	}
-	
-	uint16_t nonce = get_nonce((uint32_t) ( (data[UDBP_V5_HEADER_LENGTH + 2] << 24) |
-											(data[UDBP_V5_HEADER_LENGTH + 3] << 16) |
-											(data[UDBP_V5_HEADER_LENGTH + 4] << 8)  |
-											(data[UDBP_V5_HEADER_LENGTH + 5] )));
-	
-	nonce_key[0] = (uint8_t)((nonce >> 8) & 0xFF);
-	nonce_key[1] = (uint8_t)(nonce & 0xFF);
-	nonce_key[2] = (uint8_t)((nonce >> 8) & 0xFF);
-	nonce_key[3] = (uint8_t)(nonce & 0xFF);
-	nonce_key[4] = (uint8_t)((nonce >> 8) & 0xFF);
-	nonce_key[5] = (uint8_t)(nonce & 0xFF);
-	nonce_key[6] = (uint8_t)((nonce >> 8) & 0xFF);
-	nonce_key[7] = (uint8_t)(nonce & 0xFF);
-	nonce_key[8] = (uint8_t)((nonce >> 8) & 0xFF);
-	nonce_key[9] = (uint8_t)(nonce & 0xFF);
-	nonce_key[10] = (uint8_t)((nonce >> 8) & 0xFF);
-	nonce_key[11] = (uint8_t)(nonce & 0xFF);
-	nonce_key[12] = (uint8_t)((nonce >> 8) & 0xFF);
-	nonce_key[13] = (uint8_t)(nonce & 0xFF);
-	nonce_key[14] = (uint8_t)((nonce >> 8) & 0xFF);
-	nonce_key[15] = (uint8_t)(nonce & 0xFF);
-
-	uint8_t payload_length = iterator_to_byte(udup_v5_data_iterator) + 2;
-	uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
-	udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
-	udp_buffer[1] = packet_counter_root.u8[0];
-	udp_buffer[2] = packet_counter_root.u8[1];
-	udp_buffer[3] = get_parent_rssi();
-	udp_buffer[4] = get_temperature();
-	udp_buffer[5] = get_voltage();
-
-	udp_buffer[6] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
-	udp_buffer[7] = UART_FROM_AIR_TO_TX;
-	
-	//for(uint8_t i = 0; i < udup_v5_data_iterator; i++) /*Копирование из буфера приема UART*/
-	//	udp_buffer[i+8] = udup_v5_rc_uart_rx_buffer[i];
-		
-	if(udup_v5_data_iterator <= 16)
-	{
-		for(uint8_t i = 0; i < 16; i++)
-		{
-			if(i < udup_v5_data_iterator)
-				aes_bufer_in[i] = udup_v5_rc_uart_rx_buffer[i];
-			else
-				aes_bufer_in[i] = 0;
-		}
-		aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_bufer_in, (uint32_t*)(&udp_buffer[8]), AES128_PACKAGE_LENGTH);
-	}
-	else
-	{
-		uint8_t uart_data_ptr = 0;
-		while((uart_data_ptr + 16) <= udup_v5_data_iterator) //16<=17, 32<=32
-		{
-			aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&udup_v5_rc_uart_rx_buffer[uart_data_ptr], (uint32_t*)(&udp_buffer[uart_data_ptr+8]), AES128_PACKAGE_LENGTH);
-			uart_data_ptr += 16;
-		}
-		
-		if(uart_data_ptr != udup_v5_data_iterator) //16!=17, 32!=32
-		{
-			for(uint8_t i = 0; i < 16; i++)
-			{
-				if((uart_data_ptr + i) < udup_v5_data_iterator)
-					aes_bufer_in[i] = udup_v5_rc_uart_rx_buffer[uart_data_ptr + i];
-				else
-					aes_bufer_in[i] = 0;
-			}
-			aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_bufer_in, (uint32_t*)(&udp_buffer[uart_data_ptr+8]), AES128_PACKAGE_LENGTH);
-		}
-		
-	}
-		
-	simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
-	packet_counter_root.u16++;
-}
-
-
-0x00 0x00 0x92 0xF6 0x00 0x11 0x22 0x33 0x44 0x55 0x66 0x77 0x88 0x99 0xC7 0xEE
-
-static uint8_t iterator_to_byte(uint8_t iterator)
-{
-	if(iterator <= 16)
-		return 16;
-	if((iterator > 16) && (iterator <= 32))
-		return 32
-	if((iterator > 32) && (iterator <= 48))
-		return 48
-	if((iterator > 48) && (iterator <= 64))
-		return 64
-	if((iterator > 64) && (iterator <= 80))
-		return 80
-	if((iterator > 80) && (iterator <= 96))
-		return 96
-	if((iterator > 96) && (iterator <= 112))
-		return 112
-	if((iterator > 112) && (iterator <= 128))
-		return 128
-	return 0;
-}
+    uint8_t channel;
+    uint16_t panid;
+	uint32_t serial;
+	uint8_t aes_key[16];
+};
 
 
 
-
-udup_v5_data_iterator
-
-
-d2 f5 b0 ae f8 6d fd e6 f9 0c 1b 77 32 73 9e 49 
-16 a5 d6 ed 09 c9 24 d3 36 63 48 0f 6e 1d 9e f8
-
-00 00 92 f6 00 11 22 33 44 55 66 77 88 99 00 af
-ac e6 5c bd 14 7e 11 f5 15 1f f7 64 de 60 72 5a
-
-
-ac e6 5c bd 14 7e 11 f5 15 1f f7 64 de 60 72 5a
-EC 13 EC 13 EC 13 EC 13 EC 13 EC 13 EC 13 EC 13
-_______________________________________________
-40 F5 B0 AE F8 6D FD E6 F9 0C 1B 77 32 73 9E 49
-d2 f5 b0 ae f8 6d fd e6 f9 0c 1b 77 32 73 9e 49
-
-
-
-
-
-
-
-	udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
-	udp_buffer[1] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID; 
-	udp_buffer[2] = DATA_TYPE_JOIN_V5_STAGE_3;
-	udp_buffer[3] = get_parent_rssi();
-	udp_buffer[4] = get_temperature();
-	udp_buffer[5] = get_voltage();
-
-	udp_buffer[6] = packet_counter_node.u8[1];
-	udp_buffer[7] = packet_counter_node.u8[0];
-
-
-
-
-`	
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	aes_buffer[0] = packet_counter_root.u8[0];//UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
-	aes_buffer[1] = packet_counter_root.u8[1];//UART_FROM_AIR_TO_TX;
-	aes_buffer[2] = udup_v5_data_iterator;//Длина пакета
-	
-	for(uint8_t i = 3; i < payload_length; i++)
-	{
-		if(i < udup_v5_data_iterator)
-			aes_buffer[i] = udup_v5_rc_uart_rx_buffer[i-3];
-		else
-			aes_buffer[i] = 0;
-	}
-	
-	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[UDBP_V5_HEADER_LENGTH]), payload_length);
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	if((udup_v5_data_iterator + 3) <= 16)
-	{
-		for(uint8_t i = 0; i < 16; i++)
-		{
-			if(i < udup_v5_data_iterator)
-				aes_buffer[i] = udup_v5_rc_uart_rx_buffer[i];
-			else
-				aes_buffer[i] = 0;
-		}
-		aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[8]), AES128_PACKAGE_LENGTH);
-	}
-	else
-	{
-		uint8_t uart_data_ptr = 0;
-		while((uart_data_ptr + 16) <= udup_v5_data_iterator) //16<=17, 32<=32
-		{
-			aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&udup_v5_rc_uart_rx_buffer[uart_data_ptr], (uint32_t*)(&udp_buffer[uart_data_ptr+8]), AES128_PACKAGE_LENGTH);
-			uart_data_ptr += 16;
-		}
-		
-		if(uart_data_ptr != udup_v5_data_iterator) //16!=17, 32!=32
-		{
-			for(uint8_t i = 0; i < 16; i++)
-			{
-				if((uart_data_ptr + i) < udup_v5_data_iterator)
-					aes_buffer[i] = udup_v5_rc_uart_rx_buffer[uart_data_ptr + i];
-				else
-					aes_buffer[i] = 0;
-			}
-			aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[uart_data_ptr+8]), AES128_PACKAGE_LENGTH);
-		}
-		
-	}
 
 
 
