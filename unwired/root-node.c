@@ -63,9 +63,11 @@
 #include "root-node.h"
 #include "crypto-common.h"
 #include "rtc-common.h"
+#include "int-flash-common.h"
 
 #include "dev/serial-line.h"
 #include "../cpu/cc26xx-cc13xx/dev/cc26xx-uart.h"
+//#include "uart/root.h"
 
 /*---------------------------------------------------------------------------*/
 
@@ -94,6 +96,8 @@ static struct ctimer wait_response;
 static bool uart = 0;
 static bool wait_response_slave = 0;
 
+volatile uint8_t led_mode;
+
 struct route 
 {
     uint32_t serial;
@@ -102,14 +106,57 @@ struct route
 	uint16_t counter;
 };
 
+static struct eeprom 
+{
+    uint8_t channel; 
+    uint16_t panid;
+	uint32_t serial;
+	uint8_t aes_key[16];
+	bool aes_key_configured;
+};
+
+static struct eeprom eeprom_settings;
+
 struct route route_table[MAX_ROUTE_TABLE];
 uint8_t route_table_ptr = 0;
 
 volatile union { uint16_t u16; uint8_t u8[2]; } packet_counter_root;
 
-PROCESS(main_root_process, "main root process");
+process_event_t serial_line_event_message;
 
+PROCESS(main_root_process, "Main root process");
+// PROCESS(settings_init, "Init settings from EEPROM");
+PROCESS(led_process, "Led process");
 
+/*---------------------------------------------------------------------------*/
+void aes128_key_update(const uint8_t *aes_key_new)
+{	
+	eeprom_settings.aes_key_configured = false;
+	
+	for(uint8_t i = 0; i < 16; i++)
+		eeprom_settings.aes_key[i] = aes_key_new[i];
+	
+	write_eeprom(((uint32_t*)&eeprom_settings), sizeof(eeprom_settings));
+	
+	watchdog_reboot();
+}
+/*---------------------------------------------------------------------------*/
+uint32_t* get_aes128_key(void)
+{
+	return (uint32_t*)aes_key;
+}
+/*---------------------------------------------------------------------------*/
+void channel_update(uint8_t channel_new)
+{
+	eeprom_settings.channel = channel_new;
+	write_eeprom(((uint32_t*)&eeprom_settings), sizeof(eeprom_settings));
+}
+/*---------------------------------------------------------------------------*/
+void panid_update(uint16_t panid_new)
+{
+	eeprom_settings.panid = panid_new;
+	write_eeprom(((uint32_t*)&eeprom_settings), sizeof(eeprom_settings));
+}
 /*---------------------------------------------------------------------------*/
 static void wait_response_reset(void *ptr)
 {
@@ -1007,13 +1054,13 @@ void udup_v5_data_process()
 void set_uart_r(void)
 {
 	uart = 1;
-	//udup_v5_data_iterator = 1;
+	udup_v5_data_iterator = 1;
 }
 /*---------------------------------------------------------------------------*/
 void unset_uart_r(void)
 {
 	uart = 0;
-	//udup_v5_data_iterator = 0;
+	udup_v5_data_iterator = 0;
 }
 /*---------------------------------------------------------------------------*/
 uint8_t uart_status_r(void)
@@ -1044,7 +1091,26 @@ static uint8_t iterator_to_byte(uint8_t iterator)
 		return 128;
 	return 0;
 }
+
 /*---------------------------------------------------------------------------*/
+
+void led_mode_set(uint8_t mode)
+{
+	led_mode = mode;
+	if (led_mode == LED_OFF)
+		led_off(LED_A);
+
+	if (led_mode == LED_ON)
+		led_on(LED_A);
+
+	if (led_mode == LED_SLOW_BLINK || led_mode == LED_FAST_BLINK || led_mode == LED_FLASH)
+		process_start(&led_process, NULL);
+	else
+		process_exit(&led_process);
+}
+
+/*---------------------------------------------------------------------------*/
+
 static void uart_to_air()
 {
 	//printf("uart_to_air\n");
@@ -1146,80 +1212,220 @@ static void uart_to_air()
 	packet_counter_root.u16++;
 }
 /*---------------------------------------------------------------------------*/
+// PROCESS_THREAD(settings_init, ev, data)
+// {
+	// PROCESS_BEGIN();
+	// if (ev == PROCESS_EVENT_EXIT)
+		// return 1;
+
+	// read_eeprom(&eeprom_settings, sizeof(eeprom_settings));
+	
+	// if(eeprom_settings.aes_key_configured == true)
+	// {
+		// if((eeprom_settings.channel != 26) && (eeprom_settings.panid != 0xAABB))
+		// {
+			// eeprom_settings.channel = 26;
+			// eeprom_settings.panid = 0xAABB;
+			// write_eeprom(&eeprom_settings, sizeof(eeprom_settings));
+		// }
+	// }
+	
+	// /*
+	// if(!eeprom_settings.aes_key_configured) 
+	// {
+		// printf("AES-128 key:");
+		// for (uint8_t i = 0; i < 16; i++)
+		// {
+			// aes_key[i] = eeprom_settings.aes_key[i];
+			// printf(" %"PRIXX8, aes_key[i]);
+		// }
+		// printf("\n");
+	// }
+	// else
+	// {
+		// printf("AES-128 key not declared\n******************************\n******PLEASE SET AES KEY******\n******************************\n");
+		// led_mode_set(LED_FAST_BLINK);
+		// while(eeprom_settings.aes_key_configured)
+		// {
+			// PROCESS_YIELD();
+		// }		
+	// }
+	// */
+	
+	// radio_value_t channel = 0;
+	// NETSTACK_RADIO.get_value(RADIO_PARAM_CHANNEL, &channel);
+	
+	// if(channel != eeprom_settings.channel)
+	// {
+		// NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, eeprom_settings.channel);
+		
+		// if (ti_lib_chipinfo_chip_family_is_cc26xx())
+		// {
+			// uint32_t freq_mhz = (2405 + 5 * (eeprom_settings.channel - 11));
+			// printf("Changed the radio-channel to: %"PRIint" (%"PRIu32" MHz)\n", (int)eeprom_settings.channel, freq_mhz);
+		// }
+
+		// if (ti_lib_chipinfo_chip_family_is_cc13xx())
+		// {
+			// uint32_t freq_khz = 863125 + (eeprom_settings.channel * 200);
+			// printf("Changed the radio-channel to: %"PRIint" (%"PRIu32" kHz)\n", (int)eeprom_settings.channel, freq_khz);
+		// }
+	// }
+	
+	// if (ti_lib_chipinfo_chip_family_is_cc26xx())
+	// {
+		// radio_value_t panid = 0;
+		// NETSTACK_RADIO.get_value(RADIO_PARAM_PAN_ID, &panid);
+		
+		// if(panid != eeprom_settings.panid)
+		// {
+			// NETSTACK_RADIO.set_value(RADIO_PARAM_PAN_ID, eeprom_settings.panid);
+			// printf("PAN ID changed to: %"PRIXX16"\n", eeprom_settings.panid);
+		// }
+	// }
+	// process_post(&rpl_root_process, PROCESS_EVENT_CONTINUE, NULL);
+	// PROCESS_END();
+// }
+
+/*---------------------------------------------------------------------------*/
+
+PROCESS_THREAD(led_process, ev, data)
+{
+   PROCESS_BEGIN();
+   if (ev == PROCESS_EVENT_EXIT)
+      return 1;
+   static struct etimer led_mode_timer;
+
+   while (led_mode == LED_SLOW_BLINK || led_mode == LED_FAST_BLINK || led_mode == LED_FLASH)
+   {
+      if (led_mode == LED_FAST_BLINK)
+         etimer_set( &led_mode_timer, CLOCK_SECOND/10);
+
+      if (led_mode == LED_SLOW_BLINK)
+         etimer_set( &led_mode_timer, CLOCK_SECOND/2);
+
+      if (led_mode == LED_FLASH)
+         etimer_set( &led_mode_timer, 1);
+
+      PROCESS_WAIT_EVENT_UNTIL( etimer_expired(&led_mode_timer) );
+
+      led_on(LED_A);
+
+      if (led_mode == LED_FAST_BLINK)
+         etimer_set( &led_mode_timer, CLOCK_SECOND/32);
+
+      if (led_mode == LED_SLOW_BLINK)
+         etimer_set( &led_mode_timer, CLOCK_SECOND/32);
+
+      if (led_mode == LED_FLASH)
+         etimer_set( &led_mode_timer, CLOCK_SECOND/16);
+
+      PROCESS_WAIT_EVENT_UNTIL( etimer_expired(&led_mode_timer) );
+
+      led_off(LED_A);
+
+      if (led_mode == LED_FLASH)
+         led_mode = LED_OFF;
+   }
+
+   PROCESS_END();
+}
+
+/*---------------------------------------------------------------------------*/
 
 PROCESS_THREAD(main_root_process, ev, data)
 {
-   PROCESS_BEGIN();
-   timer_set(&udup_v5_timeout_timer, 10);
+	PROCESS_BEGIN();
+	timer_set(&udup_v5_timeout_timer, 10);
 
-   static struct etimer main_root_process_timer;
-   packet_counter_root.u16 = 0;
-   PROCESS_PAUSE();
-   
-   uint16_t crc_uart;
+	static struct etimer main_root_process_timer;
+	packet_counter_root.u16 = 0;
+	PROCESS_PAUSE();
 
-   while (1)
-   {
-      etimer_set(&main_root_process_timer, 1);
-      PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&main_root_process_timer));
+	uint16_t crc_uart;
 
-      if (timer_expired(&udup_v5_timeout_timer) && udup_v5_data_iterator > 0)
-      {
-		 if(uart == 1)
-		 {
-			 if(udup_v5_data_iterator > 6)
-			 {
-				crc_uart = crc16_modbus(udup_v5_rc_uart_rx_buffer, udup_v5_data_iterator-2);
-				if(crc_uart == (uint16_t)((udup_v5_rc_uart_rx_buffer[udup_v5_data_iterator-1] << 8) | 
-										   udup_v5_rc_uart_rx_buffer[udup_v5_data_iterator-2]))
+	while (1)
+	{
+		etimer_set(&main_root_process_timer, 1);
+		PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&main_root_process_timer));
+
+		if (timer_expired(&udup_v5_timeout_timer) && udup_v5_data_iterator > 0)
+		{
+			if(uart == 1)
+			{
+				if(udup_v5_data_iterator > 6)
 				{
-					wait_response_slave = 1;
-					ctimer_set(&wait_response, WAIT_RESPONSE * CLOCK_SECOND, wait_response_reset, NULL);
-					uart_to_air();
+					crc_uart = crc16_modbus(udup_v5_rc_uart_rx_buffer, udup_v5_data_iterator-2);
+					if(crc_uart == (uint16_t)((udup_v5_rc_uart_rx_buffer[udup_v5_data_iterator-1] << 8) | 
+										   udup_v5_rc_uart_rx_buffer[udup_v5_data_iterator-2]))
+					{
+						wait_response_slave = 1;
+						ctimer_set(&wait_response, WAIT_RESPONSE * CLOCK_SECOND, wait_response_reset, NULL);
+						uart_to_air();
+					}
 				}
-			 }
 			 
-			 //udup_v5_data_iterator--;
-			 //printf("udup_v5_data_iterator: %i\n", udup_v5_data_iterator);
-			 //uart_to_air();
-			 //udup_v5_rc_uart_rx_buffer[udup_v5_data_iterator] = uart_char;
-			 
-			 udup_v5_data_iterator = 0;
-		 }
-		 else
-		 {
-			 disable_interrupts();
-			 udup_v5_data_iterator--;
-			 /*
-			 printf("UDM: HEX bytes(%"PRIu8"):", udup_v5_data_iterator);
-			 for (uint16_t i = 0; i < udup_v5_data_iterator; i++)
-				printf("%"PRIXX8" ", udup_v5_rc_uart_rx_buffer[i]);
-			 printf("\n");
-			 */
-			 hex_to_bin_errno_t convert_status = convert_hex_to_bin();
-			 if (convert_status == HEX2BIN_SUCCESS)
-			 {
-				udup_v5_data_iterator = udup_v5_data_iterator/2;
+				//udup_v5_data_iterator--;
+				//printf("udup_v5_data_iterator: %i\n", udup_v5_data_iterator);
+				//uart_to_air();
+				//udup_v5_rc_uart_rx_buffer[udup_v5_data_iterator] = uart_char;
+
+				udup_v5_data_iterator = 0;
+			}
+			else
+			{
+				///////////////////////////////////////////////////////////////
+				// /* Terminate */
+				// udup_v5_data_iterator--;
+				// udup_v5_rc_uart_rx_buffer[udup_v5_data_iterator] = (uint8_t)'\0'; //(uint8_t)'\0';
+				
+				// /* Broadcast event */
+				// process_post(PROCESS_BROADCAST, serial_line_event_message, udup_v5_rc_uart_rx_buffer);
+
+				// /* Wait until all processes have handled the serial line event */
+				// if(PROCESS_ERR_OK ==
+				// process_post(PROCESS_CURRENT(), PROCESS_EVENT_CONTINUE, NULL)) 
+				// {
+					// PROCESS_WAIT_EVENT_UNTIL(ev == PROCESS_EVENT_CONTINUE);
+				// }
+				
+				udup_v5_data_iterator = 0;
+				///////////////////////////////////////////////////////////////
+				
+				/*
+				disable_interrupts();
 				udup_v5_data_iterator--;
-				udup_v5_data_process();
-			 }
-			 else if (convert_status == HEX2BIN_NONPARITY)
-			 {
-				if(uart_status_r() == 0)
-				  printf("UDM: ANSCII-HEX converting failed, NONPARITY\n");
-			 }
-			 else if (convert_status == HEX2BIN_INCONVERTIBLE)
-			 {
-				if(uart_status_r() == 0)
-				  printf("UDM: ANSCII-HEX converting failed, INCONVERTIBLE\n");
-			 }
+				
+				//printf("UDM: HEX bytes(%"PRIu8"):", udup_v5_data_iterator);
+				//for (uint16_t i = 0; i < udup_v5_data_iterator; i++)
+				//printf("%"PRIXX8" ", udup_v5_rc_uart_rx_buffer[i]);
+				//printf("\n");
+				
+				hex_to_bin_errno_t convert_status = convert_hex_to_bin();
+				if (convert_status == HEX2BIN_SUCCESS)
+				{
+					udup_v5_data_iterator = udup_v5_data_iterator/2;
+					udup_v5_data_iterator--;
+					udup_v5_data_process();
+				}
+				else if (convert_status == HEX2BIN_NONPARITY)
+				{
+					if(uart_status_r() == 0)
+						printf("UDM: ANSCII-HEX converting failed, NONPARITY\n");
+				}
+				else if (convert_status == HEX2BIN_INCONVERTIBLE)
+				{
+					if(uart_status_r() == 0)
+						printf("UDM: ANSCII-HEX converting failed, INCONVERTIBLE\n");
+				}
 
-			 udup_v5_data_iterator = 0;
-			 enable_interrupts();
-		 }
-      }
+				udup_v5_data_iterator = 0;
+				enable_interrupts();
+				*/
+			}
+		}
 
-   }
+	}
 
    PROCESS_END();
 }

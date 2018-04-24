@@ -80,6 +80,8 @@
 #define RS485_RE IOID_30
 
 /*---------------------------------------------------------------------------*/
+//#define SHELL_UNWIRED_SERIAL 1
+/*---------------------------------------------------------------------------*/
 /* Register button sensors */
 SENSORS(&button_e_sensor_click, &button_e_sensor_long_click);
 
@@ -199,6 +201,7 @@ PROCESS_THREAD(main_process, ev, data)
 		PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&shell_off));
 	}
 	else
+
 	{
 		printf("Serial number not declared\n******************************\n***PLEASE SET SERIAL NUMBER***\n******************************\n");
 		led_mode_set(LED_FAST_BLINK);

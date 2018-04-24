@@ -44,6 +44,18 @@
 
 /*---------------------------------------------------------------------------*/
 
+#define MODE_NORMAL                             0x01
+#define MODE_NOTROOT                            0x02
+#define MODE_JOIN_PROGRESS                      0x03
+#define MODE_NEED_REBOOT                        0x04
+
+#define LED_OFF                                 0x00
+#define LED_ON                                  0x01
+#define LED_FLASH                               0x02
+#define LED_SLOW_BLINK                          0x03
+#define LED_FAST_BLINK                          0x04
+
+/*---------------------------------------------------------------------------*/
  typedef enum hex_to_bin_errno_t{
    HEX2BIN_SUCCESS,
    HEX2BIN_NONPARITY,
@@ -54,13 +66,16 @@
 struct simple_udp_connection udp_connection;
 
 PROCESS_NAME(main_root_process);
+// PROCESS_NAME(settings_init);
+PROCESS_NAME(led_process);
 
 /*---------------------------------------------------------------------------*/
-
 
 void rpl_initialize();
 
 void root_node_initialize();
+
+void led_mode_set(uint8_t mode);
 
 void udp_data_receiver(struct simple_udp_connection *connection,
                        const uip_ipaddr_t *sender_addr,
@@ -75,5 +90,10 @@ int uart_data_receiver_udup_v5(unsigned char uart_char);
 void set_uart_r(void);
 void unset_uart_r(void);
 uint8_t uart_status_r(void);
+
+uint32_t* get_aes128_key(void);
+void aes128_key_update(const uint8_t *aes_key_new);
+void channel_update(uint8_t channel_new);
+void panid_update(uint16_t panid_new);
 
 /*---------------------------------------------------------------------------*/
