@@ -64,16 +64,11 @@
 
 #include "sys/etimer.h"
 
-//#include "../../apps/serial-shell/serial-shell.h" //
-//#include "../../apps/shell/shell-reboot.h"
-//#include "../../apps/shell/shell-time.h"
-//#include "../../apps/shell/shell-unwired.h"
 
 #define CC26XX_UART_INTERRUPT_ALL (UART_INT_OE | UART_INT_BE | UART_INT_PE | \
    UART_INT_FE | UART_INT_RT | UART_INT_TX | \
    UART_INT_RX | UART_INT_CTS)
-   
-   
+
 /*---------------------------------------------------------------------------*/
 
 /* Buttons on DIO 1 */
@@ -84,6 +79,7 @@ PROCESS(rpl_root_process, "Unwired RPL root and udp data receiver");
 AUTOSTART_PROCESSES(&rpl_root_process);
 
 /*---------------------------------------------------------------------------*/
+
 
 static void off_uart(uint32_t rx_dio, uint32_t tx_dio)
 {
@@ -133,6 +129,7 @@ static void on_uart(uint32_t rx_dio, uint32_t tx_dio, uint32_t baud_rate)
 
 PROCESS_THREAD(rpl_root_process, ev, data)
 {
+
 	PROCESS_BEGIN();
 
 	if(uart_status_r() == 0)
@@ -146,20 +143,6 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 	rpl_initialize();
 
 	root_node_initialize();
-	
-//
-	// serial_shell_init();
-	// shell_reboot_init();
-	// shell_time_init();
-	// unwired_shell_init();
-	// printf("ROOT Node: Shell activated, type \"help\" for command list\n");
-
-	//process_start(&settings_init, NULL);
-	
-	//PROCESS_YIELD_UNTIL(ev == PROCESS_EVENT_CONTINUE);
-	
-	//process_exit(&settings_init);
-//
 
 	static struct etimer shell_off;
 	etimer_set(&shell_off, CLOCK_SECOND * 30);

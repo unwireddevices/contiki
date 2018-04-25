@@ -71,7 +71,8 @@
 #include "../../unwired/crypto-common.h"
 
 /*---------------------------------------------------------------------------*/
-//extern uint32_t serial;
+extern uint32_t serial;
+//extern aes_key;
 /*---------------------------------------------------------------------------*/
 PROCESS(unwired_shell_time_process, "time");
 SHELL_COMMAND(unwired_shell_time_command, "time", "time: show the current node time in unix epoch", &unwired_shell_time_process);
@@ -415,6 +416,7 @@ PROCESS_THREAD(unwired_shell_test_process, ev, data)
 }
 
 /*---------------------------------------------------------------------------*/
+
 PROCESS_THREAD(unwired_shell_serial_process, ev, data)
 {
 	uint8_t max_args = 2;
@@ -469,6 +471,7 @@ PROCESS_THREAD(unwired_shell_serial_process, ev, data)
 	printf("\n");
 	PROCESS_END();
 }
+
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(unwired_shell_cryptokey_process, ev, data)
 {

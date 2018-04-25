@@ -33,7 +33,6 @@
  */
 /*---------------------------------------------------------------------------*/
 #include "contiki.h"
-/*---------------------------------------------------------------------------*/
 
 /*---------------------------------------------------------------------------*/
 
@@ -41,8 +40,5 @@ void aes_cbc_encrypt(uint32_t *aes_key, uint32_t *nonce, uint32_t *input_data, u
 void aes_cbc_decrypt(uint32_t *aes_key, uint32_t *nonce, uint32_t *input_data, uint32_t *output_data, uint32_t data_lenth);
 void aes_ecb_encrypt(uint32_t *aes_key, uint32_t *input_data, uint32_t *output_data);
 void aes_ecb_decrypt(uint32_t *aes_key, uint32_t *input_data, uint32_t *output_data);
-
-//uint32_t* get_aes128_key(void);
-//void aes128_key_update(const uint8_t *aes_key_new);
 
 /*---------------------------------------------------------------------------*/
