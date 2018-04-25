@@ -60,7 +60,6 @@
 #include "system-common.h"
 #include "radio_power.h"
 //#include "sys/etimer.h"
-khgfkytd
 
 #include "uart.h"
 
@@ -187,7 +186,7 @@ PROCESS_THREAD(main_process, ev, data)
 	process_start(&dag_node_process, NULL);
 	
 	static struct etimer shell_off;
-	etimer_set(&shell_off, CLOCK_SECOND * 15);
+	etimer_set(&shell_off, CLOCK_SECOND * 60);
 	
 	PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&shell_off));
 	
@@ -215,28 +214,52 @@ PROCESS_THREAD(main_process, ev, data)
 	*/
 	
 	//if (BOARD_IOID_UART_TX != BOARD_IOID_ALT_UART_TX || BOARD_IOID_UART_RX != BOARD_IOID_ALT_UART_RX)
-	if (BOARD_IOID_UART_TX != BOARD_IOID_CAN_UART_TX || BOARD_IOID_CAN_UART_RX != BOARD_IOID_ALT_UART_RX)
+		
+	if(get_interface() == INTERFACE_RS485)
 	{
-		if(uart_status() == 0)
+		if (BOARD_IOID_UART_TX != BOARD_IOID_ALT_UART_TX || BOARD_IOID_UART_RX != BOARD_IOID_ALT_UART_RX)
 		{
-			//printf("UDM: UART change to alt(RX: 26, TX: 25)\n");
-			printf("UDM: UART change to alt(RX: 30, TX: 29)\n");
-			//printf("\nUART_IBRD: %lu \nUART_FBRD: %lu \nLHCR: %lu \n ", (*(unsigned long*)(0x40001024)), (*(unsigned long*)(0x40001028)), (*(unsigned long*)(0x4000102C)) );
-			//printf("UDM: UART change to alt(RX: %"PRIu16", TX: %"PRIu16")\n", BOARD_IOID_ALT_UART_RX, BOARD_IOID_ALT_UART_TX);
+			printf("UDM: UART change to alt(RX: 26, TX: 25)\n");
+			off_uart(BOARD_IOID_UART_RX, BOARD_IOID_UART_TX);
+			on_uart(BOARD_IOID_ALT_UART_RX, BOARD_IOID_ALT_UART_TX, 9600);
+			ti_lib_gpio_clear_dio(RS485_DE);
+			ti_lib_gpio_clear_dio(RS485_RE);
 		}
-		off_uart(BOARD_IOID_UART_RX, BOARD_IOID_UART_TX);
-		on_uart(BOARD_IOID_CAN_UART_RX, BOARD_IOID_CAN_UART_TX, 9600);
-		//set_uart();
-		//on_uart(BOARD_IOID_UART_RX, BOARD_IOID_UART_TX, 9600);
-		//clock_delay((CLOCK_SECOND / 9600) * 1);
-		//printf("UDM: Alt UART active\n");
-		//printf("\nUART_IBRD: %lu \nUART_FBRD: %lu \nLHCR: %lu \n ", (*(unsigned long*)(0x40001024)), (*(unsigned long*)(0x40001028)), (*(unsigned long*)(0x4000102C)) );
 	}
+	else if(get_interface() == INTERFACE_CAN)
+	{
+		if (BOARD_IOID_UART_TX != BOARD_IOID_CAN_UART_TX || BOARD_IOID_UART_RX != BOARD_IOID_ALT_UART_RX)
+		{
+			printf("UDM: UART change to alt(RX: 30, TX: 29)\n");
+			off_uart(BOARD_IOID_UART_RX, BOARD_IOID_UART_TX);
+			on_uart(BOARD_IOID_CAN_UART_RX, BOARD_IOID_CAN_UART_TX, 9600);
+		}
+	}
+	//else
+		//printf("Unknown interface\n");
+	
+	// if (BOARD_IOID_UART_TX != BOARD_IOID_CAN_UART_TX || BOARD_IOID_CAN_UART_RX != BOARD_IOID_ALT_UART_RX)
+	// {
+		// if(uart_status() == 0)
+		// {
+			// printf("UDM: UART change to alt(RX: 26, TX: 25)\n");
+			// printf("UDM: UART change to alt(RX: 30, TX: 29)\n");
+			// printf("\nUART_IBRD: %lu \nUART_FBRD: %lu \nLHCR: %lu \n ", (*(unsigned long*)(0x40001024)), (*(unsigned long*)(0x40001028)), (*(unsigned long*)(0x4000102C)) );
+			// printf("UDM: UART change to alt(RX: %"PRIu16", TX: %"PRIu16")\n", BOARD_IOID_ALT_UART_RX, BOARD_IOID_ALT_UART_TX);
+		// }
+		// off_uart(BOARD_IOID_UART_RX, BOARD_IOID_UART_TX);
+		// on_uart(BOARD_IOID_CAN_UART_RX, BOARD_IOID_CAN_UART_TX, 9600);
+		// set_uart();
+		// on_uart(BOARD_IOID_UART_RX, BOARD_IOID_UART_TX, 9600);
+		// clock_delay((CLOCK_SECOND / 9600) * 1);
+		// printf("UDM: Alt UART active\n");
+		// printf("\nUART_IBRD: %lu \nUART_FBRD: %lu \nLHCR: %lu \n ", (*(unsigned long*)(0x40001024)), (*(unsigned long*)(0x40001028)), (*(unsigned long*)(0x4000102C)) );
+	// }
 	
 	set_uart();
 	while (1)
 	{
-	PROCESS_YIELD();
+		PROCESS_YIELD();
 		if(ev == uart_event_message) 
 		{
 			if(wait_response_status() == 1) 

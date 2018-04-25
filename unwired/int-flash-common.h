@@ -57,8 +57,22 @@
 #define BLANK_FLASH_VALUE                       0xFF
 
 /*---------------------------------------------------------------------------*/
+
+typedef  struct {
+	uint32_t serial;
+	uint16_t panid;
+    uint8_t channel; 
+	uint8_t interface; 
+	uint8_t aes_key[16];
+	bool interface_configured;
+	bool aes_key_configured;
+	bool serial_configured;
+}eeprom_dag_t;
+
+/*---------------------------------------------------------------------------*/
 uint32_t write_eeprom(uint8_t *pui8DataBuffer, uint32_t ui32Count);
 void read_eeprom(uint8_t *pui8DataBuffer, uint32_t ui32Count);
+
 void user_flash_update_byte(uint8_t offset, uint8_t data);
 uint8_t user_flash_read_byte(uint8_t offset);
 void flash_read(uint8_t *pui8DataBuffer, uint32_t ui32Address, uint32_t ui32Count);

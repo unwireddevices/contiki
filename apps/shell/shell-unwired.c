@@ -71,7 +71,7 @@
 #include "../../unwired/crypto-common.h"
 
 /*---------------------------------------------------------------------------*/
-extern uint32_t serial;
+//extern uint32_t serial;
 //extern aes_key;
 /*---------------------------------------------------------------------------*/
 PROCESS(unwired_shell_time_process, "time");
@@ -106,6 +106,9 @@ SHELL_COMMAND(unwired_shell_serial_command, "serial", "serial <set/get> <serial 
 
 PROCESS(unwired_shell_cryptokey_process, "cryptokey");
 SHELL_COMMAND(unwired_shell_cryptokey_command, "cryptokey", "cryptokey <set/get> <AES-128 Key(xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx)>: set/get AES-128 Key", &unwired_shell_cryptokey_process);
+
+PROCESS(unwired_shell_interface_process, "interface");
+SHELL_COMMAND(unwired_shell_interface_command, "interface", "interface <set/get> <can/rs485>: set/get interface", &unwired_shell_interface_process);
 
 /*---------------------------------------------------------------------------*/
 
@@ -537,6 +540,71 @@ PROCESS_THREAD(unwired_shell_cryptokey_process, ev, data)
 }
 
 /*---------------------------------------------------------------------------*/
+
+PROCESS_THREAD(unwired_shell_interface_process, ev, data)
+{
+	uint8_t max_args = 2;
+	char *args[max_args+1]; //necessary to allocate on one pointer more
+	uint8_t argc = 0;
+
+	PROCESS_BEGIN();
+	
+	argc = parse_args(data, args, max_args);
+	if(argc == 0)
+	{
+		printf("Interface: No args! Use \"interface <set/get> <rs485/can>\"\n");
+		PROCESS_EXIT();
+	}
+
+	if(argc == 1)
+	{
+		if(!strncmp(args[0], "get", 3))
+		{
+			printf("Interface: ");
+			
+			if(get_interface() == INTERFACE_RS485)
+				printf("RS485\n");
+			else if(get_interface() == INTERFACE_CAN)
+				printf("CAN\n");
+			else 
+				printf("unknown interface\n");
+
+			PROCESS_EXIT();
+		}
+	}
+
+	if(argc == 2)
+	{
+		if(!strncmp(args[0], "set", 3))
+		{
+			if(!strncmp(args[1], "rs485", 5))
+			{
+				printf("Installed interface RS485\n");
+				interface_update(INTERFACE_RS485);
+				
+			}
+			else if(!strncmp(args[1], "can", 3))
+			{
+				printf("Installed interface CAN\n");
+				interface_update(INTERFACE_CAN);
+			}
+			else
+			{
+				printf("Unknown interface\n");
+			}
+
+			PROCESS_EXIT();
+		}
+	}
+	
+	printf("Interface set error: Incorrect interface\n");
+	printf("Use \"interface <set/get> <rs485/can>\"\n");
+	printf("\n");
+	PROCESS_END();
+}
+
+/*---------------------------------------------------------------------------*/
+
 void unwired_shell_init(void)
 {
 	shell_register_command(&unwired_shell_time_command);
@@ -550,6 +618,7 @@ void unwired_shell_init(void)
 	shell_register_command(&unwired_shell_address_command);
 	shell_register_command(&unwired_shell_serial_command);
 	shell_register_command(&unwired_shell_cryptokey_command);
+	shell_register_command(&unwired_shell_interface_command);
 }
 
 /*---------------------------------------------------------------------------*/

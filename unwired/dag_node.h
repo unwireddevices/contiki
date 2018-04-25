@@ -50,6 +50,9 @@
 #define LED_SLOW_BLINK                          0x03
 #define LED_FAST_BLINK                          0x04
 
+#define INTERFACE_RS485 						0 //
+#define INTERFACE_CAN 							1 //
+
 /*---------------------------------------------------------------------------*/
 
 simple_udp_connection_t udp_connection;
@@ -63,14 +66,14 @@ struct interpocess_message
 };
 
 //void settings_init(void);
-
-uint32_t* get_aes128_key(void);
+uint8_t get_interface(void);
+void interface_update(uint8_t interface_new);
+uint8_t *get_aes128_key(void);
 void aes128_key_update(const uint8_t *aes_key_new);
 void serial_update(uint32_t serial_new);
 uint32_t get_serial(void);
 void channel_update(uint8_t channel_new);
 void panid_update(uint16_t panid_new);
-
 void udbp_v5_message_sender(uint8_t message_type, uint8_t data_1, uint8_t data_2);
 void udbp_v5_uart_to_root_sender(char* data);
 //void uart_console(unsigned char uart_char); //ХЗ

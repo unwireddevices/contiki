@@ -46,6 +46,7 @@ address: show net address
 	ADDRESS: unwired net address: 02124B000C468905
 	//Link layer addr: 00:12:4b:00:0c:46:7c:81
 	//Node UD address: 02124B000C467C81
+	FD00::0212:4B00:0C46:8A86
 
 bootloader: bootloader start
 

@@ -109,8 +109,6 @@
 
 #define WAIT_RESPONSE			0.150 	//Максимальное время ожидания ответа от счетчика в секундах
 
-#define RS485_DE 				IOID_29 //
-#define RS485_RE 				IOID_30 //
 
 #define AES128_PACKAGE_LENGTH	16	//Длина пакета AES-128
 
@@ -155,17 +153,10 @@ static uint8_t aes_buffer[128];
 static uint8_t aes_key[16];
 static uint8_t nonce_key[16];
 
-static struct eeprom 
-{
-    uint8_t channel; 
-    uint16_t panid;
-	uint32_t serial;
-	uint8_t aes_key[16];
-	bool serial_configured;
-	bool aes_key_configured;
-};
+//static struct eeprom eeprom_settings;
+static eeprom_dag_t eeprom_dag;
 
-static struct eeprom eeprom_settings;
+static uint8_t interface; 
 /*---------------------------------------------------------------------------*/
 
 PROCESS(settings_init, "initializing settings");
@@ -178,29 +169,44 @@ PROCESS(led_process, "Led process");
 PROCESS(fw_update_process, "FW OTA update process");
 
 /*---------------------------------------------------------------------------*/
-void aes128_key_update(const uint8_t *aes_key_new)
-{	
-	eeprom_settings.aes_key_configured = false;
+uint8_t get_interface(void)
+{
+	return interface;
+}
+/*---------------------------------------------------------------------------*/
+void interface_update(uint8_t interface_new)
+{
+	eeprom_dag.interface_configured = false;
+	eeprom_dag.interface = interface_new;
 	
-	for(uint8_t i = 0; i < 16; i++)
-		eeprom_settings.aes_key[i] = aes_key_new[i];
-	
-	write_eeprom(((uint32_t*)&eeprom_settings), sizeof(eeprom_settings));
+	write_eeprom(((uint8_t*)&eeprom_dag), sizeof(eeprom_dag));
 	
 	watchdog_reboot();
 }
 /*---------------------------------------------------------------------------*/
-uint32_t* get_aes128_key(void)
+void aes128_key_update(const uint8_t *aes_key_new)
+{	
+	eeprom_dag.aes_key_configured = false;
+	
+	for(uint8_t i = 0; i < 16; i++)
+		eeprom_dag.aes_key[i] = aes_key_new[i];
+	
+	write_eeprom(((uint8_t*)&eeprom_dag), sizeof(eeprom_dag));
+	
+	watchdog_reboot();
+}
+/*---------------------------------------------------------------------------*/
+uint8_t *get_aes128_key(void)
 {
-	return (uint32_t*)aes_key;
+	return aes_key;
 }
 /*---------------------------------------------------------------------------*/
 void serial_update(uint32_t serial_new)
 {
-	eeprom_settings.serial_configured = false;
-	eeprom_settings.serial = serial_new;
+	eeprom_dag.serial_configured = false;
+	eeprom_dag.serial = serial_new;
 	
-	write_eeprom(((uint32_t*)&eeprom_settings), sizeof(eeprom_settings));
+	write_eeprom(((uint8_t*)&eeprom_dag), sizeof(eeprom_dag));
 	
 	watchdog_reboot();
 }
@@ -212,14 +218,14 @@ uint32_t get_serial(void)
 /*---------------------------------------------------------------------------*/
 void channel_update(uint8_t channel_new)
 {
-	eeprom_settings.channel = channel_new;
-	write_eeprom(((uint32_t*)&eeprom_settings), sizeof(eeprom_settings));
+	eeprom_dag.channel = channel_new;
+	write_eeprom(((uint8_t*)&eeprom_dag), sizeof(eeprom_dag));
 }
 /*---------------------------------------------------------------------------*/
 void panid_update(uint16_t panid_new)
 {
-	eeprom_settings.panid = panid_new;
-	write_eeprom(((uint32_t*)&eeprom_settings), sizeof(eeprom_settings));
+	eeprom_dag.panid = panid_new;
+	write_eeprom(((uint8_t*)&eeprom_dag), sizeof(eeprom_dag));
 }
 /*---------------------------------------------------------------------------*/
 
@@ -249,8 +255,12 @@ static void udbp_v5_uart_from_air_to_tx_handler(const uip_ipaddr_t *sender_addr,
 	{		
 		packet_counter_root.u8[0] = aes_buffer[0];
 		packet_counter_root.u8[1] = aes_buffer[1];
-		//ti_lib_gpio_set_dio(RS485_DE);
-		//ti_lib_gpio_set_dio(RS485_RE);
+		
+		if(get_interface() == INTERFACE_RS485)
+		{
+			ti_lib_gpio_set_dio(RS485_DE);
+			ti_lib_gpio_set_dio(RS485_RE);
+		}
 		
 		
 		ti_lib_uart_int_disable(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
@@ -260,6 +270,13 @@ static void udbp_v5_uart_from_air_to_tx_handler(const uip_ipaddr_t *sender_addr,
 			cc26xx_uart_write_byte(aes_buffer[i + 3]);
 		
 		while(ti_lib_uart_busy(UART0_BASE));
+		
+		if(get_interface() == INTERFACE_RS485)
+		{
+			ti_lib_gpio_clear_dio(RS485_DE);
+			ti_lib_gpio_clear_dio(RS485_RE);
+		}
+		
 		//ti_lib_uart_fifo_disable(UART0_BASE);
 		//ti_lib_uart_fifo_enable(UART0_BASE);
 		while(ti_lib_uart_chars_avail(UART0_BASE))
@@ -1003,24 +1020,24 @@ PROCESS_THREAD(settings_init, ev, data)
 	if (ev == PROCESS_EVENT_EXIT)
 		return 1;
 
-	read_eeprom(&eeprom_settings, sizeof(eeprom_settings));
+	read_eeprom((uint8_t*)&eeprom_dag, sizeof(eeprom_dag));
 	
-	if(eeprom_settings.serial_configured == true)
+	if(eeprom_dag.serial_configured == true)
 	{
-		if(eeprom_settings.aes_key_configured == true)
+		if(eeprom_dag.aes_key_configured == true)
 		{
-			if((eeprom_settings.channel != 26) && (eeprom_settings.panid != 0xAABB))
+			if((eeprom_dag.channel != 26) && (eeprom_dag.panid != 0xAABB))
 			{
-				eeprom_settings.channel = 26;
-				eeprom_settings.panid = 0xAABB;
-				write_eeprom(&eeprom_settings, sizeof(eeprom_settings));
+				eeprom_dag.channel = 26;
+				eeprom_dag.panid = 0xAABB;
+				write_eeprom((uint8_t*)&eeprom_dag, sizeof(eeprom_dag));
 			}
 		}
 	}
 
-	if(!eeprom_settings.serial_configured) 
+	if(!eeprom_dag.serial_configured) 
 	{
-		serial = eeprom_settings.serial;
+		serial = eeprom_dag.serial;
 		printf("Serial: %lu\n", serial);
 	}
 	else
@@ -1028,18 +1045,18 @@ PROCESS_THREAD(settings_init, ev, data)
 		printf("Serial number not declared\n******************************\n***PLEASE SET SERIAL NUMBER***\n******************************\n");
 		led_mode_set(LED_FAST_BLINK);
 		
-		while(eeprom_settings.serial_configured)
+		while(eeprom_dag.serial_configured)
 		{
 			PROCESS_YIELD();
 		}	
 	}
 	
-	if(!eeprom_settings.aes_key_configured) 
+	if(!eeprom_dag.aes_key_configured) 
 	{
 		printf("AES-128 key:");
 		for (uint8_t i = 0; i < 16; i++)
 		{
-			aes_key[i] = eeprom_settings.aes_key[i];
+			aes_key[i] = eeprom_dag.aes_key[i];
 			printf(" %"PRIXX8, aes_key[i]);
 		}
 		printf("\n");
@@ -1048,29 +1065,51 @@ PROCESS_THREAD(settings_init, ev, data)
 	{
 		printf("AES-128 key not declared\n******************************\n******PLEASE SET AES KEY******\n******************************\n");
 		led_mode_set(LED_FAST_BLINK);
-		while(eeprom_settings.aes_key_configured)
+		while(eeprom_dag.aes_key_configured)
 		{
 			PROCESS_YIELD();
 		}		
 	}
 	
+	if(!eeprom_dag.interface_configured) 
+	{
+		interface = eeprom_dag.interface;
+	
+		if(interface == INTERFACE_RS485)
+			printf("Installed interface RS485\n");
+		else if(interface == INTERFACE_CAN)
+			printf("Installed interface CAN\n");
+		else
+			printf("Unknown interface\n");
+	}
+	else
+	{
+		printf("Interface not declared\n******************************\n*****PLEASE SET INTERFACE*****\n******************************\n");
+		led_mode_set(LED_FAST_BLINK);
+		
+		while(eeprom_dag.interface_configured)
+		{
+			PROCESS_YIELD();
+		}	
+	}
+	
 	radio_value_t channel = 0;
 	NETSTACK_RADIO.get_value(RADIO_PARAM_CHANNEL, &channel);
 	
-	if(channel != eeprom_settings.channel)
+	if(channel != eeprom_dag.channel)
 	{
-		NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, eeprom_settings.channel);
+		NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, eeprom_dag.channel);
 		
 		if (ti_lib_chipinfo_chip_family_is_cc26xx())
 		{
-			uint32_t freq_mhz = (2405 + 5 * (eeprom_settings.channel - 11));
-			printf("Changed the radio-channel to: %"PRIint" (%"PRIu32" MHz)\n", (int)eeprom_settings.channel, freq_mhz);
+			uint32_t freq_mhz = (2405 + 5 * (eeprom_dag.channel - 11));
+			printf("Changed the radio-channel to: %"PRIint" (%"PRIu32" MHz)\n", (int)eeprom_dag.channel, freq_mhz);
 		}
 
 		if (ti_lib_chipinfo_chip_family_is_cc13xx())
 		{
-			uint32_t freq_khz = 863125 + (eeprom_settings.channel * 200);
-			printf("Changed the radio-channel to: %"PRIint" (%"PRIu32" kHz)\n", (int)eeprom_settings.channel, freq_khz);
+			uint32_t freq_khz = 863125 + (eeprom_dag.channel * 200);
+			printf("Changed the radio-channel to: %"PRIint" (%"PRIu32" kHz)\n", (int)eeprom_dag.channel, freq_khz);
 		}
 	}
 	
@@ -1079,10 +1118,10 @@ PROCESS_THREAD(settings_init, ev, data)
 		radio_value_t panid = 0;
 		NETSTACK_RADIO.get_value(RADIO_PARAM_PAN_ID, &panid);
 		
-		if(panid != eeprom_settings.panid)
+		if(panid != eeprom_dag.panid)
 		{
-			NETSTACK_RADIO.set_value(RADIO_PARAM_PAN_ID, eeprom_settings.panid);
-			printf("PAN ID changed to: %"PRIXX16"\n", eeprom_settings.panid);
+			NETSTACK_RADIO.set_value(RADIO_PARAM_PAN_ID, eeprom_dag.panid);
+			printf("PAN ID changed to: %"PRIXX16"\n", eeprom_dag.panid);
 		}
 	}
 	process_post(&main_process, PROCESS_EVENT_CONTINUE, NULL);
@@ -1537,14 +1576,16 @@ PROCESS_THREAD(dag_node_process, ev, data)
    PROCESS_YIELD_UNTIL(ev == PROCESS_EVENT_CONTINUE);
 
    if(uart_status() == 0)
-		printf("DAG Node: DAG active, join stage 2 packet received, mode set to MODE_NORMAL\n");
+		printf("DAG Node: DAG active, join stage 4 packet received, mode set to MODE_NORMAL\n");
+	
    led_mode_set(LED_SLOW_BLINK);
    node_mode = MODE_NORMAL;
-   udbp_v5_message_sender(DEVICE_MESSAGE_JOIN_SUCCESSFUL, DATA_NONE, DATA_NONE);
+   //udbp_v5_message_sender(DEVICE_MESSAGE_JOIN_SUCCESSFUL, DATA_NONE, DATA_NONE);
    net_mode(RADIO_FREEDOM);
    net_off(RADIO_OFF_NOW);
    //process_start(&time_sync_process, NULL); //Start timesync in main process, if necessary
 
+   /*
    if (spi_status == SPI_EXT_FLASH_ACTIVE)
    {
       if (verify_ota_slot(0) == VERIFY_SLOT_CRC_ERROR)
@@ -1570,6 +1611,7 @@ PROCESS_THREAD(dag_node_process, ev, data)
       process_exit(&maintenance_process);
       process_start(&maintenance_process, NULL);
    }
-
+	*/
+	
    PROCESS_END();
 }
