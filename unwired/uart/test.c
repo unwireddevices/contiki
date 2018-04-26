@@ -125,6 +125,15 @@ struct eeprom
 
 
 
+00:12:4B:00:0C:46:8A:86 Зашитый в чипе
+ Link layer addr: 00:12:4b:00:0c:46:8a:86 Он же
+02:12:4B:00:0C:46:8A:86 EUID64????
+DAG-root node: FD00::0212:4B00:0C46:8A86 IPv6
+
+
+
+
+00:12:4B - TexasIns	Texas Instruments
 
 
 
@@ -133,18 +142,208 @@ struct eeprom
 
 
 
+ Link layer addr: 00:12:4b:00:0c:46:8d:03
+ Node UD address: 02124B000C468D03
 
 
 
 
+void add_route(uint32_t serial, uip_ip6addr_t addr, uint16_t nonce)
+{
+	if(route_table_ptr >= MAX_ROUTE_TABLE) //Проверка на макс размер таблицы
+		return;
+	
+	for(uint8_t i = 0; i < route_table_ptr; i++) //Проверка есть ли такой серийник
+	{
+		if(route_table[i].serial == serial)
+		{
+			//Сокращение адреса
+			//Сокращение адреса
+			//Сокращение адреса
+			//Сокращение адреса
+			route_table[i].addr = addr;
+			route_table[i].nonce = nonce;
+			route_table[i].counter = 0xFFFF;
+			//printf("Dont add serial: %lu\n", serial);
+			//uip_debug_ipaddr_print(&addr);
+			//printf("route_table_ptr: %i\n", route_table_ptr);
+			return;
+		}
+	}
+	
+	//printf("Add serial: %lu\n", serial);
+	//uip_debug_ipaddr_print(&addr);
+	//printf("route_table_ptr: %i\n", route_table_ptr);
+	route_table[route_table_ptr].serial = serial; //Добавляем в таблицу
+	route_table[route_table_ptr].addr = addr;
+	route_table[route_table_ptr].nonce = nonce;
+	route_table[route_table_ptr].counter = 0xFFFF; //Добавляется в таблицу, но не будет работать, пока счетчик не обнулится
+	route_table_ptr++;
+}
+
+
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+
+
+address: show net address	
+	ADDRESS: not join to net, local address not available
+	ADDRESS: node full ipv6 address: FD00::0212:4B00:0C46:8905
+	ADDRESS: unwired net address: 02124B000C468905
+	//Link layer addr: 00:12:4b:00:0c:46:7c:81
+	//Node UD address: 02124B000C467C81
+	FD00::0212:4B00:0C46:8A86
+	
+	
+void rpl_initialize()
+{
+	//printf("rpl_initialize\n");
+   /* Set MESH-mode for dc-power rpl-root(not leaf-mode) */
+   rpl_set_mode(RPL_MODE_MESH);
+
+   static uip_ipaddr_t ipaddr;
+
+   /* Fill in the address with zeros and the local prefix */
+   uip_ip6addr(&ipaddr, UIP_DS6_DEFAULT_PREFIX, 0, 0, 0, 0, 0, 0, 0);
+
+   /* Generate an address based on the chip ID */
+   uip_ds6_set_addr_iid(&ipaddr, &uip_lladdr);
+
+   /* Adding autoconfigured address as the device address */
+   uip_ds6_addr_add(&ipaddr, 0, ADDR_AUTOCONF);
+
+   /* make local address as rpl-root */
+   rpl_set_root(RPL_DEFAULT_INSTANCE, &ipaddr);
+   rpl_dag_t *dag = rpl_get_any_dag();
+
+   uip_ipaddr_t prefix;
+   uip_ip6addr(&prefix, UIP_DS6_DEFAULT_PREFIX, 0, 0, 0, 0, 0, 0, 0);
+   rpl_set_prefix(dag, &prefix, 64);
+
+   if(uart_status_r() == 0)
+	 printf("UDM: Created a new RPL DAG, i'm root!\n");
+ 
+   if(uart_status_r() == 0)
+     printf("UDM: Time sync needed\n");
+}
+
+
+//printf("uart_to_air\n");
+//if (dest_addr == NULL)
+	//return;
+
+
+//fd00:0000:0000:0000:0212:4b00:0c46:7a01
+//uip_ipaddr_t addr = { 0xfd, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x12, 0x4b, 0x00, 0x0c, 0x46, 0x7a, 0x01 };
+
+uip_ipaddr_t addr = find_addr((uint32_t)((udup_v5_rc_uart_rx_buffer[0] << 24) |
+										 (udup_v5_rc_uart_rx_buffer[1] << 16) |
+										 (udup_v5_rc_uart_rx_buffer[2] << 8)  |
+										  udup_v5_rc_uart_rx_buffer[3]));
+										  
+uip_ip6addr_t addr_not_found;
+uip_ip6addr(&addr_not_found, 0, 0, 0, 0, 0, 0, 0, 0);
+
+if((((&addr)->u16[0])  == 0x00)  &&
+	(((&addr)->u16[0])  == 0x00) &&
+	(((&addr)->u16[0])  == 0x00) &&
+	(((&addr)->u16[0])  == 0x00) &&
+	(((&addr)->u16[0])  == 0x00) &&
+	(((&addr)->u16[0])  == 0x00) &&
+	(((&addr)->u16[0])  == 0x00) &&
+	(((&addr)->u16[0])  == 0x00))	
+{	
+	return; //Нету такого адреса
+}
 
 
 
 
+//if(addr == addr_not_found)
+	//return;
+										  
+//printf("\nSerial: %lu\n", (uint32_t)((udup_v5_rc_uart_rx_buffer[0] << 24) |
+//								     (udup_v5_rc_uart_rx_buffer[1] << 16) |
+//									 (udup_v5_rc_uart_rx_buffer[2] << 8)  |
+//									  udup_v5_rc_uart_rx_buffer[3]));
+//uip_debug_ipaddr_print(&addr);
+//printf("\n");
+//printf("route_table_ptr: %i\n", route_table_ptr);
 
-
-
-
-
-
-
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ

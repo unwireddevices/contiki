@@ -97,7 +97,8 @@ static bool wait_response_slave = 0;
 struct route 
 {
     uint32_t serial;
-    uip_ip6addr_t addr;
+	uint8_t addr[8];
+    //uip_ip6addr_t addr;
 	uint16_t nonce;
 	uint16_t counter;
 };
@@ -117,7 +118,7 @@ static void wait_response_reset(void *ptr)
 }
  
 /*---------------------------------------------------------------------------*/ 
-void add_route(uint32_t serial, uip_ip6addr_t addr, uint16_t nonce)
+void add_route(uint32_t serial, const uip_ip6addr_t *addr, uint16_t nonce)
 {
 	if(route_table_ptr >= MAX_ROUTE_TABLE) //Проверка на макс размер таблицы
 		return;
@@ -126,7 +127,32 @@ void add_route(uint32_t serial, uip_ip6addr_t addr, uint16_t nonce)
 	{
 		if(route_table[i].serial == serial)
 		{
-			route_table[i].addr = addr;
+			// printf("\nSizeof: %i\n", sizeof(route_table));
+			
+			// printf("Addr full:");
+			// uip_debug_ipaddr_print(addr);
+			// printf("\n");
+			
+			for(uint8_t j = 0; j < 8; j++)
+				route_table[i].addr[j] = ((uint8_t *)addr)[j+8];
+			
+			// route_table[i].addr[0] = ((uint8_t *)addr)[8];
+			// route_table[i].addr[1] = ((uint8_t *)addr)[9];
+			// route_table[i].addr[2] = ((uint8_t *)addr)[10];
+			// route_table[i].addr[3] = ((uint8_t *)addr)[11];
+			// route_table[i].addr[4] = ((uint8_t *)addr)[12];
+			// route_table[i].addr[5] = ((uint8_t *)addr)[13];
+			// route_table[i].addr[6] = ((uint8_t *)addr)[14];
+			// route_table[i].addr[7] = ((uint8_t *)addr)[15]; //uip_ip6addr(&addr, 0, 0, 0, 0, 0, 0, 0, 0);
+			
+			// printf("Addr lite:");
+			// for(uint8_t j = 0; j < 8; j++)
+				// printf(" %"PRIXX8, route_table[i].addr[j]);
+			
+			// printf("\n");
+	
+			
+			//route_table[i].addr = addr;
 			route_table[i].nonce = nonce;
 			route_table[i].counter = 0xFFFF;
 			//printf("Dont add serial: %lu\n", serial);
@@ -140,34 +166,45 @@ void add_route(uint32_t serial, uip_ip6addr_t addr, uint16_t nonce)
 	//uip_debug_ipaddr_print(&addr);
 	//printf("route_table_ptr: %i\n", route_table_ptr);
 	route_table[route_table_ptr].serial = serial; //Добавляем в таблицу
-	route_table[route_table_ptr].addr = addr;
+	
+	for(uint8_t i = 0; i < 8; i++)
+		route_table[route_table_ptr].addr[i] = ((uint8_t *)addr)[i+8];
+	
+	//route_table[route_table_ptr].addr = addr;
 	route_table[route_table_ptr].nonce = nonce;
 	route_table[route_table_ptr].counter = 0xFFFF; //Добавляется в таблицу, но не будет работать, пока счетчик не обнулится
 	route_table_ptr++;
+	return;
 }
 
 /*---------------------------------------------------------------------------*/
 uip_ip6addr_t find_addr(uint32_t serial)
 {
+	uip_ip6addr_t addr;
+	
 	for(uint8_t i = 0; i < route_table_ptr; i++)
 	{
-		//printf("%lu == %lu\n", route_table[i].serial, serial);
 		if(route_table[i].serial == serial)
 		{
-			//printf("Find serial: %lu\n", serial);
-			//uip_debug_ipaddr_print(&route_table[i].addr);
-			//printf("route_table_ptr: %i\n", i);
 			if(route_table[i].counter != 0xFFFF) //Проверка на активность.
-				return route_table[i].addr;
+			{
+				uip_ip6addr(&addr,  
+							0xFD00,
+							0,
+							0,
+							0,
+							(uint16_t)(route_table[i].addr[1] | (route_table[i].addr[0]<<8)),
+							(uint16_t)(route_table[i].addr[3] | (route_table[i].addr[2]<<8)),
+							(uint16_t)(route_table[i].addr[5] | (route_table[i].addr[4]<<8)),
+							(uint16_t)(route_table[i].addr[7] | (route_table[i].addr[6]<<8)));
+							
+				return addr;
+			}
 		}
 	}
 	
-	uip_ip6addr_t addr_not_found;
-	uip_ip6addr(&addr_not_found, 0, 0, 0, 0, 0, 0, 0, 0);
-	return addr_not_found;
-	
-	//printf("Dont find:  %lu\n", serial);
-	//return 0; //route_table[0].addr; //ВОЗВРАЩАЕТ ЧТО ТАКОГО АДРЕССА НЕТ, А ПОКА ЧТО ХУЕТУ ВОЗВРАЩАЕТ
+	uip_ip6addr(&addr, 0, 0, 0, 0, 0, 0, 0, 0); //Адрес не найден
+	return addr;
 }
 /*---------------------------------------------------------------------------*/
 uint16_t get_nonce(uint32_t serial)
@@ -180,22 +217,15 @@ uint16_t get_nonce(uint32_t serial)
 		}
 	}
 	return 0;
-	
-	//printf("Dont find:  %lu\n", serial);
-	//return 0; //route_table[0].addr; //ВОЗВРАЩАЕТ ЧТО ТАКОГО АДРЕССА НЕТ, А ПОКА ЧТО ХУЕТУ ВОЗВРАЩАЕТ
 }
 /*---------------------------------------------------------------------------*/
 static void unlock_addr(uint32_t serial,  uint16_t counter)
 {
 	for(uint8_t i = 0; i < route_table_ptr; i++)
 	{
-		//printf("%lu == %lu\n", route_table[i].serial, serial);
 		if(route_table[i].serial == serial)
 		{
-			//printf("Find serial: %lu\n", serial);
-			//uip_debug_ipaddr_print(&route_table[i].addr);
-			//printf("route_table_ptr: %i\n", i);
-			if(route_table[i].counter == 0xFFFF) //Проверка на активность.
+			if(route_table[i].counter == 0xFFFF) //Разблокируем счетчик
 				route_table[i].counter = counter;
 		}
 	}
@@ -285,7 +315,7 @@ void udbp_v5_join_stage_2_sender(const uip_ip6addr_t *dest_addr, const uint8_t *
 						 (data[UDBP_V5_HEADER_LENGTH + 9] << 16) |
 						 (data[UDBP_V5_HEADER_LENGTH + 10] << 8) |
 						 (data[UDBP_V5_HEADER_LENGTH + 11] )), 
-						  addr,
+						  &addr,
 						  nonce);
 						 
 	aes_buffer[0] = (uint8_t)((nonce >> 8) & 0xFF);
@@ -1045,7 +1075,7 @@ static uint8_t iterator_to_byte(uint8_t iterator)
 	return 0;
 }
 /*---------------------------------------------------------------------------*/
-static void uart_to_air()
+static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
 {
 	//printf("uart_to_air\n");
 	//if (dest_addr == NULL)
@@ -1063,14 +1093,14 @@ static void uart_to_air()
 	uip_ip6addr_t addr_not_found;
 	uip_ip6addr(&addr_not_found, 0, 0, 0, 0, 0, 0, 0, 0);
 	
-	if((((&addr)->u16[0])  == 0x00)  &&
-		(((&addr)->u16[0])  == 0x00) &&
-		(((&addr)->u16[0])  == 0x00) &&
-		(((&addr)->u16[0])  == 0x00) &&
-		(((&addr)->u16[0])  == 0x00) &&
-		(((&addr)->u16[0])  == 0x00) &&
-		(((&addr)->u16[0])  == 0x00) &&
-		(((&addr)->u16[0])  == 0x00))	
+	if((((&addr)->u16[0])  == 0x00)  && //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+		(((&addr)->u16[1])  == 0x00) && //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+		(((&addr)->u16[2])  == 0x00) && //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+		(((&addr)->u16[3])  == 0x00) && //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+		(((&addr)->u16[4])  == 0x00) && //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+		(((&addr)->u16[5])  == 0x00) && //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+		(((&addr)->u16[6])  == 0x00) && //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+		(((&addr)->u16[7])  == 0x00))	//ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
 	{	
 		return; //Нету такого адреса
 	}
