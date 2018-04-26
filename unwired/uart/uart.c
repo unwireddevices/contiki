@@ -148,8 +148,8 @@ PROCESS_THREAD(main_process, ev, data)
 	
 	//ti_lib_gpio_clear_dio(RS485_DE);
 	//ti_lib_gpio_clear_dio(RS485_RE);
-	//ti_lib_ioc_pin_type_gpio_output(RS485_DE);
-	//ti_lib_ioc_pin_type_gpio_output(RS485_RE);
+	ti_lib_ioc_pin_type_gpio_output(RS485_DE);
+	ti_lib_ioc_pin_type_gpio_output(RS485_RE);
 	
 	//PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&shell_off));
 	
@@ -186,7 +186,7 @@ PROCESS_THREAD(main_process, ev, data)
 	process_start(&dag_node_process, NULL);
 	
 	static struct etimer shell_off;
-	etimer_set(&shell_off, CLOCK_SECOND * 60);
+	etimer_set(&shell_off, CLOCK_SECOND * 15);
 	
 	PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&shell_off));
 	
