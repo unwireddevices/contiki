@@ -160,7 +160,7 @@ main(void)
 {
   HWREG(NVIC_VTABLE) = OTA_IMAGE_OFFSET + OTA_METADATA_SPACE;
 
-  /* Enable flash cache and prefetch. */
+  /* Enable flash cache and prefetch. */ //DISABLED
   ti_lib_vims_mode_set(VIMS_BASE, VIMS_MODE_DISABLED);
   ti_lib_vims_configure(VIMS_BASE, true, true); //ЧОТ НАДО ПОМЕНЯТЬ СКОРЕЕ ВСЕГО
 
