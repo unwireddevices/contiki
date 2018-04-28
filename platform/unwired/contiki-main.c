@@ -134,7 +134,7 @@ set_rf_params(void)
    uip_ipaddr_t local_ipaddr;
    uip_ip6addr(&local_ipaddr, UIP_DS6_DEFAULT_PREFIX, 0, 0, 0, 0, 0, 0, 0);
    uip_ds6_set_addr_iid(&local_ipaddr, (uip_lladdr_t *)&linkaddr_node_addr);
-
+ 
    printf(" Node UD address: %02X%02X%02X%02X%02X%02X%02X%02X\n", ((uint8_t *)&local_ipaddr)[8], ((uint8_t *)&local_ipaddr)[9], ((uint8_t *)&local_ipaddr)[10], ((uint8_t *)&local_ipaddr)[11], ((uint8_t *)&local_ipaddr)[12], ((uint8_t *)&local_ipaddr)[13], ((uint8_t *)&local_ipaddr)[14], ((uint8_t *)&local_ipaddr)[15]);
 
   /* also set the global node id */

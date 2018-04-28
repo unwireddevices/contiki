@@ -51,7 +51,9 @@
 #include "net/rpl/rpl-ns.h"
 #include "net/packetbuf.h"
 
-#define DEBUG DEBUG_NONE
+//#define DEBUG DEBUG_NONE
+#define DEBUG 1
+
 #include "net/ip/uip-debug.h"
 
 #include <limits.h>

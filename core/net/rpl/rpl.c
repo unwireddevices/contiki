@@ -50,7 +50,10 @@
 #include "net/rpl/rpl-ns.h"
 #include "net/ipv6/multicast/uip-mcast6.h"
 
-#define DEBUG DEBUG_NONE
+//#define DEBUG DEBUG_NONE
+#define DEBUG 1
+#include <stdio.h>//
+
 #include "net/ip/uip-debug.h"
 
 #include <limits.h>
@@ -174,7 +177,7 @@ rpl_purge_routes(void)
 #endif
 }
 /*---------------------------------------------------------------------------*/
-void
+void 
 rpl_remove_routes(rpl_dag_t *dag)
 {
   uip_ds6_route_t *r;
@@ -240,6 +243,7 @@ rpl_add_route(rpl_dag_t *dag, uip_ipaddr_t *prefix, int prefix_len,
   /* always clear state flags for the no-path received when adding/refreshing */
   RPL_ROUTE_CLEAR_NOPATH_RECEIVED(rep);
 
+  printf("sizeof uip_ds6_route_t: %i\n", sizeof(uip_ds6_route_t));
   PRINTF("RPL: Added a route to ");
   PRINT6ADDR(prefix);
   PRINTF("/%d via ", prefix_len);

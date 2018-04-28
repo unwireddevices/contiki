@@ -50,7 +50,9 @@
 
 #if RPL_WITH_NON_STORING
 
-#define DEBUG DEBUG_NONE
+//#define DEBUG DEBUG_NONE
+#define DEBUG 1
+
 #include "net/ip/uip-debug.h"
 
 #include <limits.h>

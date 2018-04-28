@@ -86,8 +86,10 @@ MEMB(defaultroutermemb, uip_ds6_defrt_t, UIP_DS6_DEFRT_NB);
 LIST(notificationlist);
 #endif
 
-#undef DEBUG
-#define DEBUG DEBUG_NONE
+//#undef DEBUG
+//#define DEBUG DEBUG_NONE
+#define DEBUG 1
+
 #include "net/ip/uip-debug.h"
 
 /*---------------------------------------------------------------------------*/
