@@ -144,6 +144,11 @@ struct uip_ds6_route_neighbor_routes {
   LIST_STRUCT(route_list);
 };
 
+typedef union uip_ipaddr_compressed_t {	//
+  uint8_t  u8[8];                      	//
+  uint16_t u16[4];						//
+} uip_ipaddr_compressed_t;				//
+
 /** \brief An entry in the routing table */
 typedef struct uip_ds6_route {
   struct uip_ds6_route *next;
@@ -153,7 +158,8 @@ typedef struct uip_ds6_route {
      belong to the neighbor table entry that this routing table entry
      uses. */
   struct uip_ds6_route_neighbor_routes *neighbor_routes;
-  uip_ipaddr_t ipaddr;
+  uip_ipaddr_compressed_t ipaddr;
+  //uip_ipaddr_t ipaddr;
 #ifdef UIP_DS6_ROUTE_STATE_TYPE
   UIP_DS6_ROUTE_STATE_TYPE state;
 #endif
@@ -200,6 +206,9 @@ int uip_ds6_route_num_routes(void);
 uip_ds6_route_t *uip_ds6_route_head(void);
 uip_ds6_route_t *uip_ds6_route_next(uip_ds6_route_t *);
 int uip_ds6_route_is_nexthop(const uip_ipaddr_t *ipaddr);
+
+void compress_uip_ipaddr_t(uip_ipaddr_t *addr_in, uip_ipaddr_compressed_t *addr_out); 
+void decompress_uip_ipaddr_t(uip_ipaddr_t *addr_out, uip_ipaddr_compressed_t *addr_in);
 /** @} */
 
 #endif /* UIP_DS6_ROUTE_H */

@@ -1,3 +1,90 @@
+Sizeof uip_ds6_route_t: 36
+Sizeof uip_ds6_nbr_t: 18
+Sizeof nbr_table_item_t: 1
+Sizeof nbr_table_key_t: 12
+
+/***************************************************************************/
+
+/** \brief An entry in the routing table */
+typedef struct uip_ds6_route {
+  struct uip_ds6_route *next;
+  /* Each route entry belongs to a specific neighbor. That neighbor
+     holds a list of all routing entries that go through it. The
+     routes field point to the uip_ds6_route_neighbor_routes that
+     belong to the neighbor table entry that this routing table entry
+     uses. */
+  struct uip_ds6_route_neighbor_routes *neighbor_routes;
+  uip_ipaddr_t ipaddr;
+#ifdef UIP_DS6_ROUTE_STATE_TYPE
+  UIP_DS6_ROUTE_STATE_TYPE state; //rpl_route_entry_t
+#endif
+  uint8_t length;
+} uip_ds6_route_t;
+
+/***************************************************************************/
+
+/** \brief The neighbor routes hold a list of routing table entries
+    that are attached to a specific neihbor. */
+struct uip_ds6_route_neighbor_routes {
+  LIST_STRUCT(route_list);
+};
+
+/***************************************************************************/
+
+/**
+ * Representation of an IP address.
+ *
+ */
+typedef union uip_ip4addr_t {
+  uint8_t  u8[4];                       /* Initializer, must come first. */
+  uint16_t u16[2];
+} uip_ip4addr_t;
+
+typedef union uip_ip6addr_t {
+  uint8_t  u8[16];                      /* Initializer, must come first. */
+  uint16_t u16[8];
+} uip_ip6addr_t;
+
+#if NETSTACK_CONF_WITH_IPV6
+typedef uip_ip6addr_t uip_ipaddr_t;
+#else /* NETSTACK_CONF_WITH_IPV6 */
+typedef uip_ip4addr_t uip_ipaddr_t;
+#endif /* NETSTACK_CONF_WITH_IPV6 */
+
+/***************************************************************************/
+
+typedef struct __attribute__((__packed__)) rpl_route_entry {
+  uint32_t lifetime;
+  struct rpl_dag *dag;
+  uint8_t dao_seqno_out;
+  uint8_t dao_seqno_in;
+  uint8_t state_flags;
+} rpl_route_entry_t;
+
+/***************************************************************************/
+
+NBR_TABLE_GLOBAL(struct uip_ds6_route_neighbor_routes, nbr_routes);
+
+/** \brief A non-static neighbor table. To be initialized through nbr_table_register(name) */
+#define NBR_TABLE_GLOBAL(type, name) \
+  static type _##name##_mem[NBR_TABLE_MAX_NEIGHBORS]; \
+  static nbr_table_t name##_struct = { 0, sizeof(type), NULL, (nbr_table_item_t *)_##name##_mem }; \
+  nbr_table_t *name = &name##_struct \
+
+MEMB(neighborroutememb, struct uip_ds6_route_neighbor_route, UIP_DS6_ROUTE_NB);
+  
+#define MEMB(name, structure, num) \
+        static char CC_CONCAT(name,_memb_count)[num]; \
+        static structure CC_CONCAT(name,_memb_mem)[num]; \
+        static struct memb name = {sizeof(structure), num, \
+                                          CC_CONCAT(name,_memb_count), \
+                                          (void *)CC_CONCAT(name,_memb_mem)}
+
+
+
+
+/***************************************************************************/
+
 https://e2e.ti.com/support/wireless_connectivity/proprietary_sub_1_ghz_simpliciti/f/156/t/677370?Compiler-CC1310-Using-the-Cache-as-GPRAM-for-application
 https://github.com/contiki-os/contiki/wiki/RPL-modes
 
@@ -597,7 +684,6 @@ nbr_table_key_t
 uip_ds6_route_t
 	uip_ipaddr_t 
 	rpl_dag_t 
-	uip_ipaddr_t
 rpl_route_entry_t
 nbr_table_t
 linkaddr_t

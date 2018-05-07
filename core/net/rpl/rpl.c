@@ -50,8 +50,8 @@
 #include "net/rpl/rpl-ns.h"
 #include "net/ipv6/multicast/uip-mcast6.h"
 
-//#define DEBUG DEBUG_NONE
-#define DEBUG 1
+#define DEBUG DEBUG_NONE
+//#define DEBUG 1
 #include <stdio.h>//
 
 #include "net/ip/uip-debug.h"
@@ -143,7 +143,12 @@ rpl_purge_routes(void)
     if(r->state.lifetime < 1) {
       /* Routes with lifetime == 1 have only just been decremented from 2 to 1,
        * thus we want to keep them. Hence < and not <= */
-      uip_ipaddr_copy(&prefix, &r->ipaddr);
+	  
+	  compress_uip_ipaddr_t(&prefix, &(r->ipaddr)); 
+	  //PRINTF("***COMPRESS RPL***");
+	  //PRINT6ADDR(&prefix);
+	   
+      //uip_ipaddr_copy(&prefix, &r->ipaddr);
       uip_ds6_route_rm(r);
       r = uip_ds6_route_head();
       PRINTF("No more routes to ");
@@ -242,8 +247,7 @@ rpl_add_route(rpl_dag_t *dag, uip_ipaddr_t *prefix, int prefix_len,
   rep->state.lifetime = RPL_LIFETIME(dag->instance, dag->instance->default_lifetime);
   /* always clear state flags for the no-path received when adding/refreshing */
   RPL_ROUTE_CLEAR_NOPATH_RECEIVED(rep);
-
-  printf("sizeof uip_ds6_route_t: %i\n", sizeof(uip_ds6_route_t));
+  
   PRINTF("RPL: Added a route to ");
   PRINT6ADDR(prefix);
   PRINTF("/%d via ", prefix_len);

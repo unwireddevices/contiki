@@ -50,8 +50,8 @@
 #include "lib/random.h"
 #include "sys/ctimer.h"
 
-//#define DEBUG DEBUG_NONE
-#define DEBUG 1
+#define DEBUG DEBUG_NONE
+//#define DEBUG 1
 
 #include "net/ip/uip-debug.h"
 
