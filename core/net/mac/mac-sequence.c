@@ -66,7 +66,7 @@ struct seqno {
 #else /* NETSTACK_CONF_MAC_SEQNO_HISTORY */
 #define MAX_SEQNOS 16
 #endif /* NETSTACK_CONF_MAC_SEQNO_HISTORY */
-static struct seqno received_seqnos[MAX_SEQNOS];
+__attribute__ ((section(".gpram.received_seqnos"))) static struct seqno received_seqnos[MAX_SEQNOS];
 
 /*---------------------------------------------------------------------------*/
 int

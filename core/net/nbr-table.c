@@ -83,7 +83,13 @@ static struct nbr_table *all_tables[MAX_NUM_TABLES];
 static unsigned num_tables;
 
 /* The neighbor address table */
-MEMB(neighbor_addr_mem, nbr_table_key_t, NBR_TABLE_MAX_NEIGHBORS);
+static char CC_CONCAT(neighbor_addr_mem,_memb_count)[NBR_TABLE_MAX_NEIGHBORS]; 
+__attribute__ ((section(".gpram.neighbor_addr_mem_memb_mem"))) static nbr_table_key_t CC_CONCAT(neighbor_addr_mem,_memb_mem)[NBR_TABLE_MAX_NEIGHBORS]; 
+static struct memb neighbor_addr_mem = {sizeof(nbr_table_key_t), 
+										NBR_TABLE_MAX_NEIGHBORS, 
+										CC_CONCAT(neighbor_addr_mem,_memb_count), 
+										(void *)CC_CONCAT(neighbor_addr_mem,_memb_mem)};
+
 LIST(nbr_table_keys);
 
 /*---------------------------------------------------------------------------*/

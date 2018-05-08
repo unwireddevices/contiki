@@ -66,7 +66,9 @@
 #define ETX_INIT                             2
 
 /* Per-neighbor link statistics table */
-NBR_TABLE(struct link_stats, link_stats);
+__attribute__ ((section(".gpram._link_stats_mem"))) static struct link_stats _link_stats_mem[NBR_TABLE_MAX_NEIGHBORS]; 
+static nbr_table_t link_stats_struct = { 0, sizeof(struct link_stats), NULL, (nbr_table_item_t *)_link_stats_mem }; 
+static nbr_table_t *link_stats = &link_stats_struct;
 
 /* Called every FRESHNESS_HALF_LIFE minutes */
 struct ctimer periodic_timer;

@@ -236,6 +236,7 @@ static rfc_CMD_IEEE_MOD_FILT_t filter_cmd;
  * A buffer to send a CMD_IEEE_RX and to subsequently monitor its status
  * Do not use this buffer for any commands other than CMD_IEEE_RX
  */
+// __attribute__ ((section(".gpram.cmd_ieee_rx_buf"))) static uint8_t cmd_ieee_rx_buf[RF_CMD_BUFFER_SIZE] CC_ALIGN(4);
 static uint8_t cmd_ieee_rx_buf[RF_CMD_BUFFER_SIZE] CC_ALIGN(4);
 /*---------------------------------------------------------------------------*/
 #define DATA_ENTRY_LENSZ_NONE 0
@@ -244,6 +245,10 @@ static uint8_t cmd_ieee_rx_buf[RF_CMD_BUFFER_SIZE] CC_ALIGN(4);
 
 #define RX_BUF_SIZE 144
 /* Four receive buffers entries with room for 1 IEEE802.15.4 frame in each */
+// __attribute__ ((section(".gpram.rx_buf_0"))) static uint8_t rx_buf_0[RX_BUF_SIZE] CC_ALIGN(4);
+// __attribute__ ((section(".gpram.rx_buf_1"))) static uint8_t rx_buf_1[RX_BUF_SIZE] CC_ALIGN(4);
+// __attribute__ ((section(".gpram.rx_buf_2"))) static uint8_t rx_buf_2[RX_BUF_SIZE] CC_ALIGN(4);
+// __attribute__ ((section(".gpram.rx_buf_3"))) static uint8_t rx_buf_3[RX_BUF_SIZE] CC_ALIGN(4);
 static uint8_t rx_buf_0[RX_BUF_SIZE] CC_ALIGN(4);
 static uint8_t rx_buf_1[RX_BUF_SIZE] CC_ALIGN(4);
 static uint8_t rx_buf_2[RX_BUF_SIZE] CC_ALIGN(4);
@@ -259,6 +264,7 @@ volatile static uint8_t *rx_read_entry;
 #define TX_BUF_PAYLOAD_LEN 180
 #define TX_BUF_HDR_LEN       2
 
+// __attribute__ ((section(".gpram.tx_buf"))) static uint8_t tx_buf[TX_BUF_HDR_LEN + TX_BUF_PAYLOAD_LEN] CC_ALIGN(4);
 static uint8_t tx_buf[TX_BUF_HDR_LEN + TX_BUF_PAYLOAD_LEN] CC_ALIGN(4);
 /*---------------------------------------------------------------------------*/
 /* Overrides for IEEE 802.15.4, differential mode */

@@ -79,7 +79,13 @@ struct queuebuf_data {
 };
 
 MEMB(bufmem, struct queuebuf, QUEUEBUF_NUM);
-MEMB(buframmem, struct queuebuf_data, QUEUEBUFRAM_NUM);
+
+static char CC_CONCAT(buframmem,_memb_count)[QUEUEBUFRAM_NUM]; 
+__attribute__ ((section(".gpram.buframmem_memb_mem"))) static struct queuebuf_data CC_CONCAT(buframmem,_memb_mem)[QUEUEBUFRAM_NUM]; 
+static struct memb buframmem = {sizeof(struct queuebuf_data), 
+								QUEUEBUFRAM_NUM, 
+								CC_CONCAT(buframmem,_memb_count), 
+								(void *)CC_CONCAT(buframmem,_memb_mem)};
 
 #if WITH_SWAP
 

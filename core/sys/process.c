@@ -66,7 +66,7 @@ struct event_data {
 };
 
 static process_num_events_t nevents, fevent;
-static struct event_data events[PROCESS_CONF_NUMEVENTS];
+__attribute__ ((section(".gpram.events"))) static struct event_data events[PROCESS_CONF_NUMEVENTS];
 
 #if PROCESS_CONF_STATS
 process_num_events_t process_maxevents;

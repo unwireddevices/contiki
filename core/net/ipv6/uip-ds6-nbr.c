@@ -71,7 +71,9 @@ void LINK_NEIGHBOR_CALLBACK(const linkaddr_t *addr, int status, int numtx);
 #define LINK_NEIGHBOR_CALLBACK(addr, status, numtx)
 #endif /* UIP_CONF_DS6_LINK_NEIGHBOR_CALLBACK */
 
-NBR_TABLE_GLOBAL(uip_ds6_nbr_t, ds6_neighbors);
+__attribute__ ((section(".gpram._ds6_neighbors_mem"))) static uip_ds6_nbr_t _ds6_neighbors_mem[NBR_TABLE_MAX_NEIGHBORS]; 
+static nbr_table_t ds6_neighbors_struct = { 0, sizeof(uip_ds6_nbr_t), NULL, (nbr_table_item_t *)_ds6_neighbors_mem }; 
+nbr_table_t *ds6_neighbors = &ds6_neighbors_struct;
 
 /*---------------------------------------------------------------------------*/
 void

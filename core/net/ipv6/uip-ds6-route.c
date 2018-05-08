@@ -63,14 +63,27 @@ void NETSTACK_CONF_ROUTING_NEIGHBOR_REMOVED_CALLBACK(const linkaddr_t *addr);
    neighbor table is registered with the central nbr-table repository
    so that it will be maintained along with the rest of the neighbor
    tables in the system. */
-NBR_TABLE_GLOBAL(struct uip_ds6_route_neighbor_routes, nbr_routes);
-MEMB(neighborroutememb, struct uip_ds6_route_neighbor_route, UIP_DS6_ROUTE_NB);
+__attribute__ ((section(".gpram._nbr_routes_mem"))) static struct uip_ds6_route_neighbor_routes _nbr_routes_mem[NBR_TABLE_MAX_NEIGHBORS];
+static nbr_table_t nbr_routes_struct = { 0, sizeof(struct uip_ds6_route_neighbor_routes), NULL, (nbr_table_item_t *)_nbr_routes_mem }; 
+nbr_table_t *nbr_routes = &nbr_routes_struct;
+
+__attribute__ ((section(".gpram.neighborroutememb_memb_count"))) static char CC_CONCAT(neighborroutememb,_memb_count)[UIP_DS6_ROUTE_NB]; 
+__attribute__ ((section(".gpram.neighborroutememb_memb_mem"))) static struct uip_ds6_route_neighbor_route CC_CONCAT(neighborroutememb,_memb_mem)[UIP_DS6_ROUTE_NB]; 
+static struct memb neighborroutememb = {sizeof(struct uip_ds6_route_neighbor_route), 
+										UIP_DS6_ROUTE_NB, 
+										CC_CONCAT(neighborroutememb,_memb_count), 
+										(void *)CC_CONCAT(neighborroutememb,_memb_mem)};
 
 /* Each route is repressented by a uip_ds6_route_t structure and
    memory for each route is allocated from the routememb memory
    block. These routes are maintained on the routelist. */
 LIST(routelist);
-MEMB(routememb, uip_ds6_route_t, UIP_DS6_ROUTE_NB);
+__attribute__ ((section(".gpram.routememb_memb_count"))) static char CC_CONCAT(routememb,_memb_count)[UIP_DS6_ROUTE_NB]; 
+static uip_ds6_route_t CC_CONCAT(routememb,_memb_mem)[UIP_DS6_ROUTE_NB]; 
+static struct memb routememb = {sizeof(uip_ds6_route_t), 
+								UIP_DS6_ROUTE_NB, 
+								CC_CONCAT(routememb,_memb_count), 
+								(void *)CC_CONCAT(routememb,_memb_mem)};
 
 static int num_routes = 0;
 static void rm_routelist_callback(nbr_table_item_t *ptr);
@@ -80,7 +93,12 @@ static void rm_routelist_callback(nbr_table_item_t *ptr);
 /* Default routes are held on the defaultrouterlist and their
    structures are allocated from the defaultroutermemb memory block.*/
 LIST(defaultrouterlist);
-MEMB(defaultroutermemb, uip_ds6_defrt_t, UIP_DS6_DEFRT_NB);
+static char CC_CONCAT(defaultroutermemb,_memb_count)[UIP_DS6_DEFRT_NB]; 
+__attribute__ ((section(".gpram.defaultroutermemb_memb_mem"))) static uip_ds6_defrt_t CC_CONCAT(defaultroutermemb,_memb_mem)[UIP_DS6_DEFRT_NB]; 
+static struct memb defaultroutermemb = {sizeof(uip_ds6_defrt_t), 
+										UIP_DS6_DEFRT_NB, 
+										CC_CONCAT(defaultroutermemb,_memb_count), 
+										(void *)CC_CONCAT(defaultroutermemb,_memb_mem)};
 
 #if UIP_DS6_NOTIFICATIONS
 LIST(notificationlist);

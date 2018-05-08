@@ -71,7 +71,7 @@
 
 #define UART_DATA_POLL_INTERVAL 5	//in main timer ticks, one tick ~8ms
 
-#define MAX_ROUTE_TABLE			100  //Максимальное количество счетчиков в сети
+#define MAX_ROUTE_TABLE			10  //Максимальное количество счетчиков в сети
 #define WAIT_RESPONSE 			3 	//Максимальное время ожидания ответа от счетчика в секундах
 #define AES128_PACKAGE_LENGTH	16	//Длина пакета AES-128
 
@@ -104,7 +104,8 @@ struct route
 };
 
 
-__attribute__ ((section(".gpram.route_table"))) static struct route route_table[MAX_ROUTE_TABLE];
+static struct route route_table[MAX_ROUTE_TABLE];
+// __attribute__ ((section(".gpram.route_table"))) static struct route route_table[MAX_ROUTE_TABLE];
 //struct route route_table[MAX_ROUTE_TABLE];
 uint8_t route_table_ptr = 0;
 

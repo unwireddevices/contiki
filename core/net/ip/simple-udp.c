@@ -50,7 +50,7 @@
 
 PROCESS(simple_udp_process, "Simple UDP process");
 static uint8_t started = 0;
-static uint8_t databuffer[UIP_BUFSIZE];
+__attribute__ ((section(".gpram.databuffer"))) static uint8_t databuffer[UIP_BUFSIZE];
 
 #define UIP_IP_BUF   ((struct uip_udpip_hdr *)&uip_buf[UIP_LLH_LEN])
 

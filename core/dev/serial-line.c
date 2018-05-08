@@ -53,10 +53,10 @@
 #define TIMEOUT_END_FRAME 0.005
 
 static struct ringbuf rxbuf;
-static uint8_t rxbuf_data[BUFSIZE];
+__attribute__ ((section(".gpram.rxbuf_data"))) static uint8_t rxbuf_data[BUFSIZE];
 static bool uart = 0; /* Flag UART or SHELL */
 static struct ctimer uart_end_of_package; /* Timer end of data transfer */
-static char buf[BUFSIZE]; //
+__attribute__ ((section(".gpram.buf"))) static char buf[BUFSIZE]; //
 static int ptr; //
 
 static void uart_receive_end(void *pt);

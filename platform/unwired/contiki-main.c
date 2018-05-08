@@ -162,7 +162,8 @@ main(void)
 
   /* Enable flash cache and prefetch. */ //DISABLED
   ti_lib_vims_mode_set(VIMS_BASE, VIMS_MODE_DISABLED);
-  ti_lib_vims_configure(VIMS_BASE, true, true); //ЧОТ НАДО ПОМЕНЯТЬ СКОРЕЕ ВСЕГО
+  //ti_lib_vims_configure(VIMS_BASE, false, false); //ЧОТ НАДО ПОМЕНЯТЬ СКОРЕЕ ВСЕГО
+  // ti_lib_vims_configure(VIMS_BASE, true, true); //ЧОТ НАДО ПОМЕНЯТЬ СКОРЕЕ ВСЕГО
 
   ti_lib_int_master_disable();
 

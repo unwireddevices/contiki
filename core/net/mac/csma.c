@@ -125,9 +125,28 @@ struct neighbor_queue {
 #endif /* CSMA_CONF_MAX_PACKET_PER_NEIGHBOR */
 
 #define MAX_QUEUED_PACKETS QUEUEBUF_NUM
-MEMB(neighbor_memb, struct neighbor_queue, CSMA_MAX_NEIGHBOR_QUEUES);
-MEMB(packet_memb, struct rdc_buf_list, MAX_QUEUED_PACKETS);
-MEMB(metadata_memb, struct qbuf_metadata, MAX_QUEUED_PACKETS);
+
+static char CC_CONCAT(neighbor_memb,_memb_count)[CSMA_MAX_NEIGHBOR_QUEUES]; 
+__attribute__ ((section(".gpram.neighbor_memb_memb_mem"))) static struct neighbor_queue CC_CONCAT(neighbor_memb,_memb_mem)[CSMA_MAX_NEIGHBOR_QUEUES]; 
+static struct memb neighbor_memb = {sizeof(struct neighbor_queue),
+									CSMA_MAX_NEIGHBOR_QUEUES, 
+									CC_CONCAT(neighbor_memb,_memb_count), 
+									(void *)CC_CONCAT(neighbor_memb,_memb_mem)};
+
+static char CC_CONCAT(packet_memb,_memb_count)[MAX_QUEUED_PACKETS]; 
+__attribute__ ((section(".gpram.packet_memb_memb_mem"))) static struct rdc_buf_list CC_CONCAT(packet_memb,_memb_mem)[MAX_QUEUED_PACKETS]; 
+static struct memb packet_memb = {  sizeof(struct rdc_buf_list), 
+									MAX_QUEUED_PACKETS, 
+									CC_CONCAT(packet_memb,_memb_count), 
+									(void *)CC_CONCAT(packet_memb,_memb_mem)};
+
+static char CC_CONCAT(metadata_memb,_memb_count)[MAX_QUEUED_PACKETS]; 
+__attribute__ ((section(".gpram.metadata_memb_memb_mem"))) static struct qbuf_metadata CC_CONCAT(metadata_memb,_memb_mem)[MAX_QUEUED_PACKETS]; 
+static struct memb metadata_memb = {sizeof(struct qbuf_metadata), 
+									MAX_QUEUED_PACKETS, 
+									CC_CONCAT(metadata_memb,_memb_count), 
+									(void *)CC_CONCAT(metadata_memb,_memb_mem)};
+
 LIST(neighbor_list);
 
 static void packet_sent(void *ptr, int status, int num_transmissions);

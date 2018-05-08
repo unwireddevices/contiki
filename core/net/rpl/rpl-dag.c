@@ -82,7 +82,9 @@ static rpl_of_t * const objective_functions[] = RPL_SUPPORTED_OFS;
 
 /*---------------------------------------------------------------------------*/
 /* Per-parent RPL information */
-NBR_TABLE_GLOBAL(rpl_parent_t, rpl_parents);
+__attribute__ ((section(".gpram._rpl_parents_mem"))) static rpl_parent_t _rpl_parents_mem[NBR_TABLE_MAX_NEIGHBORS]; 
+static nbr_table_t rpl_parents_struct = { 0, sizeof(rpl_parent_t), NULL, (nbr_table_item_t *)_rpl_parents_mem }; 
+nbr_table_t *rpl_parents = &rpl_parents_struct; 
 /*---------------------------------------------------------------------------*/
 /* Allocate instance table. */
 rpl_instance_t instance_table[RPL_MAX_INSTANCES];

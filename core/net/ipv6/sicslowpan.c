@@ -273,7 +273,7 @@ struct sicslowpan_frag_info {
   uint8_t first_frag[SICSLOWPAN_FIRST_FRAGMENT_SIZE];
 };
 
-static struct sicslowpan_frag_info frag_info[SICSLOWPAN_REASS_CONTEXTS];
+__attribute__ ((section(".gpram.frag_info"))) static struct sicslowpan_frag_info frag_info[SICSLOWPAN_REASS_CONTEXTS];
 
 struct sicslowpan_frag_buf {
   /* the index of the frag_info */
@@ -285,7 +285,7 @@ struct sicslowpan_frag_buf {
   uint8_t data[SICSLOWPAN_FRAGMENT_SIZE];
 };
 
-static struct sicslowpan_frag_buf frag_buf[SICSLOWPAN_FRAGMENT_BUFFERS];
+__attribute__ ((section(".gpram.frag_buf"))) static struct sicslowpan_frag_buf frag_buf[SICSLOWPAN_FRAGMENT_BUFFERS];
 
 /*---------------------------------------------------------------------------*/
 static int
