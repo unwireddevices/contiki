@@ -43,6 +43,7 @@
 
 #include "net/ip/uip.h"
 #include "net/ipv6/uip-ds6.h"
+#include "net/ipv6/uip-ds6-route.h"
 #include "net/ip/uip-debug.h"
 #include "simple-udp.h"
 #include "net/rpl/rpl.h"
@@ -71,7 +72,6 @@
 
 #define UART_DATA_POLL_INTERVAL 5	//in main timer ticks, one tick ~8ms
 
-#define MAX_ROUTE_TABLE			10  //Максимальное количество счетчиков в сети
 #define WAIT_RESPONSE 			3 	//Максимальное время ожидания ответа от счетчика в секундах
 #define AES128_PACKAGE_LENGTH	16	//Длина пакета AES-128
 
@@ -94,21 +94,6 @@ static struct ctimer wait_response;
 static bool uart = 0;
 static bool wait_response_slave = 0;
 
-struct route 
-{
-    uint32_t serial;
-	uint8_t addr[8];
-    //uip_ip6addr_t addr;
-	uint16_t nonce;
-	uint16_t counter;
-};
-
-
-static struct route route_table[MAX_ROUTE_TABLE];
-// __attribute__ ((section(".gpram.route_table"))) static struct route route_table[MAX_ROUTE_TABLE];
-//struct route route_table[MAX_ROUTE_TABLE];
-uint8_t route_table_ptr = 0;
-
 volatile union { uint16_t u16; uint8_t u8[2]; } packet_counter_root;
 
 PROCESS(main_root_process, "main root process");
@@ -119,138 +104,7 @@ static void wait_response_reset(void *ptr)
 {
    wait_response_slave = 0;
 }
- 
-/*---------------------------------------------------------------------------*/ 
-void add_route(uint32_t serial, const uip_ip6addr_t *addr, uint16_t nonce)
-{
-	if(route_table_ptr >= MAX_ROUTE_TABLE) //Проверка на макс размер таблицы
-		return;
-	
-	for(uint8_t i = 0; i < route_table_ptr; i++) //Проверка есть ли такой серийник
-	{
-		if(route_table[i].serial == serial)
-		{
-			// printf("\nSizeof: %i\n", sizeof(route_table));
-			
-			// printf("Addr full:");
-			// uip_debug_ipaddr_print(addr);
-			// printf("\n");
-			
-			for(uint8_t j = 0; j < 8; j++)
-				route_table[i].addr[j] = ((uint8_t *)addr)[j+8];
-			
-			// route_table[i].addr[0] = ((uint8_t *)addr)[8];
-			// route_table[i].addr[1] = ((uint8_t *)addr)[9];
-			// route_table[i].addr[2] = ((uint8_t *)addr)[10];
-			// route_table[i].addr[3] = ((uint8_t *)addr)[11];
-			// route_table[i].addr[4] = ((uint8_t *)addr)[12];
-			// route_table[i].addr[5] = ((uint8_t *)addr)[13];
-			// route_table[i].addr[6] = ((uint8_t *)addr)[14];
-			// route_table[i].addr[7] = ((uint8_t *)addr)[15]; //uip_ip6addr(&addr, 0, 0, 0, 0, 0, 0, 0, 0);
-			
-			// printf("Addr lite:");
-			// for(uint8_t j = 0; j < 8; j++)
-				// printf(" %"PRIXX8, route_table[i].addr[j]);
-			
-			// printf("\n");
-	
-			
-			//route_table[i].addr = addr;
-			route_table[i].nonce = nonce;
-			route_table[i].counter = 0xFFFF;
-			//printf("Dont add serial: %lu\n", serial);
-			//uip_debug_ipaddr_print(&addr);
-			//printf("route_table_ptr: %i\n", route_table_ptr);
-			return;
-		}
-	}
-	
-	//printf("Add serial: %lu\n", serial);
-	//uip_debug_ipaddr_print(&addr);
-	//printf("route_table_ptr: %i\n", route_table_ptr);
-	route_table[route_table_ptr].serial = serial; //Добавляем в таблицу
-	
-	for(uint8_t i = 0; i < 8; i++)
-		route_table[route_table_ptr].addr[i] = ((uint8_t *)addr)[i+8];
-	
-	//route_table[route_table_ptr].addr = addr;
-	route_table[route_table_ptr].nonce = nonce;
-	route_table[route_table_ptr].counter = 0xFFFF; //Добавляется в таблицу, но не будет работать, пока счетчик не обнулится
-	route_table_ptr++;
-	return;
-}
 
-/*---------------------------------------------------------------------------*/
-uip_ip6addr_t find_addr(uint32_t serial)
-{
-	uip_ip6addr_t addr;
-	
-	for(uint8_t i = 0; i < route_table_ptr; i++)
-	{
-		if(route_table[i].serial == serial)
-		{
-			if(route_table[i].counter != 0xFFFF) //Проверка на активность.
-			{
-				uip_ip6addr(&addr,  
-							0xFD00,
-							0,
-							0,
-							0,
-							(uint16_t)(route_table[i].addr[1] | (route_table[i].addr[0]<<8)),
-							(uint16_t)(route_table[i].addr[3] | (route_table[i].addr[2]<<8)),
-							(uint16_t)(route_table[i].addr[5] | (route_table[i].addr[4]<<8)),
-							(uint16_t)(route_table[i].addr[7] | (route_table[i].addr[6]<<8)));
-							
-				return addr;
-			}
-		}
-	}
-	
-	uip_ip6addr(&addr, 0, 0, 0, 0, 0, 0, 0, 0); //Адрес не найден
-	return addr;
-}
-/*---------------------------------------------------------------------------*/
-uint16_t get_nonce(uint32_t serial)
-{
-	for(uint8_t i = 0; i < route_table_ptr; i++)
-	{
-		if(route_table[i].serial == serial)
-		{
-			return route_table[i].nonce;
-		}
-	}
-	return 0;
-}
-/*---------------------------------------------------------------------------*/
-static void unlock_addr(uint32_t serial,  uint16_t counter)
-{
-	for(uint8_t i = 0; i < route_table_ptr; i++)
-	{
-		if(route_table[i].serial == serial)
-		{
-			if(route_table[i].counter == 0xFFFF) //Разблокируем счетчик
-				route_table[i].counter = counter;
-		}
-	}
-}
-/*---------------------------------------------------------------------------*/
-static bool valid_counter(uint32_t serial, uint16_t counter)
-{
-	for(uint8_t i = 0; i < route_table_ptr; i++)
-	{
-		if(route_table[i].serial == serial)
-		{
-			if(route_table[i].counter < counter) //Проверка на активность.
-			{
-				route_table[i].counter = counter;
-				return true;
-			}
-			else
-				return false;
-		}
-	}
-	return false;
-}
 /*---------------------------------------------------------------------------*/
 static void udbp_v5_rx_uart_from_air_to_tx_handler(const uip_ip6addr_t *addr, const uint8_t *data, const uint16_t length, uint8_t version)
 {

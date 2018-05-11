@@ -117,3 +117,191 @@
                 0x11001980      0x640 contiki-unwired.a(uip-ds6-route.o)
  .gpram.routememb_memb_count
                 0x11001fc0       0xc8 contiki-unwired.a(uip-ds6-route.o)
+
+__attribute__((__packed__)) 
+__attribute__((__packed__)) 
+__attribute__((__packed__)) 
+__attribute__((__packed__)) 
+
+
+
+ Channel: 26
+ Link layer addr: 00:12:4b:00:0c:46:8a:86
+ Node UD address: 02124B000C468A86
+ PAN ID: 0xAABB
+ RPL probing interval: 5h(300m)
+ Max routes: 100
+Start Unwired RLP root.
+UDM: Created a new RPL DAG, i'm root!
+UDM: Time sync needed
+uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
+uip-ds6-route: No route found
+uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
+uip-ds6-route: No route found
+uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
+uip-ds6-route: No route found
+uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
+uip-ds6-route: No route found
+uip_ds6_route_add num 1
+uip_ds6_route_add: adding route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
+uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
+uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
+uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
+uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
+uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
+uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
+uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
+uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
+uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
+uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
+uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
+uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
+uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
+uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
+uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
+uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
+uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
+uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
+uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
+uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
+
+
+
+
+
+SERIAL: 37662 == 37662
+***GOOD***
+uip-ds6-route: Found route for serial: 37662 Addr: FD00::0212:4B00:0C46:8D03
+
+Find addr from serial: 37622
+uip-ds6-route: Looking up route for serial: 37622
+SERIAL: 37622 == 37662 
+uip-ds6-route: No route found
+serial: 0
+nonce: 0
+counter: 0
+
+
+
+***GOOD***
+1e 0 0 f
+1e 1d 0 0
+
+***GOOD***
+1e 0 79 0
+1e 1d 0 0
+
+***GO_37662***
+f6 0 e3 8c
+1e 1d 0 0
+
+
+test_uip_ds6_route_t.serial = 0x21222324;
+test_uip_ds6_route_t.nonce = 0x3132; 
+test_uip_ds6_route_t.counter = 0x4142; 
+
+(little-endian)
+
+44332211
+24232221
+
+54070011
+941E0020
+
+10000000801D0020
+
+1C0000000000000079310000
+
+24232221
+3231
+4241
+
+
+
+
+
+
+
+Serial: 05460028
+Struct: 
+00000000
+80020011
+
+02124B000C468D03
+
+9D8C0000982A002000000080
+
+1E930000
+31DE
+FFFF
+
+SERIAL: 37662 == 37662
+***GOOD***
+uip-ds6-route: Found route for serial: 37662 Addr: FD00::0212:4B00:0C46:8D03
+Serial: 05460028
+Struct: 
+00000000
+80020011
+
+02124B000C468D03
+
+9D8C0000982A002000000080
+
+1E930000
+31DE
+FFFF
+
+
+00000000
+80020011
+
+02124B000C468D03
+
+9D8C0000982A002000000080
+
+1E930000
+31DE
+0000
+
+
+
+
+
+
+
+
+
+
+
+
+Serial: 1E930000
+Struct: 8C0D002000000000000000000FA4000044290020A40F00000000931E0500000048070011
+SERIAL: 37662 == 37662
+***GOOD***
+1e 0 8c 0
+1e ed 0 0
+uip-ds6-route: Found route for serial: 37662 Addr: FD00::0212:4B00:0C46:8D03
+Serial: 1E930000
+Struct: 8C0D0020000000007931000000000000000000000000000000000000C04D002048070011
+SERIAL: 37662 == 37662
+
+
+Find addr from s
+erial: 37622.Ser
+al: 1E930000.St
+ruct: 
+8C0D0020
+00100340
+
+07:58:00:00:8C:08:00:20
+
+F44E002088080020184F0020
+
+F6920000
+141F
+0020
+
+
+
+
+				

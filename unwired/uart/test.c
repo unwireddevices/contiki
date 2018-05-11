@@ -2,7 +2,11 @@ Sizeof uip_ds6_route_t: 36
 Sizeof uip_ds6_nbr_t: 18
 Sizeof nbr_table_item_t: 1
 Sizeof nbr_table_key_t: 12
+Sizeof nbr_table_t: 16
 
+UIP_CONF_MAX_ROUTES
+nbr_table_t
+#define UIP_DS6_ROUTE_NB UIP_CONF_MAX_ROUTES
 /***************************************************************************/
 
 /** \brief An entry in the routing table */
@@ -84,6 +88,90 @@ MEMB(neighborroutememb, struct uip_ds6_route_neighbor_route, UIP_DS6_ROUTE_NB);
 
 
 /***************************************************************************/
+typedef union uip_ip6addr_compress_t {	//
+  uint8_t  u8[8];                      	//
+  uint16_t u16[4];						//
+} uip_ip6addr_compress_t;				//
+
+typedef union uip_ip6addr_t {
+  uint8_t  u8[16];                      /* Initializer, must come first. */
+  uint16_t u16[8];
+} uip_ip6addr_t;
+
+#if NETSTACK_CONF_WITH_IPV6
+typedef uip_ip6addr_t uip_ipaddr_t;
+#else /* NETSTACK_CONF_WITH_IPV6 */
+typedef uip_ip4addr_t uip_ipaddr_t;
+#endif /* NETSTACK_CONF_WITH_IPV6 */
+
+void compress_uip_ipaddr_t(uip_ipaddr_t *addr_in, uip_ipaddr_compress_t *addr_out) 
+{
+	addr_out.u16[0] = addr_in[4];
+	addr_out.u16[1] = addr_in[5];
+	addr_out.u16[2] = addr_in[6];
+	addr_out.u16[3] = addr_in[7];
+}
+
+void decompress_uip_ipaddr_t(uip_ipaddr_t *addr_out, uip_ipaddr_compress_t *addr_in)
+{
+	addr_out.u16[0] = 0xFD00;
+	addr_out.u16[1] = 0;
+	addr_out.u16[2] = 0;
+	addr_out.u16[3] = 0;
+	addr_out.u16[4] = addr_in[0];
+	addr_out.u16[5] = addr_in[1];
+	addr_out.u16[6] = addr_in[2];
+	addr_out.u16[7] = addr_in[3];
+}
+
+
+uip_ip6addr_t find_addr(uint32_t serial)
+{
+	uip_ip6addr_t addr;
+	
+	for(uint8_t i = 0; i < route_table_ptr; i++)
+	{
+		if(route_table[i].serial == serial)
+		{
+			if(route_table[i].counter != 0xFFFF) //Проверка на активность.
+			{
+				uip_ip6addr(&addr,  
+							0xFD00,
+							0,
+							0,
+							0,
+							(uint16_t)(route_table[i].addr[1] | (route_table[i].addr[0]<<8)),
+							(uint16_t)(route_table[i].addr[3] | (route_table[i].addr[2]<<8)),
+							(uint16_t)(route_table[i].addr[5] | (route_table[i].addr[4]<<8)),
+							(uint16_t)(route_table[i].addr[7] | (route_table[i].addr[6]<<8)));
+							
+				return addr;
+			}
+		}
+	}
+	
+	uip_ip6addr(&addr, 0, 0, 0, 0, 0, 0, 0, 0); //Адрес не найден
+	return addr;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 https://e2e.ti.com/support/wireless_connectivity/proprietary_sub_1_ghz_simpliciti/f/156/t/677370?Compiler-CC1310-Using-the-Cache-as-GPRAM-for-application
 https://github.com/contiki-os/contiki/wiki/RPL-modes
@@ -359,907 +447,179 @@ static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ �
 static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
 
 
+/----------------------------------------------------------------------------------------------/
+Program used FLASH: 71.2kb(58.3%), RAM: 17.7kb(90.8%)
+/----------------------------------------------------------------------------------------------/
 
-/*---------------------------------------------------------------------------*/
-uip_ds6_route_t *
-uip_ds6_route_add(uip_ipaddr_t *ipaddr, uint8_t length,
-		  uip_ipaddr_t *nexthop)
+region `SRAM' overflowed by 1484 bytes //200
+region `SRAM' overflowed by 5284 bytes //300
+region `SRAM' overflowed by 5604 bytes //300 + 320 byte
+
+
+3800 на 100 маршрутов
+
+38-28
+
+
+3800
+
+
+
+
+
+
+on: We were on. PD=1, RX=0x0002 
+rf_cmd_ieee_rx: ret=0, CMDSTA=0x00000081, status=0x0000
+
+
+	for(uint8_t i = 0;  i < 128; i++)
+	{
+		cmd_ieee_rx_buf[i] = i;
+		printf(" %i", cmd_ieee_rx_buf[i]);
+	}
+
+
+
+void add_route(uint32_t serial, const uip_ip6addr_t *addr, uint16_t nonce)
 {
-#if (UIP_CONF_MAX_ROUTES != 0)
-  uip_ds6_route_t *r;
-  struct uip_ds6_route_neighbor_route *nbrr;
-
-#if DEBUG != DEBUG_NONE
-  assert_nbr_routes_list_sane();
-#endif /* DEBUG != DEBUG_NONE */
-
-  /* Get link-layer address of next hop, make sure it is in neighbor table */
-  const uip_lladdr_t *nexthop_lladdr = uip_ds6_nbr_lladdr_from_ipaddr(nexthop);
-  if(nexthop_lladdr == NULL) {
-    PRINTF("uip_ds6_route_add: neighbor link-local address unknown for ");
-    PRINT6ADDR(nexthop);
-    PRINTF("\n");
-    return NULL;
-  }
-
-  /* First make sure that we don't add a route twice. If we find an
-     existing route for our destination, we'll delete the old
-     one first. */
-  r = uip_ds6_route_lookup(ipaddr);
-  if(r != NULL) {
-    uip_ipaddr_t *current_nexthop;
-    current_nexthop = uip_ds6_route_nexthop(r);
-    if(current_nexthop != NULL && uip_ipaddr_cmp(nexthop, current_nexthop)) {
-      /* no need to update route - already correct! */
-      return r;
-    }
-    PRINTF("uip_ds6_route_add: old route for ");
-    PRINT6ADDR(ipaddr);
-    PRINTF(" found, deleting it\n");
-
-    uip_ds6_route_rm(r);
-  }
-  {
-    struct uip_ds6_route_neighbor_routes *routes;
-    /* If there is no routing entry, create one. We first need to
-       check if we have room for this route. If not, we remove the
-       least recently used one we have. */
-
-    if(uip_ds6_route_num_routes() == UIP_DS6_ROUTE_NB) {
-      uip_ds6_route_t *oldest;
-      oldest = NULL;
-#if UIP_DS6_ROUTE_REMOVE_LEAST_RECENTLY_USED
-      /* Removing the oldest route entry from the route table. The
-         least recently used route is the first route on the list. */
-      oldest = list_tail(routelist);
-#endif
-      if(oldest == NULL) {
-        return NULL;
-      }
-      PRINTF("uip_ds6_route_add: dropping route to ");
-      PRINT6ADDR(&oldest->ipaddr);
-      PRINTF("\n");
-      uip_ds6_route_rm(oldest);
-    }
-
-
-    /* Every neighbor on our neighbor table holds a struct
-       uip_ds6_route_neighbor_routes which holds a list of routes that
-       go through the neighbor. We add our route entry to this list.
-
-       We first check to see if we already have this neighbor in our
-       nbr_route table. If so, the neighbor already has a route entry
-       list.
-    */
-    routes = nbr_table_get_from_lladdr(nbr_routes,
-                                       (linkaddr_t *)nexthop_lladdr);
-
-    if(routes == NULL) {
-      /* If the neighbor did not have an entry in our neighbor table,
-         we create one. The nbr_table_add_lladdr() function returns a
-         pointer to a pointer that we may use for our own purposes. We
-         initialize this pointer with the list of routing entries that
-         are attached to this neighbor. */
-      routes = nbr_table_add_lladdr(nbr_routes,
-                                    (linkaddr_t *)nexthop_lladdr,
-                                    NBR_TABLE_REASON_ROUTE, NULL);
-      if(routes == NULL) {
-        /* This should not happen, as we explicitly deallocated one
-           route table entry above. */
-        PRINTF("uip_ds6_route_add: could not allocate neighbor table entry\n");
-        return NULL;
-      }
-      LIST_STRUCT_INIT(routes, route_list);
-#ifdef NETSTACK_CONF_ROUTING_NEIGHBOR_ADDED_CALLBACK
-      NETSTACK_CONF_ROUTING_NEIGHBOR_ADDED_CALLBACK((const linkaddr_t *)nexthop_lladdr);
-#endif
-    }
-
-    /* Allocate a routing entry and populate it. */
-    r = memb_alloc(&routememb);
-
-    if(r == NULL) {
-      /* This should not happen, as we explicitly deallocated one
-         route table entry above. */
-      PRINTF("uip_ds6_route_add: could not allocate route\n");
-      return NULL;
-    }
-
-    /* add new routes first - assuming that there is a reason to add this
-       and that there is a packet coming soon. */
-    list_push(routelist, r);
-
-    nbrr = memb_alloc(&neighborroutememb);
-    if(nbrr == NULL) {
-      /* This should not happen, as we explicitly deallocated one
-         route table entry above. */
-      PRINTF("uip_ds6_route_add: could not allocate neighbor route list entry\n");
-      memb_free(&routememb, r);
-      return NULL;
-    }
-
-    nbrr->route = r;
-    /* Add the route to this neighbor */
-    list_add(routes->route_list, nbrr);
-    r->neighbor_routes = routes;
-    num_routes++;
-
-    PRINTF("uip_ds6_route_add num %d\n", num_routes);
-
-    /* lock this entry so that nexthop is not removed */
-    nbr_table_lock(nbr_routes, routes);
-  }
-
-  uip_ipaddr_copy(&(r->ipaddr), ipaddr);
-  r->length = length;
-
-#ifdef UIP_DS6_ROUTE_STATE_TYPE
-  memset(&r->state, 0, sizeof(UIP_DS6_ROUTE_STATE_TYPE));
-#endif
-
-  PRINTF("uip_ds6_route_add: adding route: ");
-  PRINT6ADDR(ipaddr);
-  PRINTF(" via ");
-  PRINT6ADDR(nexthop);
-  PRINTF("\n");
-  ANNOTATE("#L %u 1;blue\n", nexthop->u8[sizeof(uip_ipaddr_t) - 1]);
-
-#if UIP_DS6_NOTIFICATIONS
-  call_route_callback(UIP_DS6_NOTIFICATION_ROUTE_ADD, ipaddr, nexthop);
-#endif
-
-#if DEBUG != DEBUG_NONE
-  assert_nbr_routes_list_sane();
-#endif /* DEBUG != DEBUG_NONE */
-  return r;
-
-#else /* (UIP_CONF_MAX_ROUTES != 0) */
-  return NULL;
-#endif /* (UIP_CONF_MAX_ROUTES != 0) */
-}
-
-/*---------------------------------------------------------------------------*/
-
-/*---------------------------------------------------------------------------*/  
-uip_ds6_route_t *
-uip_ds6_route_add(uip_ipaddr_t *ipaddr, uint8_t length,
-		  uip_ipaddr_t *nexthop)
-{
-#if (UIP_CONF_MAX_ROUTES != 0)
-  uip_ds6_route_t *r;
-  struct uip_ds6_route_neighbor_route *nbrr;
-
-#if DEBUG != DEBUG_NONE
-  assert_nbr_routes_list_sane();
-#endif /* DEBUG != DEBUG_NONE */
-
-  /* Get link-layer address of next hop, make sure it is in neighbor table */
-  const uip_lladdr_t *nexthop_lladdr = uip_ds6_nbr_lladdr_from_ipaddr(nexthop);
-  if(nexthop_lladdr == NULL) {
-    PRINTF("uip_ds6_route_add: neighbor link-local address unknown for ");
-    PRINT6ADDR(nexthop);
-    PRINTF("\n");
-    return NULL;
-  }
-
-  /* First make sure that we don't add a route twice. If we find an
-     existing route for our destination, we'll delete the old
-     one first. */
-  r = uip_ds6_route_lookup(ipaddr);
-  if(r != NULL) {
-    uip_ipaddr_t *current_nexthop;
-    current_nexthop = uip_ds6_route_nexthop(r);
-    if(current_nexthop != NULL && uip_ipaddr_cmp(nexthop, current_nexthop)) {
-      /* no need to update route - already correct! */
-      return r;
-    }
-    PRINTF("uip_ds6_route_add: old route for ");
-    PRINT6ADDR(ipaddr);
-    PRINTF(" found, deleting it\n");
-
-    uip_ds6_route_rm(r);
-  }
-  {
-    struct uip_ds6_route_neighbor_routes *routes;
-    /* If there is no routing entry, create one. We first need to
-       check if we have room for this route. If not, we remove the
-       least recently used one we have. */
-
-    if(uip_ds6_route_num_routes() == UIP_DS6_ROUTE_NB) {
-      uip_ds6_route_t *oldest;
-      oldest = NULL;
-#if UIP_DS6_ROUTE_REMOVE_LEAST_RECENTLY_USED
-      /* Removing the oldest route entry from the route table. The
-         least recently used route is the first route on the list. */
-      oldest = list_tail(routelist);
-#endif
-      if(oldest == NULL) {
-        return NULL;
-      }
-      PRINTF("uip_ds6_route_add: dropping route to ");
-      PRINT6ADDR(&oldest->ipaddr);
-      PRINTF("\n");
-      uip_ds6_route_rm(oldest);
-    }
-
-
-    /* Every neighbor on our neighbor table holds a struct
-       uip_ds6_route_neighbor_routes which holds a list of routes that
-       go through the neighbor. We add our route entry to this list.
-
-       We first check to see if we already have this neighbor in our
-       nbr_route table. If so, the neighbor already has a route entry
-       list.
-    */
-    routes = nbr_table_get_from_lladdr(nbr_routes,
-                                       (linkaddr_t *)nexthop_lladdr);
-
-    if(routes == NULL) {
-      /* If the neighbor did not have an entry in our neighbor table,
-         we create one. The nbr_table_add_lladdr() function returns a
-         pointer to a pointer that we may use for our own purposes. We
-         initialize this pointer with the list of routing entries that
-         are attached to this neighbor. */
-      routes = nbr_table_add_lladdr(nbr_routes,
-                                    (linkaddr_t *)nexthop_lladdr,
-                                    NBR_TABLE_REASON_ROUTE, NULL);
-      if(routes == NULL) {
-        /* This should not happen, as we explicitly deallocated one
-           route table entry above. */
-        PRINTF("uip_ds6_route_add: could not allocate neighbor table entry\n");
-        return NULL;
-      }
-      LIST_STRUCT_INIT(routes, route_list);
-#ifdef NETSTACK_CONF_ROUTING_NEIGHBOR_ADDED_CALLBACK
-      NETSTACK_CONF_ROUTING_NEIGHBOR_ADDED_CALLBACK((const linkaddr_t *)nexthop_lladdr);
-#endif
-    }
-
-    /* Allocate a routing entry and populate it. */
-    r = memb_alloc(&routememb);
-
-    if(r == NULL) {
-      /* This should not happen, as we explicitly deallocated one
-         route table entry above. */
-      PRINTF("uip_ds6_route_add: could not allocate route\n");
-      return NULL;
-    }
-
-    /* add new routes first - assuming that there is a reason to add this
-       and that there is a packet coming soon. */
-    list_push(routelist, r);
-
-    nbrr = memb_alloc(&neighborroutememb);
-    if(nbrr == NULL) {
-      /* This should not happen, as we explicitly deallocated one
-         route table entry above. */
-      PRINTF("uip_ds6_route_add: could not allocate neighbor route list entry\n");
-      memb_free(&routememb, r);
-      return NULL;
-    }
-
-    nbrr->route = r;
-    /* Add the route to this neighbor */
-    list_add(routes->route_list, nbrr);
-    r->neighbor_routes = routes;
-    num_routes++;
-
-    PRINTF("uip_ds6_route_add num %d\n", num_routes);
-
-    /* lock this entry so that nexthop is not removed */
-    nbr_table_lock(nbr_routes, routes);
-  }
-
-  uip_ipaddr_copy(&(r->ipaddr), ipaddr);
-  r->length = length;
-
-#ifdef UIP_DS6_ROUTE_STATE_TYPE
-  memset(&r->state, 0, sizeof(UIP_DS6_ROUTE_STATE_TYPE));
-#endif
-
-  PRINTF("uip_ds6_route_add: adding route: ");
-  PRINT6ADDR(ipaddr);
-  PRINTF(" via ");
-  PRINT6ADDR(nexthop);
-  PRINTF("\n");
-  ANNOTATE("#L %u 1;blue\n", nexthop->u8[sizeof(uip_ipaddr_t) - 1]);
-
-#if UIP_DS6_NOTIFICATIONS
-  call_route_callback(UIP_DS6_NOTIFICATION_ROUTE_ADD, ipaddr, nexthop);
-#endif
-
-#if DEBUG != DEBUG_NONE
-  assert_nbr_routes_list_sane();
-#endif /* DEBUG != DEBUG_NONE */
-  return r;
-
-#else /* (UIP_CONF_MAX_ROUTES != 0) */
-  return NULL;
-#endif /* (UIP_CONF_MAX_ROUTES != 0) */
-}
-
-/*---------------------------------------------------------------------------*/
-	nbr_table_item_t 
-nbr_table_key_t 
-uip_ds6_route_t
-	uip_ipaddr_t 
-	rpl_dag_t 
-rpl_route_entry_t
-nbr_table_t
-linkaddr_t
-nbr_table_reason_t 
-
-typedef struct nbr_table_key {
-  struct nbr_table_key *next;
-  linkaddr_t lladdr;
-} nbr_table_key_t;
-
-
-/** \brief An entry in the routing table */
-typedef struct uip_ds6_route { 
-  struct uip_ds6_route *next;
-  /* Each route entry belongs to a specific neighbor. That neighbor
-     holds a list of all routing entries that go through it. The
-     routes field point to the uip_ds6_route_neighbor_routes that
-     belong to the neighbor table entry that this routing table entry
-     uses. */
-  struct uip_ds6_route_neighbor_routes *neighbor_routes;
-  uip_ipaddr_t ipaddr;
-#ifdef UIP_DS6_ROUTE_STATE_TYPE
-  UIP_DS6_ROUTE_STATE_TYPE state;
-#endif
-  uint8_t length;
-} uip_ds6_route_t;
-
-typedef struct __attribute__((__packed__)) rpl_route_entry {
-  uint32_t lifetime;
-  struct rpl_dag *dag;
-  uint8_t dao_seqno_out;
-  uint8_t dao_seqno_in;
-  uint8_t state_flags;
-} rpl_route_entry_t;
-
-typedef struct nbr_table {
-	int index;
-	int item_size;
-	nbr_table_callback *callback;
-	nbr_table_item_t *data;
-} nbr_table_t;
+	if(route_table_ptr >= MAX_ROUTE_TABLE) //Проверка на макс размер таблицы
+		return;
 	
-/**
- * \brief      The Rime address of the node
- *
- *             This variable contains the Rime address of the
- *             node. This variable should not be changed directly;
- *             rather, the linkaddr_set_node_addr() function should be
- *             used.
- *
- */
-extern linkaddr_t linkaddr_node_addr;
+	for(uint8_t i = 0; i < route_table_ptr; i++) //Проверка есть ли такой серийник
+	{
+		if(route_table[i].serial == serial)
+		{
+			// printf("\nSizeof: %i\n", sizeof(route_table));
+			
+			printf("Addr full:");
+			uip_debug_ipaddr_print(addr);
+			printf("\n");
+			
+			for(uint8_t j = 0; j < 8; j++)
+				route_table[i].addr[j] = ((uint8_t *)addr)[j+8];
+			
+			// route_table[i].addr[0] = ((uint8_t *)addr)[8];
+			// route_table[i].addr[1] = ((uint8_t *)addr)[9];
+			// route_table[i].addr[2] = ((uint8_t *)addr)[10];
+			// route_table[i].addr[3] = ((uint8_t *)addr)[11];
+			// route_table[i].addr[4] = ((uint8_t *)addr)[12];
+			// route_table[i].addr[5] = ((uint8_t *)addr)[13];
+			// route_table[i].addr[6] = ((uint8_t *)addr)[14];
+			// route_table[i].addr[7] = ((uint8_t *)addr)[15]; //uip_ip6addr(&addr, 0, 0, 0, 0, 0, 0, 0, 0);
+			
+			// printf("Addr lite:");
+			// for(uint8_t j = 0; j < 8; j++)
+				// printf(" %"PRIXX8, route_table[i].addr[j]);
+			
+			// printf("\n");
 	
-typedef enum {
-	NBR_TABLE_REASON_UNDEFINED,
-	NBR_TABLE_REASON_RPL_DIO,
-	NBR_TABLE_REASON_RPL_DAO,
-	NBR_TABLE_REASON_RPL_DIS,
-	NBR_TABLE_REASON_ROUTE,
-	NBR_TABLE_REASON_IPV6_ND,
-	NBR_TABLE_REASON_MAC,
-	NBR_TABLE_REASON_LLSEC,
-	NBR_TABLE_REASON_LINK_STATS,
-} nbr_table_reason_t;
-
-/** \brief The neighbor routes hold a list of routing table entries
-    that are attached to a specific neihbor. */
-struct uip_ds6_route_neighbor_routes {
-  LIST_STRUCT(route_list);
-};
-
-/*---------------------------------------------------------------------------*/
-uip_ds6_nbr_t *uip_ds6_nbr_add( const uip_ipaddr_t *ipaddr,
-								const uip_lladdr_t *lladdr,
-								uint8_t isrouter, 
-								uint8_t state, 
-								nbr_table_reason_t reason,
-								void *data)
-{
-	uip_ds6_nbr_t *nbr = nbr_table_add_lladdr ( ds6_neighbors,
-												(linkaddr_t*)lladdr, 
-												reason, 
-												data);
-}
-
-/* Add a neighbor indexed with its link-layer address */
-nbr_table_item_t *nbr_table_add_lladdr( nbr_table_t *table,
-										const linkaddr_t *lladdr, 
-										nbr_table_reason_t reason, 
-										void *data)
-{
-  int index;
-  nbr_table_item_t *item;
-  nbr_table_key_t *key;
-
-  /* Allow lladdr-free insertion, useful e.g. for IPv6 ND.
-   * Only one such entry is possible at a time, indexed by linkaddr_null. */
-  if(lladdr == NULL) {
-    lladdr = &linkaddr_null;
-  }
-
-  if((index = index_from_lladdr(lladdr)) == -1) {
-     /* Neighbor not yet in table, let's try to allocate one */
-    key = nbr_table_allocate(reason, data);
-
-    /* No space available for new entry */
-    if(key == NULL) {
-      return NULL;
-    }
-
-    /* Add neighbor to list */
-    list_add(nbr_table_keys, key);
-
-    /* Get index from newly allocated neighbor */
-    index = index_from_key(key);
-
-    /* Set link-layer address */
-    linkaddr_copy(&key->lladdr, lladdr);
-  }
-
-  /* Get item in the current table */
-  item = item_from_index(table, index);
-
-  /* Initialize item data and set "used" bit */
-  memset(item, 0, table->item_size);
-  nbr_set_bit(used_map, table, item, 1);
-
-#if DEBUG
-  print_table();
-#endif
-  return item;
+			
+			//route_table[i].addr = addr;
+			route_table[i].nonce = nonce;
+			route_table[i].counter = 0xFFFF;
+			//printf("Dont add serial: %lu\n", serial);
+			//uip_debug_ipaddr_print(&addr);
+			//printf("route_table_ptr: %i\n", route_table_ptr);
+			return;
+		}
+	}
+	
+	//printf("Add serial: %lu\n", serial);
+	//uip_debug_ipaddr_print(&addr);
+	//printf("route_table_ptr: %i\n", route_table_ptr);
+	route_table[route_table_ptr].serial = serial; //Добавляем в таблицу
+	
+	for(uint8_t i = 0; i < 8; i++)
+		route_table[route_table_ptr].addr[i] = ((uint8_t *)addr)[i+8];
+	
+	//route_table[route_table_ptr].addr = addr;
+	route_table[route_table_ptr].nonce = nonce;
+	route_table[route_table_ptr].counter = 0xFFFF; //Добавляется в таблицу, но не будет работать, пока счетчик не обнулится
+	route_table_ptr++;
+	return;
 }
 
 /*---------------------------------------------------------------------------*/
-Bootloader:	 SPI flash not found, jump to main image
-Starting Contiki 3.x With DriverLib v0.47020
+uip_ip6addr_t find_addr(uint32_t serial)
+{
+	uip_ip6addr_t addr;
+	
+	for(uint8_t i = 0; i < route_table_ptr; i++)
+	{
+		if(route_table[i].serial == serial)
+		{
+			if(route_table[i].counter != 0xFFFF) //Проверка на активность.
+			{
+				uip_ip6addr(&addr,  
+							0xFD00,
+							0,
+							0,
+							0,
+							(uint16_t)(route_table[i].addr[1] | (route_table[i].addr[0]<<8)),
+							(uint16_t)(route_table[i].addr[3] | (route_table[i].addr[2]<<8)),
+							(uint16_t)(route_table[i].addr[5] | (route_table[i].addr[4]<<8)),
+							(uint16_t)(route_table[i].addr[7] | (route_table[i].addr[6]<<8)));
+							
+				return addr;
+			}
+		}
+	}
+	
+	uip_ip6addr(&addr, 0, 0, 0, 0, 0, 0, 0, 0); //Адрес не найден
+	return addr;
+}
+/*---------------------------------------------------------------------------*/
+uint16_t get_nonce(uint32_t serial)
+{
+	for(uint8_t i = 0; i < route_table_ptr; i++)
+	{
+		if(route_table[i].serial == serial)
+		{
+			return route_table[i].nonce;
+		}
+	}
+	return 0;
+}
+/*---------------------------------------------------------------------------*/
+static void unlock_addr(uint32_t serial,  uint16_t counter)
+{
+	for(uint8_t i = 0; i < route_table_ptr; i++)
+	{
+		if(route_table[i].serial == serial)
+		{
+			if(route_table[i].counter == 0xFFFF) //Разблокируем счетчик
+				route_table[i].counter = counter;
+		}
+	}
+}
+/*---------------------------------------------------------------------------*/
+static bool valid_counter(uint32_t serial, uint16_t counter)
+{
+	for(uint8_t i = 0; i < route_table_ptr; i++)
+	{
+		if(route_table[i].serial == serial)
+		{
+			if(route_table[i].counter < counter) //Проверка на активность.
+			{
+				route_table[i].counter = counter;
+				return true;
+			}
+			else
+				return false;
+		}
+	}
+	return false;
+}
+/*---------------------------------------------------------------------------*/
 
-Unwired Devices udboards/CC2650 7x7, version: v0.63-132-gc172dcf-dirty
-Build on: Apr 27 2018 17:33:09
-IEEE 802.15.4: Yes, CC13xx: No
-Channel: 26
-Link layer addr: 00:12:4b:00:0c:46:8a:86
-Node UD address: 02124B000C468A86
-PAN ID: 0xAABB
-RPL probing interval: 5h(300m)
-Max routes: 100
-Init of IPv6 data structures
-20 neighbors
-2 default routers
-3 prefixes
-100 routes
-3 unicast addresses
-5 multicast addresses
-2 anycast addresses
-Adding prefix FE80::length 64, flags 0, Valid lifetime 0, Preffered lifetime 0
-RPL started
-Start Unwired RLP root.
-RPL: switching to mesh mode
-RPL: Node set to be a DAG root with DAG ID FD00::0212:4B00:0C46:8A86
-RPL: Scheduling DIO timer 518 ticks in future (Interval)
-RPL: Prefix set - will announce this in DIOs
-rpl_set_prefix - prefix NULL
-UDM: Created a new RPL DAG, i'm root!
-UDM: Time sync needed
-RPL: DIO Timer triggered
-RPL: Sending prefix info in DIO for FD00::
-RPL: Sending a multicast-DIO with rank 128
-RPL: Scheduling DIO timer 6 ticks in future (sent)
-RPL: MOP 2 OCP 1 rank 128 dioint 12, nbr count 0
-RPL: end of list
-RPL: DIO Timer triggered
-RPL: DIO Timer interval doubled 13
-RPL: Scheduling DIO timer 794 ticks in future (Interval)
-RPL: MOP 2 OCP 1 rank 128 dioint 13, nbr count 0
-RPL: end of list
-NBR TABLE:
- 00 03 [1:0] [0:0] [0:0] [0:0]
-RPL: Received a DIS from FE80::0212:4B00:0C46:8D03
-RPL: Multicast DIS => reset DIO timer
-RPL: Scheduling DIO timer 436 ticks in future (Interval)
-RPL: DIO Timer triggered
-RPL: Sending prefix info in DIO for FD00::
-RPL: Sending a multicast-DIO with rank 128
-RPL: Scheduling DIO timer 88 ticks in future (sent)
-RPL: MOP 2 OCP 1 rank 128 dioint 12, nbr count 0
-RPL: end of list
-RPL: DIO Timer triggered
-RPL: DIO Timer interval doubled 13
-RPL: Scheduling DIO timer 713 ticks in future (Interval)
-RPL: MOP 2 OCP 1 rank 128 dioint 13, nbr count 0
-RPL: end of list
-RPL: Packet going up, sender closer 0 (384 < 128)
-RPL: Rank OK
-RPL: Creating hop-by-hop option
-RPL: Updating RPL option
-uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
-uip-ds6-route: No route found
-RPL option going up
-uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
-uip-ds6-route: No route found
-RPL: Received a DIO from FE80::0212:4B00:0C46:8D03
-RPL: Incoming DIO (id, ver, rank) = (30,240,345)
-RPL: Incoming DIO (dag_id, pref) = (FD00::0212:4B00:0C46:8A86, 0)
-RPL: DIO option 4, length: 14
-RPL: DAG conf:dbl=4, min=12 red=10 maxinc=896 mininc=128 ocp=1 d_l=10 l_u=3600
-RPL: DIO option 8, length: 30
-RPL: Copying prefix information
-RPL: Prefix announced in DIO
-RPL: Prefix set - will announce this in DIOs
-rpl_set_prefix - prefix NON-NULL
-NBR TABLE:
- 00 03 [1:0] [1:0] [0:0] [0:0]
-Adding neighbor with ip addr FE80::0212:4B00:0C46:8D03 link addr 00:12:4b:00:0c:46:8d:03 state 1
-RPL: Neighbor state changed for FE80::0212:4B00:0C46:8D03, state=1
-RPL: Neighbor added to neighbor cache FE80::0212:4B00:0C46:8D03, 00:12:4b:00:0c:46:8d:03
-RPL: Received a DAO from FE80::0212:4B00:0C46:8D03
-RPL: Received a (unicast) DAO with sequence number 241 from FE80::0212:4B00:0C46:8D03
-RPL: DAO lifetime: 10, prefix length: 128 prefix: FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
-uip-ds6-route: No route found
-RPL: Adding DAO route
-uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
-uip-ds6-route: No route found
-NBR TABLE:
- 00 03 [1:0] [1:0] [1:0] [0:0]
-uip_ds6_route_add num 1
-*** Lock 0
-uip_ds6_route_add: adding route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
-RPL: Added a route to FD00::0212:4B00:0C46:8D03/128 via FE80::0212:4B00:0C46:8D03
-RPL: Packet going up, sender closer 0 (318 < 128)
-RPL: Rank OK
-RPL: Creating hop-by-hop option
-RPL: Updating RPL option
-uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
-RPL option going down
-uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
-RPL: Packet going up, sender closer 0 (318 < 128)
-RPL: Rank OK
-RPL: Creating hop-by-hop option
-RPL: Updating RPL option
-uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
-RPL option going down
-uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
-RPL: Packet going up, sender closer 0 (318 < 128)
-RPL: Rank OK
-RPL: Creating hop-by-hop option
-RPL: Updating RPL option
-uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
-RPL option going down
-uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
-16050002124B000C468D031A9B0012000002124B000C468A860A00000016003F007BB1
-RPL: DIO Timer triggered
-RPL: Sending prefix info in DIO for FD00::
-RPL: Sending a multicast-DIO with rank 128
-RPL: Scheduling DIO timer 335 ticks in future (sent)
-RPL: MOP 2 OCP 1 rank 128 dioint 13, nbr count 1
-RPL: end of list
-RPL: Received a DIO from FE80::0212:4B00:0C46:8D03
-RPL: Incoming DIO (id, ver, rank) = (30,240,286)
-RPL: Incoming DIO (dag_id, pref) = (FD00::0212:4B00:0C46:8A86, 0)
-RPL: DIO option 4, length: 14
-RPL: DAG conf:dbl=4, min=12 red=10 maxinc=896 mininc=128 ocp=1 d_l=10 l_u=3600
-RPL: DIO option 8, length: 30
-RPL: Copying prefix information
-RPL: Prefix announced in DIO
-RPL: Prefix set - will announce this in DIOs
-rpl_set_prefix - prefix NON-NULL
-RPL: Received a DIO from FE80::0212:4B00:0C46:8D03
-RPL: Incoming DIO (id, ver, rank) = (30,240,281)
-RPL: Incoming DIO (dag_id, pref) = (FD00::0212:4B00:0C46:8A86, 0)
-RPL: DIO option 4, length: 14
-RPL: DAG conf:dbl=4, min=12 red=10 maxinc=896 mininc=128 ocp=1 d_l=10 l_u=3600
-RPL: DIO option 8, length: 30
-RPL: Copying prefix information
-RPL: Prefix announced in DIO
-RPL: Prefix set - will announce this in DIOs
-rpl_set_prefix - prefix NON-NULL
-RPL: DIO Timer triggered
-RPL: DIO Timer interval doubled 14
-RPL: Scheduling DIO timer 1164 ticks in future (Interval)
-RPL: MOP 2 OCP 1 rank 128 dioint 14, nbr count 1
-RPL: end of list
-RPL: Received a DAO from FE80::0212:4B00:0C46:8D03
-RPL: Received a (unicast) DAO with sequence number 242 from FE80::0212:4B00:0C46:8D03
-RPL: DAO lifetime: 10, prefix length: 128 prefix: FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
-RPL: Adding DAO route
-uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
-RPL: Added a route to FD00::0212:4B00:0C46:8D03/128 via FE80::0212:4B00:0C46:8D03
-RPL: DIO Timer triggered
-RPL: Sending prefix info in DIO for FD00::
-RPL: Sending a multicast-DIO with rank 128
-RPL: Scheduling DIO timer 933 ticks in future (sent)
-RPL: MOP 2 OCP 1 rank 128 dioint 14, nbr count 1
-RPL: end of list
-UDM: UART change to alt(RX: 26, TX: 25)
-RPL: Received a DAO from FE80::0212:4B00:0C46:8D03
-RPL: Received a (unicast) DAO with sequence number 243 from FE80::0212:4B00:0C46:8D03
-RPL: DAO lifetime: 10, prefix length: 128 prefix: FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
-RPL: Adding DAO route
-uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
-RPL: Added a route to FD00::0212:4B00:0C46:8D03/128 via FE80::0212:4B00:0C46:8D03
-RPL: DIO Timer triggered
-RPL: DIO Timer interval doubled 15
-RPL: Scheduling DIO timer 3135 ticks in future (Interval)
-RPL: MOP 2 OCP 1 rank 128 dioint 15, nbr count 1
-RPL: end of list
-RPL: Received a DIO from FE80::0212:4B00:0C46:8D03
-RPL: Incoming DIO (id, ver, rank) = (30,240,273)
-RPL: Incoming DIO (dag_id, pref) = (FD00::0212:4B00:0C46:8A86, 0)
-RPL: DIO option 4, length: 14
-RPL: DAG conf:dbl=4, min=12 red=10 maxinc=896 mininc=128 ocp=1 d_l=10 l_u=3600
-RPL: DIO option 8, length: 30
-RPL: Copying prefix information
-RPL: Prefix announced in DIO
-RPL: Prefix set - will announce this in DIOs
-rpl_set_prefix - prefix NON-NULL
-RPL: Received a DIO from FE80::0212:4B00:0C46:8D03
-RPL: Incoming DIO (id, ver, rank) = (30,240,273)
-RPL: Incoming DIO (dag_id, pref) = (FD00::0212:4B00:0C46:8A86, 0)
-RPL: DIO option 4, length: 14
-RPL: DAG conf:dbl=4, min=12 red=10 maxinc=896 mininc=128 ocp=1 d_l=10 l_u=3600
-RPL: DIO option 8, length: 30
-RPL: Copying prefix information
-RPL: Prefix announced in DIO
-RPL: Prefix set - will announce this in DIOs
-rpl_set_prefix - prefix NON-NULL
-NBR TABLE:
- 00 03 [1:0] [1:0] [1:1] [0:0]
-RPL: DIO Timer triggered
-RPL: Sending prefix info in DIO for FD00::
-RPL: Sending a multicast-DIO with rank 128
-RPL: Scheduling DIO timer 1059 ticks in future (sent)
-RPL: MOP 2 OCP 1 rank 128 dioint 15, nbr count 1
-RPL: end of list
-RPL: Received a DAO from FE80::0212:4B00:0C46:8D03
-RPL: Received a (unicast) DAO with sequence number 244 from FE80::0212:4B00:0C46:8D03
-RPL: DAO lifetime: 10, prefix length: 128 prefix: FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
-RPL: Adding DAO route
-uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
-RPL: Added a route to FD00::0212:4B00:0C46:8D03/128 via FE80::0212:4B00:0C46:8D03
-RPL: DIO Timer triggered
-RPL: DIO Timer interval doubled 16
-RPL: Scheduling DIO timer 7086 ticks in future (Interval)
-RPL: MOP 2 OCP 1 rank 128 dioint 16, nbr count 1
-RPL: end of list
-NBR TABLE:
- 00 03 [1:0] [1:0] [1:1] [0:0]
-RPL: DIO Timer triggered
-RPL: Sending prefix info in DIO for FD00::
-RPL: Sending a multicast-DIO with rank 128
-RPL: Scheduling DIO timer 1302 ticks in future (sent)
-RPL: MOP 2 OCP 1 rank 128 dioint 16, nbr count 1
-RPL: end of list
-RPL: Received a DIO from FE80::0212:4B00:0C46:8D03
-RPL: Incoming DIO (id, ver, rank) = (30,240,289)
-RPL: Incoming DIO (dag_id, pref) = (FD00::0212:4B00:0C46:8A86, 0)
-RPL: DIO option 4, length: 14
-RPL: DAG conf:dbl=4, min=12 red=10 maxinc=896 mininc=128 ocp=1 d_l=10 l_u=3600
-RPL: DIO option 8, length: 30
-RPL: Copying prefix information
-RPL: Prefix announced in DIO
-RPL: Prefix set - will announce this in DIOs
-rpl_set_prefix - prefix NON-NULL
-RPL: Received a DAO from FE80::0212:4B00:0C46:8D03
-RPL: Received a (unicast) DAO with sequence number 245 from FE80::0212:4B00:0C46:8D03
-RPL: DAO lifetime: 10, prefix length: 128 prefix: FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
-RPL: Adding DAO route
-uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
-RPL: Added a route to FD00::0212:4B00:0C46:8D03/128 via FE80::0212:4B00:0C46:8D03
-RPL: DIO Timer triggered
-RPL: Scheduling DIO timer 4879 ticks in future (Interval)
-RPL: MOP 2 OCP 1 rank 128 dioint 16, nbr count 1
-RPL: end of list
-RPL: DIO Timer triggered
-RPL: Sending prefix info in DIO for FD00::
-RPL: Sending a multicast-DIO with rank 128
-RPL: Scheduling DIO timer 3509 ticks in future (sent)
-RPL: MOP 2 OCP 1 rank 128 dioint 16, nbr count 1
-RPL: end of list
-RPL: Received a DAO from FE80::0212:4B00:0C46:8D03
-RPL: Received a (unicast) DAO with sequence number 246 from FE80::0212:4B00:0C46:8D03
-RPL: DAO lifetime: 10, prefix length: 128 prefix: FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
-RPL: Adding DAO route
-uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
-RPL: Added a route to FD00::0212:4B00:0C46:8D03/128 via FE80::0212:4B00:0C46:8D03
-NBR TABLE:
- 00 03 [1:0] [1:0] [1:1] [0:0]
-RPL: DIO Timer triggered
-RPL: Scheduling DIO timer 4288 ticks in future (Interval)
-RPL: MOP 2 OCP 1 rank 128 dioint 16, nbr count 1
-RPL: end of list
-RPL: Received a DIO from FE80::0212:4B00:0C46:8D03
-RPL: Incoming DIO (id, ver, rank) = (30,240,279)
-RPL: Incoming DIO (dag_id, pref) = (FD00::0212:4B00:0C46:8A86, 0)
-RPL: DIO option 4, length: 14
-RPL: DAG conf:dbl=4, min=12 red=10 maxinc=896 mininc=128 ocp=1 d_l=10 l_u=3600
-RPL: DIO option 8, length: 30
-RPL: Copying prefix information
-RPL: Prefix announced in DIO
-RPL: Prefix set - will announce this in DIOs
-rpl_set_prefix - prefix NON-NULL
-RPL: DIO Timer triggered
-RPL: Sending prefix info in DIO for FD00::
-RPL: Sending a multicast-DIO with rank 128
-RPL: Scheduling DIO timer 4100 ticks in future (sent)
-RPL: MOP 2 OCP 1 rank 128 dioint 16, nbr count 1
-RPL: end of list
-RPL: Received a DAO from FE80::0212:4B00:0C46:8D03
-RPL: Received a (unicast) DAO with sequence number 247 from FE80::0212:4B00:0C46:8D03
-RPL: DAO lifetime: 10, prefix length: 128 prefix: FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
-RPL: Adding DAO route
-uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
-RPL: Added a route to FD00::0212:4B00:0C46:8D03/128 via FE80::0212:4B00:0C46:8D03
-NBR TABLE:
- 00 03 [1:0] [1:0] [1:1] [0:0]
-RPL: Received a DIO from FE80::0212:4B00:0C46:8D03
-RPL: Incoming DIO (id, ver, rank) = (30,240,275)
-RPL: Incoming DIO (dag_id, pref) = (FD00::0212:4B00:0C46:8A86, 0)
-RPL: DIO option 4, length: 14
-RPL: DAG conf:dbl=4, min=12 red=10 maxinc=896 mininc=128 ocp=1 d_l=10 l_u=3600
-RPL: DIO option 8, length: 30
-RPL: Copying prefix information
-RPL: Prefix announced in DIO
-RPL: Prefix set - will announce this in DIOs
-rpl_set_prefix - prefix NON-NULL
-RPL: DIO Timer triggered
-RPL: Scheduling DIO timer 6055 ticks in future (Interval)
-RPL: MOP 2 OCP 1 rank 128 dioint 16, nbr count 1
-RPL: end of list
-NBR TABLE:
- 00 03 [1:0] [1:0] [1:1] [0:0]
-RPL: Received a DIO from FE80::0212:4B00:0C46:8D03
-RPL: Incoming DIO (id, ver, rank) = (30,240,275)
-RPL: Incoming DIO (dag_id, pref) = (FD00::0212:4B00:0C46:8A86, 0)
-RPL: DIO option 4, length: 14
-RPL: DAG conf:dbl=4, min=12 red=10 maxinc=896 mininc=128 ocp=1 d_l=10 l_u=3600
-RPL: DIO option 8, length: 30
-RPL: Copying prefix information
-RPL: Prefix announced in DIO
-RPL: Prefix set - will announce this in DIOs
-rpl_set_prefix - prefix NON-NULL
-RPL: DIO Timer triggered
-RPL: Sending prefix info in DIO for FD00::
-RPL: Sending a multicast-DIO with rank 128
-RPL: Scheduling DIO timer 2333 ticks in future (sent)
-RPL: MOP 2 OCP 1 rank 128 dioint 16, nbr count 1
-RPL: end of list
-RPL: Received a DAO from FE80::0212:4B00:0C46:8D03
-RPL: Received a (unicast) DAO with sequence number 248 from FE80::0212:4B00:0C46:8D03
-RPL: DAO lifetime: 10, prefix length: 128 prefix: FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
-RPL: Adding DAO route
-uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
-RPL: Added a route to FD00::0212:4B00:0C46:8D03/128 via FE80::0212:4B00:0C46:8D03
-RPL: DIO Timer triggered
-RPL: Scheduling DIO timer 4996 ticks in future (Interval)
-RPL: MOP 2 OCP 1 rank 128 dioint 16, nbr count 1
-RPL: end of list
-NBR TABLE:
- 00 03 [1:0] [1:0] [1:1] [0:0]
-RPL: DIO Timer triggered
-RPL: Sending prefix info in DIO for FD00::
-RPL: Sending a multicast-DIO with rank 128
-RPL: Scheduling DIO timer 3392 ticks in future (sent)
-RPL: MOP 2 OCP 1 rank 128 dioint 16, nbr count 1
-RPL: end of list
-RPL: Received a DIO from FE80::0212:4B00:0C46:8D03
-RPL: Incoming DIO (id, ver, rank) = (30,240,272)
-RPL: Incoming DIO (dag_id, pref) = (FD00::0212:4B00:0C46:8A86, 0)
-RPL: DIO option 4, length: 14
-RPL: DAG conf:dbl=4, min=12 red=10 maxinc=896 mininc=128 ocp=1 d_l=10 l_u=3600
-RPL: DIO option 8, length: 30
-RPL: Copying prefix information
-RPL: Prefix announced in DIO
-RPL: Prefix set - will announce this in DIOs
-rpl_set_prefix - prefix NON-NULL
-RPL: Received a DAO from FE80::0212:4B00:0C46:8D03
-RPL: Received a (unicast) DAO with sequence number 249 from FE80::0212:4B00:0C46:8D03
-RPL: DAO lifetime: 10, prefix length: 128 prefix: FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
-RPL: Adding DAO route
-uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
-RPL: Added a route to FD00::0212:4B00:0C46:8D03/128 via FE80::0212:4B00:0C46:8D03
-RPL: DIO Timer triggered
-RPL: Scheduling DIO timer 6264 ticks in future (Interval)
-RPL: MOP 2 OCP 1 rank 128 dioint 16, nbr count 1
-RPL: end of list
-NBR TABLE:
- 00 03 [1:0] [1:0] [1:1] [0:0]
-RPL: Received a DIO from FE80::0212:4B00:0C46:8D03
-RPL: Incoming DIO (id, ver, rank) = (30,240,269)
-RPL: Incoming DIO (dag_id, pref) = (FD00::0212:4B00:0C46:8A86, 0)
-RPL: DIO option 4, length: 14
-RPL: DAG conf:dbl=4, min=12 red=10 maxinc=896 mininc=128 ocp=1 d_l=10 l_u=3600
-RPL: DIO option 8, length: 30
-RPL: Copying prefix information
-RPL: Prefix announced in DIO
-RPL: Prefix set - will announce this in DIOs
-rpl_set_prefix - prefix NON-NULL
-RPL: DIO Timer triggered
-RPL: Sending prefix info in DIO for FD00::
-RPL: Sending a multicast-DIO with rank 128
-RPL: Scheduling DIO timer 2124 ticks in future (sent)
-RPL: MOP 2 OCP 1 rank 128 dioint 16, nbr count 1
-RPL: end of list
-RPL: Received a DAO from FE80::0212:4B00:0C46:8D03
-RPL: Received a (unicast) DAO with sequence number 250 from FE80::0212:4B00:0C46:8D03
-RPL: DAO lifetime: 10, prefix length: 128 prefix: FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
-RPL: Adding DAO route
-uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
-RPL: Added a route to FD00::0212:4B00:0C46:8D03/128 via FE80::0212:4B00:0C46:8D03
-RPL: DIO Timer triggered
-RPL: Scheduling DIO timer 5452 ticks in future (Interval)
-RPL: MOP 2 OCP 1 rank 128 dioint 16, nbr count 1
-RPL: end of list
-NBR TABLE:
- 00 03 [1:0] [1:0] [1:1] [0:0]
-RPL: Received a DIO from FE80::0212:4B00:0C46:8D03
-RPL: Incoming DIO (id, ver, rank) = (30,240,267)
-RPL: Incoming DIO (dag_id, pref) = (FD00::0212:4B00:0C46:8A86, 0)
-RPL: DIO option 4, length: 14
-RPL: DAG conf:dbl=4, min=12 red=10 maxinc=896 mininc=128 ocp=1 d_l=10 l_u=3600
-RPL: DIO option 8, length: 30
-RPL: Copying prefix information
-RPL: Prefix announced in DIO
-RPL: Prefix set - will announce this in DIOs
-rpl_set_prefix - prefix NON-NULL
-RPL: DIO Timer triggered
-RPL: Sending prefix info in DIO for FD00::
-RPL: Sending a multicast-DIO with rank 128
-RPL: Scheduling DIO timer 2936 ticks in future (sent)
-RPL: MOP 2 OCP 1 rank 128 dioint 16, nbr count 1
-RPL: end of list
-RPL: Received a DAO from FE80::0212:4B00:0C46:8D03
-RPL: Received a (unicast) DAO with sequence number 251 from FE80::0212:4B00:0C46:8D03
-RPL: DAO lifetime: 10, prefix length: 128 prefix: FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
-RPL: Adding DAO route
-uip-ds6-route: Looking up route for FD00::0212:4B00:0C46:8D03
-uip-ds6-route: Found route: FD00::0212:4B00:0C46:8D03 via FE80::0212:4B00:0C46:8D03
-RPL: Added a route to FD00::0212:4B00:0C46:8D03/128 via FE80::0212:4B00:0C46:8D03
-RPL: DIO Timer triggered
-RPL: Scheduling DIO timer 5381 ticks in future (Interval)
-RPL: MOP 2 OCP 1 rank 128 dioint 16, nbr count 1
-RPL: end of list
-NBR TABLE:
- 00 03 [1:0] [1:0] [1:1] [0:0]
+
+
+
+
+
+
+
+
+
+
+

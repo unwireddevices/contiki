@@ -45,6 +45,8 @@
 #include "lib/memb.h"
 #include "net/nbr-table.h"
 
+#include "../../../unwired/system-common.h"
+
 #include <string.h>
 
 /* A configurable function called after adding a new neighbor as next hop */
@@ -104,9 +106,8 @@ static struct memb defaultroutermemb = {sizeof(uip_ds6_defrt_t),
 LIST(notificationlist);
 #endif
 
-//#undef DEBUG
 #define DEBUG DEBUG_NONE
-//#define DEBUG 1
+// #define DEBUG 1
 
 #include "net/ip/uip-debug.h"
 
@@ -291,8 +292,6 @@ uip_ds6_route_lookup(uip_ipaddr_t *addr)
 	{
 		uip_ipaddr_t ipaddr_decompress;
 		decompress_uip_ipaddr_t(&ipaddr_decompress, &r->ipaddr);
-		//PRINTF("***DECOMPRESS LOOKUP***\n");
-		//PRINT6ADDR(&ipaddr_decompress);
 		if( r->length >= longestmatch &&
 			uip_ipaddr_prefixcmp(addr, &ipaddr_decompress, r->length)) 
 		{
@@ -792,4 +791,125 @@ void decompress_uip_ipaddr_t(uip_ipaddr_t *addr_out, uip_ipaddr_compressed_t *ad
 	addr_out->u16[6] = addr_in->u16[2];
 	addr_out->u16[7] = addr_in->u16[3];
 }
+/*---------------------------------------------------------------------------*/
+uip_ds6_route_t *
+uip_ds6_route_serial_lookup(uint32_t serial)
+{
+	uip_ds6_route_t *r;
+	uip_ds6_route_t *found_route;
+
+	PRINTF("uip-ds6-route: Looking up route for serial: %lu\n", serial);
+
+	found_route = NULL;
+	
+	for(r = uip_ds6_route_head();
+		r != NULL;
+		r = uip_ds6_route_next(r)) 
+	{			
+		if(serial == r->serial)
+		{
+			found_route = r;
+			break;
+		}
+	}
+
+	if(found_route != NULL) 
+	{
+		PRINTF("uip-ds6-route: Found route for serial: %lu \n", serial);
+		PRINTF("uip-ds6-route: Addr: ");
+		uip_ipaddr_t ipaddr_decompress;
+		decompress_uip_ipaddr_t(&ipaddr_decompress, &(r->ipaddr));
+		PRINT6ADDR(&ipaddr_decompress);
+		PRINTF("\n");
+	} 
+	else 
+	{
+		PRINTF("uip-ds6-route: No route found\n");
+	}
+
+	if(found_route != NULL && found_route != list_head(routelist)) 
+	{
+		/* If we found a route, we put it at the start of the routeslist
+		list. The list is ordered by how recently we looked them up:
+		the least recently used route will be at the end of the
+		list - for fast lookups (assuming multiple packets to the same node). */
+
+		list_remove(routelist, found_route);
+		list_push(routelist, found_route);
+	}
+
+	return found_route;
+}
+/*---------------------------------------------------------------------------*/
+void add_route(uint32_t serial, uip_ip6addr_t *addr, uint16_t nonce) 
+{
+	uip_ds6_route_t *r = uip_ds6_route_lookup(addr);
+	
+	if(r != NULL)
+	{
+		r->serial = serial;
+		r->nonce = nonce;
+		r->counter = 0xFFFF;
+	}
+}
+/*---------------------------------------------------------------------------*/
+uip_ip6addr_t find_addr(uint32_t serial)
+{
+	PRINTF("uip-ds6-route: Find addr from serial: %lu\n", serial);
+	uip_ds6_route_t *r = uip_ds6_route_serial_lookup(serial);
+	uip_ip6addr_t addr;
+	
+	if(r != NULL)
+	{
+		decompress_uip_ipaddr_t(&addr, &(r->ipaddr));
+		PRINTF("uip-ds6-route: Addr: ");
+		PRINT6ADDR(&addr);
+		PRINTF("\n");
+	}
+	else
+	{
+		uip_ip6addr(&addr, 0, 0, 0, 0, 0, 0, 0, 0); //Адрес не найден
+		PRINTF("uip-ds6-route: No addr found\n");
+		PRINTF("Addr: ");
+	}
+	
+	return addr;
+}
+/*---------------------------------------------------------------------------*/
+uint16_t get_nonce(uint32_t serial)
+{
+	uip_ds6_route_t *r = uip_ds6_route_serial_lookup(serial);
+	
+	if(r != NULL)
+		return r->nonce;
+	
+	return 0;
+}
+/*---------------------------------------------------------------------------*/
+void unlock_addr(uint32_t serial,  uint16_t counter)
+{
+	uip_ds6_route_t *r = uip_ds6_route_serial_lookup(serial);
+	
+	if(r != NULL)
+	{
+		if(r->counter == 0xFFFF) //Разблокируем счетчик
+			r->counter = counter;	
+	}		
+}
+/*---------------------------------------------------------------------------*/
+bool valid_counter(uint32_t serial, uint16_t counter)
+{
+	uip_ds6_route_t *r = uip_ds6_route_serial_lookup(serial);
+	
+	if(r != NULL)
+	{
+		if(r->counter < counter) //Проверка на активность.
+		{
+			r->counter = counter;
+			return true;
+		}
+	}
+	return false;
+}
+/*---------------------------------------------------------------------------*/
 /** @} */

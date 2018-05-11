@@ -150,20 +150,25 @@ typedef union uip_ipaddr_compressed_t {	//
 } uip_ipaddr_compressed_t;				//
 
 /** \brief An entry in the routing table */
-typedef struct uip_ds6_route {
-  struct uip_ds6_route *next;
-  /* Each route entry belongs to a specific neighbor. That neighbor
-     holds a list of all routing entries that go through it. The
-     routes field point to the uip_ds6_route_neighbor_routes that
-     belong to the neighbor table entry that this routing table entry
-     uses. */
-  struct uip_ds6_route_neighbor_routes *neighbor_routes;
-  uip_ipaddr_compressed_t ipaddr;
-  //uip_ipaddr_t ipaddr;
+typedef struct __attribute__((__packed__)) uip_ds6_route {
+	struct uip_ds6_route *next;
+	/* Each route entry belongs to a specific neighbor. That neighbor
+	holds a list of all routing entries that go through it. The
+	routes field point to the uip_ds6_route_neighbor_routes that
+	belong to the neighbor table entry that this routing table entry
+	uses. */
+	struct uip_ds6_route_neighbor_routes *neighbor_routes;
+	uip_ipaddr_compressed_t ipaddr;
+	//uip_ipaddr_t ipaddr;
 #ifdef UIP_DS6_ROUTE_STATE_TYPE
-  UIP_DS6_ROUTE_STATE_TYPE state;
+	UIP_DS6_ROUTE_STATE_TYPE state;
 #endif
-  uint8_t length;
+	uint8_t length;
+////////////////////////////////////////////////////////////////////
+	uint32_t serial;
+	uint16_t nonce; 
+	uint16_t counter; 
+////////////////////////////////////////////////////////////////////
 } uip_ds6_route_t;
 
 /** \brief A neighbor route list entry, used on the
@@ -209,6 +214,11 @@ int uip_ds6_route_is_nexthop(const uip_ipaddr_t *ipaddr);
 
 void compress_uip_ipaddr_t(uip_ipaddr_t *addr_in, uip_ipaddr_compressed_t *addr_out); 
 void decompress_uip_ipaddr_t(uip_ipaddr_t *addr_out, uip_ipaddr_compressed_t *addr_in);
+void add_route(uint32_t serial, uip_ip6addr_t *addr, uint16_t nonce);
+uip_ip6addr_t find_addr(uint32_t serial);
+uint16_t get_nonce(uint32_t serial);
+void unlock_addr(uint32_t serial,  uint16_t counter);
+bool valid_counter(uint32_t serial, uint16_t counter);
 /** @} */
 
 #endif /* UIP_DS6_ROUTE_H */
