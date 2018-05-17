@@ -233,7 +233,7 @@
 #define NBR_TABLE_CONF_MAX_NEIGHBORS        20
 #endif
 #ifndef UIP_CONF_MAX_ROUTES
-#define UIP_CONF_MAX_ROUTES                 100
+#define UIP_CONF_MAX_ROUTES                 285
 #endif
 
 #ifndef UIP_CONF_TCP

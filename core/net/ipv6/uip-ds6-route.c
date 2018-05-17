@@ -792,6 +792,7 @@ void decompress_uip_ipaddr_t(uip_ipaddr_t *addr_out, uip_ipaddr_compressed_t *ad
 	addr_out->u16[7] = addr_in->u16[3];
 }
 /*---------------------------------------------------------------------------*/
+#ifdef SERIAL_ROOT 
 uip_ds6_route_t *
 uip_ds6_route_serial_lookup(uint32_t serial)
 {
@@ -911,5 +912,6 @@ bool valid_counter(uint32_t serial, uint16_t counter)
 	}
 	return false;
 }
+#endif
 /*---------------------------------------------------------------------------*/
 /** @} */

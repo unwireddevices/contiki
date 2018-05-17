@@ -61,6 +61,7 @@
 #include "dev/watchdog.h"
 #include "root.h"
 #include "../root-node.h"
+#include "../system-common.h"//
 
 #include "sys/etimer.h"
 
@@ -132,20 +133,21 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 
 	PROCESS_BEGIN();
 
-	if(uart_status_r() == 0)
-		printf("Start Unwired RLP root.\n");
+	printf("Start Unwired RLP root.\n");
+	printf("MAC: ");
+	hexraw_print(8, ((uint8_t*)(0x500012F0)));
+	printf("\n");
 
 	/* if you do not execute "cleanall" target, rpl-root can build in "leaf" configuration. Diagnostic message */
 	if (RPL_CONF_LEAF_ONLY == 1)
-		if(uart_status_r() == 0)
-			printf("\nWARNING: leaf mode on rpl-root!\n");
+		printf("\nWARNING: leaf mode on rpl-root!\n");
 
 	rpl_initialize();
 
 	root_node_initialize();
 
 	static struct etimer shell_off;
-	etimer_set(&shell_off, CLOCK_SECOND * 30);
+	etimer_set(&shell_off, CLOCK_SECOND * 15);
 
 	PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&shell_off));
    
