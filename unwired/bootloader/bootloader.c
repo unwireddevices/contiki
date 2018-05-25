@@ -38,10 +38,30 @@
 #include <stdbool.h>
 
 #include "ota-bootloader.h"
+#include "ecc.h"
 
 #define UART_TX_IOID     IOID_3
 #define UART_SPEED       115200
 #define LED_IOID         IOID_22
+#define MAC_15_4  		 0x500012F0
+
+#define START_LICENSE_FLASH 	0x1D000
+#define END_USER_FLASH			USER_FLASH_LENGTH + START_USER_FLASH
+
+typedef  struct {   	
+	EccPoint l_public;
+	uint32_t r[8];
+	uint32_t s[8];
+}license_t;
+
+void
+hexraw_print(uint32_t flash_length, uint8_t *flash_read_data_buffer)
+{
+   for (uint32_t i = 0; i < flash_length; i++)
+   {
+       ti_lib_uart_char_put(UART0_BASE, flash_read_data_buffer[i]);
+   }
+}
 
 void
 initialize_peripherals() {
@@ -105,6 +125,18 @@ deinitialize_uart()
    while(ti_lib_prcm_power_domain_status(PRCM_DOMAIN_SERIAL) != PRCM_DOMAIN_POWER_OFF);
 }
 
+void read_license(uint8_t *pui8DataBuffer, uint32_t ui32Count)
+{
+	uint32_t old_vims_state = ti_lib_vims_mode_get(VIMS_BASE);
+	ti_lib_vims_mode_set(VIMS_BASE, VIMS_MODE_DISABLED);
+	uint8_t *pui8ReadAddress = (uint8_t *)START_LICENSE_FLASH;
+	while (ui32Count--)
+	{
+		*pui8DataBuffer++ = *pui8ReadAddress++;
+	}
+	ti_lib_vims_mode_set(VIMS_BASE, old_vims_state);
+}
+
 int
 main(void)
 {
@@ -112,6 +144,32 @@ main(void)
    initialize_uart();
    print_uart("\n\n/-----------------------------------------------------------/\n");
 
+/*---------------------------------------------------------------------------*/
+	uint32_t l_hash[8];  //Считываем MAC 802.15.4 адрес 
+	for (uint32_t i = 0; i < 32; i += 8)
+	{
+		((uint8_t*)(l_hash))[i]   = ((uint8_t*)(MAC_15_4))[0];
+		((uint8_t*)(l_hash))[i+1] = ((uint8_t*)(MAC_15_4))[1];
+		((uint8_t*)(l_hash))[i+2] = ((uint8_t*)(MAC_15_4))[2];
+		((uint8_t*)(l_hash))[i+3] = ((uint8_t*)(MAC_15_4))[3];
+		((uint8_t*)(l_hash))[i+4] = ((uint8_t*)(MAC_15_4))[4];
+		((uint8_t*)(l_hash))[i+5] = ((uint8_t*)(MAC_15_4))[5];
+		((uint8_t*)(l_hash))[i+6] = ((uint8_t*)(MAC_15_4))[6];
+		((uint8_t*)(l_hash))[i+7] = ((uint8_t*)(MAC_15_4))[7];
+	}
+	
+	license_t license;
+	read_license((uint8_t*)(&license), 128); //Считываем лицензию из флеша (Открытый ключ и подпись)
+	
+	if(!ecdsa_verify(&license.l_public, l_hash, license.r, license.s))
+	{
+		print_uart("License: failed\n");
+		while(1);
+	}
+	else
+		print_uart("License: ok\n");
+/*---------------------------------------------------------------------------*/
+   
    ti_lib_ioc_pin_type_gpio_output(LED_IOID);
    ti_lib_gpio_set_dio(LED_IOID);
 

@@ -9,9 +9,9 @@ endif
 
 include ../Makefile_global_unwired
 
-$(eval $(call generate-targets,root,0x00FF0001,0x0C))
-$(eval $(call generate-targets,uart,0x00A10001,0x0C))
-$(eval $(call generate-targets,relay,0x00A20001,0x0C))
+$(eval $(call generate-targets,root,0x00FF0001,0x01))
+$(eval $(call generate-targets,uart,0x00A10001,0x01))
+$(eval $(call generate-targets,relay,0x00A20001,0x01))
 
 # 0x00FF0001 — unwired smarthome(00), root(FF), version 0001
 # 0x00A10001 — unwired smarthome(00), uart(A1), version 0001

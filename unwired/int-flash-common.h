@@ -34,6 +34,7 @@
 /*---------------------------------------------------------------------------*/
 #include "contiki.h"
 #include "ud_binary_protocol.h"
+#include "ecc.h"
 
 #define USER_FLASH_LENGTH                       100
 
@@ -68,6 +69,15 @@ typedef  struct {
 	bool aes_key_configured;
 	bool serial_configured;
 }eeprom_dag_t;
+
+typedef  struct {
+	uint16_t panid;
+    uint8_t channel; 
+	uint8_t interface; 
+	uint8_t aes_key[16];
+	bool interface_configured;
+	bool aes_key_configured;
+}eeprom_root_t;
 
 /*---------------------------------------------------------------------------*/
 uint32_t write_eeprom(uint8_t *pui8DataBuffer, uint32_t ui32Count);

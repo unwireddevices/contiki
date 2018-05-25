@@ -21,7 +21,7 @@ $(1):
 	arm-none-eabi-size $$@.elf | grep -v text | lua ../../unwired_tools/mem_used/mem_used.lua 125000 28000 || true
 	../bootloader/generate-metadata/generate-metadata $$@.bin 0x0 $(2) 1 > /dev/null
 	srec_cat firmware-metadata.bin -binary $$@.bin -binary -offset 0x100 -o $$@-ota-image.bin -binary
-	srec_cat ../bootloader/bootloader.hex -intel -crop 0x0 0x2000 0x1FFA8 0x20000 $$@-ota-image.bin -binary -offset 0x2000 -crop 0x2000 0x1B000 -o $$@-firmware.hex -intel
+	srec_cat ../bootloader/bootloader.hex -intel -crop 0x0 0x3000 0x1FFA8 0x20000 $$@-ota-image.bin -binary -offset 0x3000 -crop 0x3000 0x1B000 -o $$@-firmware.hex -intel
 	rm $(1).hex
 
 $(1)-CLEAN: $(1)

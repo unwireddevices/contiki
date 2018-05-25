@@ -61,7 +61,6 @@ uint32_t int_flash_write(uint8_t *pui8DataBuffer, uint32_t ui32Address, uint32_t
    return write_status;
 }
 
-
 /*---------------------------------------------------------------------------*/
 
 uint8_t write_fw_flag(uint8_t value)

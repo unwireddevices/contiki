@@ -18,7 +18,7 @@
  *    OTA Image Memory Map
  */
 //  Internal Flash
-#define CURRENT_FIRMWARE               0x2          //  Address where the current system firmware is stored in internal flash
+#define CURRENT_FIRMWARE               0x3          //  Address where the current system firmware is stored in internal flash
 //  External Flash
 #define GOLDEN_IMAGE                   0x19           //  Address where the factory-given firmware is stored in external flash (for backup)
 #define OTA_ADDRESSES                  { 0x32, 0x4B, 0x64 }

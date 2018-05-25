@@ -221,7 +221,7 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 	hexraw_print(sizeof(l_random), ((uint8_t*)(&l_random)));
 	printf("\n");
     
-    uint32_t A9 01 13 11 BF 3E 84 9D 72 A4 77 82 E5 BC 34 3F 22 36 19 3D AB D9 D1 00 93 91 B4 5C 11 A9 A5 0E[NUM_ECC_DIGITS];
+    uint32_t r[NUM_ECC_DIGITS];
     uint32_t s[NUM_ECC_DIGITS];
 	
 	printf("r: ");

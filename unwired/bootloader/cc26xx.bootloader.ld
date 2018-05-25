@@ -36,7 +36,7 @@ ENTRY(ResetISR)
 MEMORY
 {
     /* Flash Size 4 KB */
-    FLASH (RX) : ORIGIN = 0x00000000, LENGTH = 0x2000
+    FLASH (RX) : ORIGIN = 0x00000000, LENGTH = 0x3000/* LENGTH = 0x00002000 */
 
     /*
      * Customer Configuration Area and Bootloader Backdoor configuration
@@ -45,7 +45,7 @@ MEMORY
     FLASH_CCFG (RX) : ORIGIN = 0x0001FFA8, LENGTH = 88
 
     /* RAM Size 16KB */
-    SRAM (RWX) : ORIGIN = 0x20000000, LENGTH = 0x00005000
+    SRAM (RWX) : ORIGIN = 0x20000000, LENGTH = 0x00005000 /* LENGTH = 0x00005000 */
 
     /* Application can use GPRAM region as RAM if cache is disabled in CCFG */
     GPRAM (RWX) : ORIGIN = 0x11000000, LENGTH = 0x00002000

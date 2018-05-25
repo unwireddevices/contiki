@@ -47,16 +47,6 @@
 #include "ud_binary_protocol.h"
 #include "xxf_types_helper.h"
 
-// struct eeprom_dag 
-// {
-    // uint8_t channel; 
-    // uint16_t panid;
-	// uint32_t serial;
-	// uint8_t aes_key[16];
-	// bool serial_configured;
-	// bool aes_key_configured;
-// };
-
 /*---------------------------------------------------------------------------*/
 
 uint32_t write_eeprom(uint8_t *pui8DataBuffer, uint32_t ui32Count)
