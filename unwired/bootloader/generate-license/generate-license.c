@@ -3,6 +3,9 @@
 #include <string.h>
 #include "ecc.h"
 
+#define COLON 0x3A
+#define NULL_S 0x00
+
 FILE *license_bin; // metadata output .bin file
 
 typedef  struct {   	//128
@@ -11,31 +14,89 @@ typedef  struct {   	//128
 	uint32_t s[8]; 		//32
 }license_t;
 
-int
-main(int argc, char *argv[]) {
-	// if ( !argv[1] ) 
-	// {
-		// printf("Please provide a .bin file to compute the CRC on as the first argument.\n");
-		// return -1;
-	// }
+uint8_t char_to_number(uint8_t number)
+{
+	switch ( number ) 
+	{
+		case '0':
+			return 0x00;
+			break;
+		case '1':
+			return 0x01;
+			break;
+		case '2':
+			return 0x02;
+			break;
+		case '3':
+			return 0x03;
+			break;
+		case '4':
+			return 0x04;
+			break;
+		case '5':
+			return 0x05;
+			break;
+		case '6':
+			return 0x06;
+			break;
+		case '7':
+			return 0x07;
+			break;
+		case '8':
+			return 0x08;
+			break;
+		case '9':
+			return 0x09;
+			break;
+		case 'a':
+			return 0x0a;
+			break;
+		case 'A':
+			return 0x0a;
+			break;
+		case 'b':
+			return 0x0b;
+			break;
+		case 'B':
+			return 0x0b;
+			break;
+		case 'c':
+			return 0x0c;
+			break;
+		case 'C':
+			return 0x0c;
+			break;
+		case 'd':
+			return 0x0d;
+			break;
+		case 'D':
+			return 0x0d;
+			break;
+		case 'e':
+			return 0x0e;
+			break;
+		case 'E':
+			return 0x0e;
+			break;
+		case 'f':
+			return 0x0f;
+			break;
+		case 'F':
+			return 0x0f;
+			break;
+		default:
+			return 0;
+			break;
+	}
+}
 
-	// if ( !argv[2] ) 
-	// {
-		// printf("Please provide a 16-bit hex firmware version integer as the second argument.\n");
-		// return -1;
-	// }
-
-	// if ( !argv[3] ) 
-	// {
-		// printf("Please provide a 32-bit hex UUID integer as the third argument.\n");
-		// return -1;
-	// }
-
-	// if ( !argv[4] ) 
-	// {
-		// printf("Please provide 0 or 1 to indicate whether this image is pre-verified or not as the fourth argument.\n");
-		// return -1;
-	// }
+int main(int argc, char *argv[]) 
+{
+	if (argc != 2) 
+	{
+		puts("Wrong number of arguments");
+		return -1;
+	}
 	
 	license_t license;
 	
@@ -45,6 +106,46 @@ main(int argc, char *argv[]) {
 	uint32_t l_random[NUM_ECC_DIGITS];
 	uint32_t r[NUM_ECC_DIGITS];
     uint32_t s[NUM_ECC_DIGITS];
+	
+	uint8_t *mac = (uint8_t*)(argv[1]);
+
+	uint8_t counter = 0;
+	for(int8_t i = 7; i >= 0; i--)
+	{
+		if(mac[counter] == COLON || mac[counter] == NULL_S)//0
+		{
+			((uint8_t*)l_hash)[i] = 0;
+			((uint8_t*)l_hash)[i+8] = 0;
+			((uint8_t*)l_hash)[i+16] = 0;
+			((uint8_t*)l_hash)[i+24] = 0;
+			counter++;
+		}
+		else if(mac[counter+1] == COLON || mac[counter+1] == NULL_S)//1
+		{
+			((uint8_t*)l_hash)[i] = char_to_number(mac[counter]);
+			((uint8_t*)l_hash)[i+8] = ((uint8_t*)l_hash)[i];
+			((uint8_t*)l_hash)[i+16] = ((uint8_t*)l_hash)[i];
+			((uint8_t*)l_hash)[i+24] = ((uint8_t*)l_hash)[i];
+			counter += 2;
+		}
+		else if(mac[counter+2] == COLON || mac[counter+2] == NULL_S)//2
+		{
+			((uint8_t*)l_hash)[i] = ((char_to_number(mac[counter])<<4) | (char_to_number(mac[counter+1])));
+			((uint8_t*)l_hash)[i+8] = ((uint8_t*)l_hash)[i];
+			((uint8_t*)l_hash)[i+16] = ((uint8_t*)l_hash)[i];
+			((uint8_t*)l_hash)[i+24] = ((uint8_t*)l_hash)[i];
+			counter += 3;
+		}
+		else
+		{
+			printf("Ret\n");
+			return -1;
+		}
+	}
+	
+	// for(uint8_t i = 0; i < 32; i++)
+		// printf("%x ", ((uint8_t*)l_hash)[i]);
+	// printf("\n");
 	
 	//x = 6F F5 1D 33 18 D0 D2 DC 6D 54 D4 42 3E 5E 13 34 F3 69 8B 3E 99 03 48 67 A4 77 19 F1 2F DE BE 6C
 	l_public.x[0] = 0x2FDEBE6C;
@@ -142,12 +243,7 @@ main(int argc, char *argv[]) {
 	license.s[5] = s[5];
 	license.s[6] = s[6];
 	license.s[7] = s[7];
-	
-	
-	
-	
-	
-	
+
 	//r = 87 AE C4 33 E5 AC 57 32 69 E3 48 09 F3 6E D7 2D 2A DC 71 5B 1A 79 6B 4B 47 0A AC 17 54 4D 75 96	
 	// license.r[0] = 0x544D7596;
 	// license.r[1] = 0x470AAC17;
@@ -171,7 +267,7 @@ main(int argc, char *argv[]) {
 	uint8_t output_buffer[ sizeof(license_t) ];
 	memcpy( output_buffer, (uint8_t *)&license, sizeof(license_t) );
 
-	license_bin = fopen( "licence.bin", "wb" );
+	license_bin = fopen( "license.bin", "wb" );
 
 	fwrite(output_buffer, sizeof(output_buffer), 1, license_bin);
 	fclose( license_bin );

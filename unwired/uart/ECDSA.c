@@ -906,21 +906,47 @@ d2 d0 18 33 1d f5 6f 5c bf 36 0c eb c1 fc 06 c5  ТР.3.хo\ї6.лБь.Е
 0x0D 0x2D 0x2B 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x01 0x01
 
 
+srec_cat.exe 
+simple_peripheral_observer_cc2650lp_stack.hex
+-Intel 
+simple_peripheral_observer_cc2650lp_app.hex 
+-Intel 
+-o 
+cc2650lp_ble.hex 
+-Intel
+
+srec_cat 
+firmware-metadata.bin 
+-binary $$@.bin 
+-binary 
+-offset 
+0x100 
+-o 
+$$@-ota-image.bin 
+-binary
 
 
+srec_cat 
+../bootloader/bootloader.hex 
+-intel 
+-crop 
+0x0 
+0x3000 
+0x1FFA8 
+0x20000 
+$$@-ota-image.bin 
+-binary 
+-offset 
+0x3000 
+-crop 
+0x3000 
+0x1B000 
+-o 
+$$@-firmware.hex -intel
+	
 
 
-
-
-
-
-
-
-
-
-
-
-
+srec_cat.exe root-firmware.hex -intel license.bin -binary -offset 0x1D000 -o firmware.hex -intel
 
 
 

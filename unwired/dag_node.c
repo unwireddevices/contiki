@@ -154,7 +154,7 @@ static uint8_t aes_key[16];
 static uint8_t nonce_key[16];
 
 //static struct eeprom eeprom_settings;
-static eeprom_dag_t eeprom_dag;
+static eeprom_t eeprom_dag;
 
 static uint8_t interface; 
 /*---------------------------------------------------------------------------*/

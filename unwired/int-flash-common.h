@@ -60,24 +60,18 @@
 /*---------------------------------------------------------------------------*/
 
 typedef  struct {
-	uint32_t serial;
+	uint8_t type_eeprom;
+	uint8_t type_protokol;
 	uint16_t panid;
     uint8_t channel; 
 	uint8_t interface; 
 	uint8_t aes_key[16];
+	uint32_t serial;
 	bool interface_configured;
 	bool aes_key_configured;
 	bool serial_configured;
-}eeprom_dag_t;
-
-typedef  struct {
-	uint16_t panid;
-    uint8_t channel; 
-	uint8_t interface; 
-	uint8_t aes_key[16];
-	bool interface_configured;
-	bool aes_key_configured;
-}eeprom_root_t;
+	bool type_eeprom_configured;
+}eeprom_t;
 
 /*---------------------------------------------------------------------------*/
 uint32_t write_eeprom(uint8_t *pui8DataBuffer, uint32_t ui32Count);
