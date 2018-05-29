@@ -1,0 +1,1 @@
+srec_cat.exe root-firmware.hex -intel license.bin -binary -offset 0x1D000 -o firmware.hex -intel
