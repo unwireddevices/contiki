@@ -966,6 +966,56 @@ srec_cat.exe root-firmware.hex -intel license.bin -binary -offset 0x1D000 -o fir
 
 
 
+00:12:4b:00:0c:46:8a:86
+
+
+
+
+
+
+typedef  struct {
+	uint16_t panid; 				//+
+    uint8_t channel; 				//+
+	uint8_t interface; 				//+
+	uint8_t aes_key[16];			//+
+	uint32_t serial;				//+-
+	uint8_t interface_configured;	//+
+	uint8_t aes_key_configured;		//+
+	uint8_t serial_configured;		//+-
+}eeprom_t;
+
+BBAA1A0111223344556677889900AABBCCDDEEFFF6920000000000FF
+
+BBAA
+1A
+01
+11223344556677889900AABBCCDDEEFF
+F6920000
+00
+00
+00
+FF
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

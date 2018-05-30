@@ -159,7 +159,7 @@ static eeprom_t eeprom_dag;
 static uint8_t interface; 
 /*---------------------------------------------------------------------------*/
 
-PROCESS(settings_init, "initializing settings");
+PROCESS(settings_dag_init, "Initializing settings");
 PROCESS(dag_node_process, "DAG-node process");
 PROCESS(dag_node_button_process, "DAG-node button process");
 PROCESS(root_find_process, "Root find process");
@@ -1014,7 +1014,7 @@ void led_mode_set(uint8_t mode)
 }
 
 /*---------------------------------------------------------------------------*/
-PROCESS_THREAD(settings_init, ev, data)
+PROCESS_THREAD(settings_dag_init, ev, data)
 {
 	PROCESS_BEGIN();
 	if (ev == PROCESS_EVENT_EXIT)
@@ -1022,7 +1022,7 @@ PROCESS_THREAD(settings_init, ev, data)
 
 	read_eeprom((uint8_t*)&eeprom_dag, sizeof(eeprom_dag));
 	
-	if(eeprom_dag.serial_configured == true)
+	if(eeprom_dag.serial_configured == true) //При первом включении забивает нормальные настройки сети
 	{
 		if(eeprom_dag.aes_key_configured == true)
 		{
@@ -1124,6 +1124,9 @@ PROCESS_THREAD(settings_init, ev, data)
 			printf("PAN ID changed to: %"PRIXX16"\n", eeprom_dag.panid);
 		}
 	}
+	
+	hexraw_print(sizeof(eeprom_dag), (uint8_t*)(&eeprom_dag));
+	
 	process_post(&main_process, PROCESS_EVENT_CONTINUE, NULL);
 	PROCESS_END();
 }

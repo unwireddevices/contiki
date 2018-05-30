@@ -82,7 +82,7 @@ void led_mode_set(uint8_t mode);
 //void udbp_v5_join_stage_3_sender(const uip_ipaddr_t *dest_addr);
 bool wait_response_status(void);
 
-PROCESS_NAME(settings_init);
+PROCESS_NAME(settings_dag_init);
 PROCESS_NAME(dag_node_process);
 PROCESS_NAME(dag_node_button_process);
 PROCESS_NAME(root_find_process);

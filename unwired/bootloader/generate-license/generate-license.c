@@ -1,104 +1,48 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#include <time.h>
+#include <stdlib.h>
 #include "ecc.h"
-
-#define COLON 0x3A
-#define NULL_S 0x00
 
 FILE *ieee_adr_bin; 
 FILE *license_bin; 
 
-typedef  struct {   	//128
-	EccPoint l_public; 	//64
-	uint32_t r[8]; 		//32
-	uint32_t s[8]; 		//32
+typedef  struct {   	
+	EccPoint l_public; 	
+	uint32_t r[8]; 		
+	uint32_t s[8]; 		
 }license_t;
 
 int main(int argc, char *argv[]) 
 {
 	if (argc != 2) 
 	{
-		puts("Wrong number of arguments");
+		puts("Wrong number of arguments\n");
 		return -1;
 	}
 	
 	license_t license;
 	
-	EccPoint l_public;
+	// EccPoint l_public;
     uint32_t l_private[NUM_ECC_DIGITS];
 	uint32_t l_hash[NUM_ECC_DIGITS];
 	uint32_t l_random[NUM_ECC_DIGITS];
 	uint32_t r[NUM_ECC_DIGITS];
     uint32_t s[NUM_ECC_DIGITS];
-	
-	uint8_t *mac = (uint8_t*)(argv[1]);
 
-	// uint8_t output_buffer[ sizeof(license_t) ];
-	// memcpy( output_buffer, (uint8_t *)&license, sizeof(license_t) );
-
-	ieee_adr_bin = fopen( argv[1], "wb" );
-	fread( l_hash, 8, 1, ieee_adr_bin );
-	//fread(_word, FLASH_WORD_SIZE, 1, firmware_bin)
-	fclose( ieee_adr_bin );
+	ieee_adr_bin = fopen(argv[1], "rb");
+	if(ieee_adr_bin == NULL)
+	{
+		puts("File error\n");
+		return -1;
+	}
 	
-	// uint8_t counter = 0;
-	// for(int8_t i = 7; i >= 0; i--)
-	// {
-		// if(mac[counter] == COLON || mac[counter] == NULL_S)//0
-		// {
-			// ((uint8_t*)l_hash)[i] = 0;
-			// ((uint8_t*)l_hash)[i+8] = 0;
-			// ((uint8_t*)l_hash)[i+16] = 0;
-			// ((uint8_t*)l_hash)[i+24] = 0;
-			// counter++;
-		// }
-		// else if(mac[counter+1] == COLON || mac[counter+1] == NULL_S)//1
-		// {
-			// ((uint8_t*)l_hash)[i] = char_to_number(mac[counter]);
-			// ((uint8_t*)l_hash)[i+8] = ((uint8_t*)l_hash)[i];
-			// ((uint8_t*)l_hash)[i+16] = ((uint8_t*)l_hash)[i];
-			// ((uint8_t*)l_hash)[i+24] = ((uint8_t*)l_hash)[i];
-			// counter += 2;
-		// }
-		// else if(mac[counter+2] == COLON || mac[counter+2] == NULL_S)//2
-		// {
-			// ((uint8_t*)l_hash)[i] = ((char_to_number(mac[counter])<<4) | (char_to_number(mac[counter+1])));
-			// ((uint8_t*)l_hash)[i+8] = ((uint8_t*)l_hash)[i];
-			// ((uint8_t*)l_hash)[i+16] = ((uint8_t*)l_hash)[i];
-			// ((uint8_t*)l_hash)[i+24] = ((uint8_t*)l_hash)[i];
-			// counter += 3;
-		// }
-		// else
-		// {
-			// printf("Ret\n");
-			// return -1;
-		// }
-	// }
-	
-	for(uint8_t i = 0; i < 32; i++)
-		printf("%x ", ((uint8_t*)l_hash)[i]);
-	printf("\n");
-	
-	//x = 6F F5 1D 33 18 D0 D2 DC 6D 54 D4 42 3E 5E 13 34 F3 69 8B 3E 99 03 48 67 A4 77 19 F1 2F DE BE 6C
-	l_public.x[0] = 0x2FDEBE6C;
-	l_public.x[1] = 0xA47719F1;
-	l_public.x[2] = 0x99034867;
-	l_public.x[3] = 0xF3698B3E;
-	l_public.x[4] = 0x3E5E1334;
-	l_public.x[5] = 0x6D54D442;
-	l_public.x[6] = 0x18D0D2DC;
-	l_public.x[7] = 0x6FF51D33;
-	
-	//y = AE F2 B7 CD 47 37 41 83 9B 96 F6 A5 A4 D8 C0 8B CC 76 9E 3E 14 12 9C C5 06 FC C1 EB 0C 36 BF 5C
-	l_public.y[0] = 0x0C36BF5C;
-	l_public.y[1] = 0x06FCC1EB;
-	l_public.y[2] = 0x14129CC5;
-	l_public.y[3] = 0xCC769E3E;
-	l_public.y[4] = 0xA4D8C08B;
-	l_public.y[5] = 0x9B96F6A5;
-	l_public.y[6] = 0x47374183;
-	l_public.y[7] = 0xAEF2B7CD;
+	fread(l_hash, 8, 1, ieee_adr_bin);
+	fclose(ieee_adr_bin);
+	memcpy((&(l_hash[2])), l_hash, 8);  
+	memcpy((&(l_hash[4])), l_hash, 8); 
+	memcpy((&(l_hash[6])), l_hash, 8); 
 	
 	//d = 24 B8 50 94 0A 9B 79 02 14 D7 7E 95 D4 0B 11 49 5A 30 D5 80 CF 8C 39 0B BC 09 F1 BC FA 10 88 06
 	l_private[0] = 0xFA108806;
@@ -109,26 +53,68 @@ int main(int argc, char *argv[])
 	l_private[5] = 0x14D77E95;
 	l_private[6] = 0x0A9B7902;
 	l_private[7] = 0x24B85094;
+	
+	// for(uint8_t i = 0; i < 32; i++)
+		// printf("%x ", ((uint8_t*)l_hash)[i]);
+	// printf("\n");
+	
+	//x = 6F F5 1D 33 18 D0 D2 DC 6D 54 D4 42 3E 5E 13 34 F3 69 8B 3E 99 03 48 67 A4 77 19 F1 2F DE BE 6C
+	// l_public.x[0] = 0x2FDEBE6C;
+	// l_public.x[1] = 0xA47719F1;
+	// l_public.x[2] = 0x99034867;
+	// l_public.x[3] = 0xF3698B3E;
+	// l_public.x[4] = 0x3E5E1334;
+	// l_public.x[5] = 0x6D54D442;
+	// l_public.x[6] = 0x18D0D2DC;
+	// l_public.x[7] = 0x6FF51D33;
+	
+	//y = AE F2 B7 CD 47 37 41 83 9B 96 F6 A5 A4 D8 C0 8B CC 76 9E 3E 14 12 9C C5 06 FC C1 EB 0C 36 BF 5C
+	// l_public.y[0] = 0x0C36BF5C;
+	// l_public.y[1] = 0x06FCC1EB;
+	// l_public.y[2] = 0x14129CC5;
+	// l_public.y[3] = 0xCC769E3E;
+	// l_public.y[4] = 0xA4D8C08B;
+	// l_public.y[5] = 0x9B96F6A5;
+	// l_public.y[6] = 0x47374183;
+	// l_public.y[7] = 0xAEF2B7CD;
+	
+	//d = 24 B8 50 94 0A 9B 79 02 14 D7 7E 95 D4 0B 11 49 5A 30 D5 80 CF 8C 39 0B BC 09 F1 BC FA 10 88 06
+	// l_private[0] = 0xFA108806;
+	// l_private[1] = 0xBC09F1BC;
+	// l_private[2] = 0xCF8C390B;
+	// l_private[3] = 0x5A30D580;
+	// l_private[4] = 0xD40B1149;
+	// l_private[5] = 0x14D77E95;
+	// l_private[6] = 0x0A9B7902;
+	// l_private[7] = 0x24B85094;
 
 	//hash = 00 12 4b 00 0c 46 8a 86 00 12 4b 00 0c 46 8a 86 00 12 4b 00 0c 46 8a 86 00 12 4b 00 0c 46 8a 86 	
-	l_hash[0] = 0x0c468a86;
-	l_hash[1] = 0x00124b00;
-	l_hash[2] = 0x0c468a86;
-	l_hash[3] = 0x00124b00;
-	l_hash[4] = 0x0c468a86;
-	l_hash[5] = 0x00124b00;
-	l_hash[6] = 0x0c468a86;
-	l_hash[7] = 0x00124b00;
+	// l_hash[0] = 0x0c468a86;
+	// l_hash[1] = 0x00124b00;
+	// l_hash[2] = 0x0c468a86;
+	// l_hash[3] = 0x00124b00;
+	// l_hash[4] = 0x0c468a86;
+	// l_hash[5] = 0x00124b00;
+	// l_hash[6] = 0x0c468a86;
+	// l_hash[7] = 0x00124b00;
 	
 	//random = 48 7A 0D 38 75 BD B8 12 9A 13 3F 00 5B 81 EC 32 F6 FB A3 06 5B C9 EE 44 06 0B 6E D5 73 53 83 2C
-	l_random[0] = 0x7353832C;
-	l_random[1] = 0x060B6ED5;
-	l_random[2] = 0x5BC9EE44;
-	l_random[3] = 0xF6FBA306;
-	l_random[4] = 0x5B81EC32;
-	l_random[5] = 0x9A133F00;
-	l_random[6] = 0x75BDB812;
-	l_random[7] = 0x487A0D38;
+	// l_random[0] = 0x7353832C;
+	// l_random[1] = 0x060B6ED5;
+	// l_random[2] = 0x5BC9EE44;
+	// l_random[3] = 0xF6FBA306;
+	// l_random[4] = 0x5B81EC32;
+	// l_random[5] = 0x9A133F00;
+	// l_random[6] = 0x75BDB812;
+	// l_random[7] = 0x487A0D38;
+	
+	srand(time(NULL));	
+	for(uint8_t i = 0; i < 32; i++)
+		((uint8_t*)l_random)[i] = (rand() % 256);;
+	
+	// for(uint8_t i = 0; i < 32; i++)
+		// printf("%x ", ((uint8_t*)l_random)[i]);
+	// printf("\n");
 	
 	//
 	if(!ecdsa_sign(r, s, l_private, l_random, l_hash))

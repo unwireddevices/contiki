@@ -144,7 +144,6 @@ static void on_uart(uint32_t rx_dio, uint32_t tx_dio, uint32_t baud_rate)
 PROCESS_THREAD(main_process, ev, data)
 {
 	PROCESS_BEGIN();
-	//printf("Unwired buttons device. HELL-IN-CODE free. I hope.\n");
 	printf("Start Unwired UART device.\n");
 	PROCESS_PAUSE();
 	
@@ -179,11 +178,11 @@ PROCESS_THREAD(main_process, ev, data)
 	}
 	
 	//settings_init();
-	process_start(&settings_init, NULL);
+	process_start(&settings_dag_init, NULL);
 	
 	PROCESS_YIELD_UNTIL(ev == PROCESS_EVENT_CONTINUE);
 	
-	process_exit(&settings_init);
+	process_exit(&settings_dag_init);
 	
 	process_start(&dag_node_process, NULL);
 	
