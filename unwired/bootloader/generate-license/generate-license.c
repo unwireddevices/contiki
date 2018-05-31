@@ -118,9 +118,12 @@ int main(int argc, char *argv[])
 	
 	//
 	if(!ecdsa_sign(r, s, l_private, l_random, l_hash))
-		printf("ecdsa_sign() failed\n");
+	{
+		printf("License generation failed\n");
+		return -1;
+	}
 	else
-		printf("ecdsa_sign() ok\n");
+		printf("License generation Ok\n");
 	//
 	
 	//x = 6F F5 1D 33 18 D0 D2 DC 6D 54 D4 42 3E 5E 13 34 F3 69 8B 3E 99 03 48 67 A4 77 19 F1 2F DE BE 6C

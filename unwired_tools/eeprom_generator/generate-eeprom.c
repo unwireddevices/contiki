@@ -1,102 +1,28 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#include <stdlib.h>
 
-#define COLON 0x3A
-#define NULL_S 0x00
+#define INTERFACE_RS485 0
+#define INTERFACE_CAN 	1
 
 FILE *eeprom_bin; 
 
 typedef  struct {
-	uint16_t panid; 				//+
-    uint8_t channel; 				//+
-	uint8_t interface; 				//+
-	uint8_t aes_key[16];			//+
-	uint32_t serial;				//+-
-	uint8_t interface_configured;	//+
-	uint8_t aes_key_configured;		//+
-	uint8_t serial_configured;		//+-
+	uint16_t panid; 		
+    uint8_t channel; 				
+	uint8_t interface; 				
+	uint8_t aes_key[16];		
+	uint32_t serial;				
+	uint8_t panid_configured;
+	uint8_t channel_configured;	
+	uint8_t interface_configured;	
+	uint8_t aes_key_configured;		
+	uint8_t serial_configured;	
 }eeprom_t;
 
-//generate-eeprom.exe [panid] [channel] [aes_key] [serial] [interface] 
-//generate-eeprom.exe 0xAABB 26 11223344556677889900AABBCCDDEEFF 37622 CAN
-//BBAA1A0111223344556677889900AABBCCDDEEFFF6920000000000FF
-
-uint8_t char_to_number(uint8_t number)
-{
-	switch ( number ) 
-	{
-		case '0':
-			return 0x00;
-			break;
-		case '1':
-			return 0x01;
-			break;
-		case '2':
-			return 0x02;
-			break;
-		case '3':
-			return 0x03;
-			break;
-		case '4':
-			return 0x04;
-			break;
-		case '5':
-			return 0x05;
-			break;
-		case '6':
-			return 0x06;
-			break;
-		case '7':
-			return 0x07;
-			break;
-		case '8':
-			return 0x08;
-			break;
-		case '9':
-			return 0x09;
-			break;
-		case 'a':
-			return 0x0a;
-			break;
-		case 'A':
-			return 0x0a;
-			break;
-		case 'b':
-			return 0x0b;
-			break;
-		case 'B':
-			return 0x0b;
-			break;
-		case 'c':
-			return 0x0c;
-			break;
-		case 'C':
-			return 0x0c;
-			break;
-		case 'd':
-			return 0x0d;
-			break;
-		case 'D':
-			return 0x0d;
-			break;
-		case 'e':
-			return 0x0e;
-			break;
-		case 'E':
-			return 0x0e;
-			break;
-		case 'f':
-			return 0x0f;
-			break;
-		case 'F':
-			return 0x0f;
-			break;
-		default:
-			return 0;
-			break;
-	}
-}
+//generate-eeprom.exe [panid] [channel] [aes_key] [interface] [serial] 
+//generate-eeprom.exe 0xAABB 26 11223344556677889900AABBCCDDEEFF CAN 37622
 
 int main(int argc, char *argv[]) 
 {
@@ -108,48 +34,75 @@ int main(int argc, char *argv[])
 	
 	eeprom_t eeprom;
 	
-	// uint8_t *mac = (uint8_t*)(argv[1]);
-
-	// uint8_t counter = 0;
-	// for(int8_t i = 7; i >= 0; i--)
-	// {
-		// if(mac[counter] == COLON || mac[counter] == NULL_S)//0
-		// {
-			// ((uint8_t*)l_hash)[i] = 0;
-			// ((uint8_t*)l_hash)[i+8] = 0;
-			// ((uint8_t*)l_hash)[i+16] = 0;
-			// ((uint8_t*)l_hash)[i+24] = 0;
-			// counter++;
-		// }
-		// else if(mac[counter+1] == COLON || mac[counter+1] == NULL_S)//1
-		// {
-			// ((uint8_t*)l_hash)[i] = char_to_number(mac[counter]);
-			// ((uint8_t*)l_hash)[i+8] = ((uint8_t*)l_hash)[i];
-			// ((uint8_t*)l_hash)[i+16] = ((uint8_t*)l_hash)[i];
-			// ((uint8_t*)l_hash)[i+24] = ((uint8_t*)l_hash)[i];
-			// counter += 2;
-		// }
-		// else if(mac[counter+2] == COLON || mac[counter+2] == NULL_S)//2
-		// {
-			// ((uint8_t*)l_hash)[i] = ((char_to_number(mac[counter])<<4) | (char_to_number(mac[counter+1])));
-			// ((uint8_t*)l_hash)[i+8] = ((uint8_t*)l_hash)[i];
-			// ((uint8_t*)l_hash)[i+16] = ((uint8_t*)l_hash)[i];
-			// ((uint8_t*)l_hash)[i+24] = ((uint8_t*)l_hash)[i];
-			// counter += 3;
-		// }
-		// else
-		// {
-			// printf("Ret\n");
-			// return -1;
-		// }
-	// }
+	eeprom.panid = (uint16_t)(strtoul(argv[1], NULL, 16));
+	eeprom.panid_configured = 0;
 	
-	// for(uint8_t i = 0; i < 32; i++)
-		// printf("%x ", ((uint8_t*)l_hash)[i]);
-	// printf("\n");
+	eeprom.channel = (uint8_t)(strtoul(argv[2], NULL, 10));
+	if(eeprom.channel >= 0 && eeprom.channel < 34)
+		eeprom.channel_configured = 0;
+	else
+	{
+		printf("Error channel\n");
+		eeprom.channel_configured = 0xFF;
+		return -1;
+	}
 	
-	// uint8_t output_buffer[sizeof(eeprom)];
-	// memcpy(output_buffer, (uint8_t *)&eeprom, sizeof(eeprom));
+	if(strlen(argv[3]) == 32)
+	{
+		uint8_t *crypto_key = (uint8_t*)(argv[3]);
+		uint8_t crypto_byte[3];
+		crypto_byte[2] = '\0';
+		for(uint8_t i = 0; i < 16; i++)
+		{
+			crypto_byte[0] = crypto_key[i*2];
+			crypto_byte[1] = crypto_key[(i*2)+1];
+			eeprom.aes_key[i] = (uint8_t)(strtoul(crypto_byte, NULL, 16));
+		}
+		eeprom.aes_key_configured = 0;
+	}
+	else
+	{
+		printf("Error key\n");
+		eeprom.interface_configured = 0xFF;
+		return -1;
+	}
+	
+	if(!strncmp(argv[4], "rs485", 5))
+	{
+		eeprom.interface = INTERFACE_RS485;
+		eeprom.interface_configured = 0;
+	}
+	if(!strncmp(argv[4], "RS485", 5))
+	{
+		eeprom.interface = INTERFACE_RS485;
+		eeprom.interface_configured = 0;
+	}
+	else if(!strncmp(argv[4], "can", 3))
+	{
+		eeprom.interface = INTERFACE_CAN;
+		eeprom.interface_configured = 0;
+	}
+	else if(!strncmp(argv[4], "CAN", 3))
+	{
+		eeprom.interface = INTERFACE_CAN;
+		eeprom.interface_configured = 0;
+	}
+	else
+	{
+		printf("Unknown interface\n");
+		eeprom.interface_configured = 0xFF;
+		return -1;
+	}
+	
+	eeprom.serial = (uint32_t)(strtoul(argv[5], NULL, 10));
+	if(eeprom.serial >= 0 && eeprom.serial < 1000000)
+		eeprom.serial_configured = 0;
+	else
+	{
+		printf("Error serial\n");
+		eeprom.serial_configured = 0xFF;
+		return -1;
+	}
 
 	eeprom_bin = fopen("eeprom.bin", "wb");
 	if(eeprom_bin == NULL)
@@ -161,6 +114,6 @@ int main(int argc, char *argv[])
 	fwrite(&eeprom, sizeof(eeprom), 1, eeprom_bin);
 	fclose(eeprom_bin);
 
-	printf("Ok\n");
+	printf("EEPROM generation Ok\n");
 	return 0;
 }

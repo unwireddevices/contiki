@@ -84,9 +84,8 @@
 /* Register button sensors */
 SENSORS(&button_e_sensor_click, &button_e_sensor_long_click);
 
-
 /* register main button process */
-PROCESS(main_process, "UD Buttons control process");
+PROCESS(main_process, "UART process");
 //PROCESS(uart_process, "TEST Process");
 
 /* set autostart processes */

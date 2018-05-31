@@ -974,17 +974,20 @@ srec_cat.exe root-firmware.hex -intel license.bin -binary -offset 0x1D000 -o fir
 
 
 typedef  struct {
-	uint16_t panid; 				//+
-    uint8_t channel; 				//+
-	uint8_t interface; 				//+
-	uint8_t aes_key[16];			//+
-	uint32_t serial;				//+-
-	uint8_t interface_configured;	//+
-	uint8_t aes_key_configured;		//+
-	uint8_t serial_configured;		//+-
+	uint16_t panid; 				
+    uint8_t channel; 				
+	uint8_t interface; 				
+	uint8_t aes_key[16];		
+	uint32_t serial;				
+	uint8_t panid_configured;
+	uint8_t channel_configured;	
+	uint8_t interface_configured;	
+	uint8_t aes_key_configured;		
+	uint8_t serial_configured;	
 }eeprom_t;
 
 BBAA1A0111223344556677889900AABBCCDDEEFFF6920000000000FF
+BBAA1A0111223344556677889900AABBCCDDEEFFF69200000000000000FFFFFF
 
 BBAA
 1A
@@ -1001,16 +1004,299 @@ FF
 
 
 
+PROCESS_THREAD(unwired_shell_channel_process, ev, data)
+{
+	uint8_t max_args = 2;
+	char *args[max_args+1]; //necessary to allocate on one pointer more
+	uint8_t argc = 0;
+
+	PROCESS_BEGIN();
+
+	argc = parse_args(data, args, max_args);
+	if (argc < 1)
+	{
+		printf("Channel: No args! Use \"channel <set/get> <num>\"\n");
+		printf("\n");
+		PROCESS_EXIT();
+	}
+
+	if (!strncmp(args[0], "get", 3))
+	{
+		radio_value_t channel = 0;
+		NETSTACK_RADIO.get_value(RADIO_PARAM_CHANNEL, &channel);
+
+		if (ti_lib_chipinfo_chip_family_is_cc26xx())
+		{
+			uint32_t freq_mhz = (2405 + 5 * (channel - 11));
+			printf("Channel get: Current radio-channel: %"PRIint" (%"PRIu32" MHz)\n", (int)channel, freq_mhz);
+		}
+
+		if (ti_lib_chipinfo_chip_family_is_cc13xx())
+		{
+			uint32_t freq_khz = 863125 + (channel * 200);
+			printf("Channel get: Current radio-channel: %"PRIint" (%"PRIu32" kHz)\n", (int)channel, freq_khz);
+		}
+	}
+
+	if (!strncmp(args[0], "set", 3))
+	{
+		uint8_t channel = 0;
+		str2int_errno_t status = dec_str2uint8(&channel, args[1]);
+
+		uint8_t cc1310_max_channel = 33;
+		uint8_t cc1310_min_channel = 0;
+
+		uint8_t cc2650_min_channel = 11;
+		uint8_t cc2650_max_channel = 26;
+
+		if (status != STR2INT_SUCCESS)
+		{
+			printf("Channel set error: Incorrect channel number arg\n");
+			printf("\n");
+			PROCESS_EXIT();
+		}
+
+
+		if (ti_lib_chipinfo_chip_family_is_cc26xx())
+		{
+			if (channel > cc2650_max_channel || channel < cc2650_min_channel)
+				printf("Channel set error: Select a channel in the range %"PRIu8"-%"PRIu8"\n", cc2650_min_channel, cc2650_max_channel);
+			else
+			{
+				uint32_t freq_mhz = (2405 + 5 * (channel - 11));
+				printf("Channel: Set new radio-channel: %"PRIu8" (%"PRIu32" MHz)\n", channel, freq_mhz);
+				NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, channel);
+				channel_update(channel);
+			}
+		}
+
+		if (ti_lib_chipinfo_chip_family_is_cc13xx())
+		{
+			if (channel > cc1310_max_channel || channel < cc1310_min_channel)
+				printf("Channel set error: Select a channel in the range %"PRIu8"-%"PRIu8"\n", cc1310_min_channel, cc1310_max_channel);
+			else if (channel == 30 || channel == 29)
+			{
+				uint32_t freq_khz = 863125 + (channel * 200);
+				printf("Channel: Set new radio-channel: %"PRIu8" (%"PRIu32" kHz)\n", channel, freq_khz);
+				NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, channel);
+				channel_update(channel);
+			}
+			else
+			{
+				printf("Channel set error: Сhannel %" PRIu8 " is not available in the current region(only 29/30 ch). ¯\\_(ツ)_/¯\n", channel);
+				printf("\n");
+				PROCESS_EXIT();
+			}
+		}
+	}
+
+	printf("\n");
+	PROCESS_END();
+}
+
+PROCESS_THREAD(unwired_shell_cryptokey_process, ev, data)
+{
+	uint8_t max_args = 17;
+	char *args[max_args+1]; //necessary to allocate on one pointer more
+	uint8_t argc = 0;
+
+	PROCESS_BEGIN();
+	
+	argc = parse_args(data, args, max_args);
+	if(argc == 0)
+	{
+		printf("CryptoKey: No args! Use \"cryptokey <set/get> <AES-128 Key(xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx)>\"\n");
+		PROCESS_EXIT();
+	}
+
+	if(argc == 1)
+	{
+		if(!strncmp(args[0], "get", 3))
+		{
+			uint8_t *key = get_aes128_key();
+			printf("AES-128 Key:");
+			for (uint8_t i = 0; i < 16; i++)
+				printf(" %"PRIXX8, key[i]);
+			printf("\n");
+			PROCESS_EXIT();
+		}
+	}
+
+	if(argc == 17)
+	{
+		if(!strncmp(args[0], "set", 3))
+		{
+			uint8_t new_aes128_key[16];
+			
+			for(uint8_t i = 0; i < 16; i++)
+			{
+				str2int_errno_t status = hex_str2uint8(&new_aes128_key[i], args[i + 1]); 
+				
+				if (status != STR2INT_SUCCESS)
+				{
+					printf("AES-128 Key set error: Incorrect key arg\n");
+					PROCESS_EXIT();
+				}	
+			}
+			
+			aes128_key_update(new_aes128_key);
+			
+			uint8_t *key = get_aes128_key();
+			printf("AES-128 Key set:");
+			for (uint8_t i = 0; i < 16; i++)
+				printf(" %"PRIXX8, key[i]);
+			printf("\n");
+			
+			PROCESS_EXIT();
+		}
+	}
+	
+	printf("AES-128 Key set error: Incorrect key arg\n");
+	printf("Use \"cryptokey <set/get> <AES-128 Key(xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx)>\"\n");
+	printf("\n");
+	PROCESS_END();
+}
+
+PROCESS_THREAD(unwired_shell_interface_process, ev, data)
+{
+	uint8_t max_args = 2;
+	char *args[max_args+1]; //necessary to allocate on one pointer more
+	uint8_t argc = 0;
+
+	PROCESS_BEGIN();
+	
+	argc = parse_args(data, args, max_args);
+	if(argc == 0)
+	{
+		printf("Interface: No args! Use \"interface <set/get> <rs485/can>\"\n");
+		PROCESS_EXIT();
+	}
+
+	if(argc == 1)
+	{
+		if(!strncmp(args[0], "get", 3))
+		{
+			printf("Interface: ");
+			
+			if(get_interface() == INTERFACE_RS485)
+				printf("RS485\n");
+			else if(get_interface() == INTERFACE_CAN)
+				printf("CAN\n");
+			else 
+				printf("unknown interface\n");
+
+			PROCESS_EXIT();
+		}
+	}
+
+	if(argc == 2)
+	{
+		if(!strncmp(args[0], "set", 3))
+		{
+			if(!strncmp(args[1], "rs485", 5))
+			{
+				printf("Installed interface RS485\n");
+				interface_update(INTERFACE_RS485);
+				
+			}
+			else if(!strncmp(args[1], "can", 3))
+			{
+				printf("Installed interface CAN\n");
+				interface_update(INTERFACE_CAN);
+			}
+			else
+			{
+				printf("Unknown interface\n");
+			}
+
+			PROCESS_EXIT();
+		}
+	}
+	
+	printf("Interface set error: Incorrect interface\n");
+	printf("Use \"interface <set/get> <rs485/can>\"\n");
+	printf("\n");
+	PROCESS_END();
+}
+
+PROCESS_THREAD(unwired_shell_serial_process, ev, data)
+{
+	uint8_t max_args = 2;
+	char *args[max_args+1]; //necessary to allocate on one pointer more
+	uint8_t argc = 0;
+
+	PROCESS_BEGIN();
+
+	argc = parse_args(data, args, max_args);
+	if (argc < 1)
+	{
+		printf("Serial: No args! Use \"serial <set/get> <serial number>\"\n");
+		PROCESS_EXIT();
+	}
+
+	if(!strncmp(args[0], "get", 3))
+	{
+		printf("Serial: %lu\n", get_serial());
+		//printf("Serial number is not still installed\n");
+		PROCESS_EXIT();
+	}
+
+	if(!strncmp(args[0], "set", 3))
+	{
+		uint32_t serial_set = 0;
+		str2int_errno_t status = dec_str2uint32(&serial_set, args[1]);
+
+		uint32_t serial_min = 0;
+		uint32_t serial_max = 999999;
+
+		if (status != STR2INT_SUCCESS)
+		{
+			printf("Serial set error: Incorrect serial number arg\n");
+			PROCESS_EXIT();
+		}
+		else
+		{
+			if (serial_set > serial_max || serial_set < serial_min)
+			{
+				printf("Serial set error: Select a serial in the range %"PRIu32"-%"PRIu32"\n", serial_min, serial_max);
+				PROCESS_EXIT();
+			}
+			else
+			{
+				printf("Serial set: %lu\n", serial_set);
+				serial_update(serial_set);
+				PROCESS_EXIT();
+			}
+		}
+	}
+   
+	printf("\n");
+	PROCESS_END();
+}
 
 
 
 
-
-
-
-
-
-
+@echo off
+title UNWDS FLASHER
+color 0A
+set /p com = "COM port: "
+:start
+	backdoor-bootloader.py -r -l 8 -a 0x500012F0 -b 115200 -p %com% ieee_adr.bin
+	generate-license.exe ieee_adr.bin
+	rm ieee_adr.bin
+	set /p serial = "Serial: "
+	generate-eeprom.exe 0xAABB 26 11223344556677889900AABBCCDDEEFF CAN 37622
+	srec_cat.exe uart-firmware.hex -intel license.bin -binary -offset 0x1D000 eeprom.bin -binary -offset 0x1E000 -o uart_firmware.hex -intel
+	rm license.bin
+	rm eeprom.bin
+	pause
+	backdoor-bootloader.py -e -w -b 115200 -p %com% -v uart_firmware.hex
+	rm uart_firmware.hex
+	pause
+	cls
+goto start
+pem
 
 
 

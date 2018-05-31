@@ -60,14 +60,16 @@
 /*---------------------------------------------------------------------------*/
 
 typedef  struct {
-	uint16_t panid; 				//+
-    uint8_t channel; 				//+
-	uint8_t interface; 				//+
-	uint8_t aes_key[16];			//+
-	uint32_t serial;				//+-
-	uint8_t interface_configured;	//+
-	uint8_t aes_key_configured;		//+
-	uint8_t serial_configured;		//+-
+	uint16_t panid; 				
+    uint8_t channel; 				
+	uint8_t interface; 				
+	uint8_t aes_key[16];		
+	uint32_t serial;				
+	uint8_t panid_configured;
+	uint8_t channel_configured;	
+	uint8_t interface_configured;	
+	uint8_t aes_key_configured;		
+	uint8_t serial_configured;	
 }eeprom_t;
 
 /*---------------------------------------------------------------------------*/
