@@ -887,14 +887,14 @@ uint16_t get_nonce(uint32_t serial)
 	return 0;
 }
 /*---------------------------------------------------------------------------*/
-void unlock_addr(uint32_t serial,  uint16_t counter)
+void unlock_addr(uint32_t serial)
 {
 	uip_ds6_route_t *r = uip_ds6_route_serial_lookup(serial);
 	
 	if(r != NULL)
 	{
 		if(r->counter == 0xFFFF) //Разблокируем счетчик
-			r->counter = counter;	
+			r->counter = 0;	
 	}		
 }
 /*---------------------------------------------------------------------------*/
@@ -904,9 +904,8 @@ bool valid_counter(uint32_t serial, uint16_t counter)
 	
 	if(r != NULL)
 	{
-		if((r->counter < counter) || ((r->counter == 0) && (counter == 0)))//Проверка на активность.  //|| ((r->counter == 0) && (counter == 0))
+		if(r->counter < counter)//Проверка на активность. 
 		{
-			printf("%i<%i", r->counter, counter);
 			r->counter = counter;
 			return true;
 		}

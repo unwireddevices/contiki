@@ -216,9 +216,7 @@ void udbp_v5_join_stage_4_sender(const uip_ip6addr_t *dest_addr, const uint8_t *
 		unlock_addr((uint32_t) ((data[UDBP_V5_HEADER_LENGTH + 2] << 24) |
 								(data[UDBP_V5_HEADER_LENGTH + 3] << 16) |
 								(data[UDBP_V5_HEADER_LENGTH + 4] << 8)  |
-								(data[UDBP_V5_HEADER_LENGTH + 5] )),
-					(uint16_t) ((data[UDBP_V5_HEADER_LENGTH + 1] << 8)  |
-								 data[UDBP_V5_HEADER_LENGTH]));				
+								(data[UDBP_V5_HEADER_LENGTH + 5] )));				
 	}
 					 
 	uint8_t payload_length = 18; //2 HEADER + 16 AES

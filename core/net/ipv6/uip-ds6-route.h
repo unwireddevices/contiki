@@ -223,7 +223,7 @@ void decompress_uip_ipaddr_t(uip_ipaddr_t *addr_out, uip_ipaddr_compressed_t *ad
 void add_route(uint32_t serial, uip_ip6addr_t *addr, uint16_t nonce);
 uip_ip6addr_t find_addr(uint32_t serial);
 uint16_t get_nonce(uint32_t serial);
-void unlock_addr(uint32_t serial,  uint16_t counter);
+void unlock_addr(uint32_t serial);
 bool valid_counter(uint32_t serial, uint16_t counter);
 #endif
 /** @} */

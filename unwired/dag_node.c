@@ -507,7 +507,7 @@ static void udbp_v5_join_stage_4_handler(const uip_ipaddr_t *sender_addr,
 		uip_ipaddr_copy(&root_addr, sender_addr); //Авторизован
 		process_post(&dag_node_process, PROCESS_EVENT_CONTINUE, NULL);
 		etimer_set(&maintenance_timer, 0);
-		packet_counter_node.u16 = 0;
+		packet_counter_node.u16 = 1;
 		return;
 	}
 	
