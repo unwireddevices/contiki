@@ -134,19 +134,6 @@ __attribute__((__packed__))
 
 
 
-Das U-Boot
-RedBoot 	
-UMon
-Barebox
-
-
-
-Curve25519, Ed25519 //zbs vrode
-nistk163, nistk283,  nistk571 //xyeta
-secp256k1// behoven
-
-
-
 Context before hardfault:
    r0: 0x2000147c
    r1: 0x1ff800d0

@@ -77,8 +77,8 @@
    UART_INT_FE | UART_INT_RT | UART_INT_TX | \
    UART_INT_RX | UART_INT_CTS)
    
-#define RS485_DE IOID_29
-#define RS485_RE IOID_30
+//#define RS485_DE IOID_29
+//#define RS485_RE IOID_30
 
 /*---------------------------------------------------------------------------*/
 /* Register button sensors */
@@ -123,6 +123,7 @@ static void on_uart(uint32_t rx_dio, uint32_t tx_dio, uint32_t baud_rate)
 	  (*(unsigned long*)(0x4000102C)) = 112; //без обновления регистра LCRH скорость не обновляется (FEN && WLEN)
    }
    
+   ti_lib_ioc_io_port_pull_set(IOID_26, IOC_IOPULL_UP);
    ti_lib_ioc_pin_type_gpio_output(tx_dio);
    ti_lib_gpio_set_dio(tx_dio);
    while(ti_lib_uart_busy(UART0_BASE));

@@ -904,8 +904,9 @@ bool valid_counter(uint32_t serial, uint16_t counter)
 	
 	if(r != NULL)
 	{
-		if(r->counter < counter) //Проверка на активность.
+		if((r->counter < counter) || ((r->counter == 0) && (counter == 0)))//Проверка на активность.  //|| ((r->counter == 0) && (counter == 0))
 		{
+			printf("%i<%i", r->counter, counter);
 			r->counter = counter;
 			return true;
 		}

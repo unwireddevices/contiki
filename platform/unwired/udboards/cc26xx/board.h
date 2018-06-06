@@ -128,8 +128,8 @@
 #define BOARD_UART_TX             (1 << BOARD_IOID_UART_TX)
 #define BOARD_UART_CTS            (1 << BOARD_IOID_UART_CTS)
 #define BOARD_UART_RTS            (1 << BOARD_IOID_UART_RTS)
-#define RS485_DE 				  IOID_29 //
-#define RS485_RE 				  IOID_30 //
+#define RS485_DE 				  IOID_4 //
+#define RS485_RE 				  IOID_5 //
 /** @} */
 /*---------------------------------------------------------------------------*/
 /**

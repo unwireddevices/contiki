@@ -141,6 +141,12 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 	PROCESS_BEGIN();
 
 	printf("Start Unwired RLP root.\n");
+		
+	process_start(&settings_root_init, NULL);
+	
+	PROCESS_YIELD_UNTIL(ev == PROCESS_EVENT_CONTINUE);
+	
+	process_exit(&settings_root_init);
 	
 	/* if you do not execute "cleanall" target, rpl-root can build in "leaf" configuration. Diagnostic message */
 	if (RPL_CONF_LEAF_ONLY == 1)

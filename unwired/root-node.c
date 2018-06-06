@@ -64,9 +64,11 @@
 #include "root-node.h"
 #include "crypto-common.h"
 #include "rtc-common.h"
+#include "int-flash-common.h"
 
 #include "dev/serial-line.h"
 #include "../cpu/cc26xx-cc13xx/dev/cc26xx-uart.h"
+#include "uart/root.h"
 
 /*---------------------------------------------------------------------------*/
 
@@ -96,6 +98,9 @@ static bool wait_response_slave = 0;
 
 volatile union { uint16_t u16; uint8_t u8[2]; } packet_counter_root;
 
+static eeprom_t eeprom_root;
+
+PROCESS(settings_root_init, "Initializing settings");
 PROCESS(main_root_process, "main root process");
 
 
@@ -121,26 +126,11 @@ static void udbp_v5_rx_uart_from_air_to_tx_handler(const uip_ip6addr_t *addr, co
 	uint16_t counter = ((aes_buffer[1] << 8)  |
 						 aes_buffer[0]);
 	
-	if(valid_counter(serial, counter))
+	if(valid_counter(serial, counter) || valid_counter(aes_buffer[3], counter))//|| valid_counter(aes_buffer[3], counter)
 	{
 		for(uint16_t i = 0; i < aes_buffer[2]; i++)
 			cc26xx_uart_write_byte(aes_buffer[i + 3]);
 	}
-	
-	//printf("%lu\n", serial);
-	//printf("%lu\n", counter);
-	//printf("%i\n", valid_counter(serial, counter));
-	
-	//for(uint16_t i = 0; i < 4; i++)
-	//	cc26xx_uart_write_byte((uint8_t)*(&serial[i]));
-	
-	//for(uint16_t i = 0; i < 2; i++)
-	//	cc26xx_uart_write_byte((uint8_t)*(&counter[i]));
-	
-	//for (uint16_t i = 0; i < length - 6; i++) 
-	//{
-	//	cc26xx_uart_write_byte(data[i + 6]);
-	//}
 }
 
 /*---------------------------------------------------------------------------*/
@@ -178,45 +168,11 @@ void udbp_v5_join_stage_2_sender(const uip_ip6addr_t *dest_addr, const uint8_t *
 	aes_buffer[0] = (uint8_t)((nonce >> 8) & 0xFF);
 	aes_buffer[1] = (uint8_t)(nonce & 0xFF);
 	
-	//printf(" %"PRIXX8, aes_buffer[0]);
-	//printf(" %"PRIXX8, aes_buffer[1]);
-	//printf("\n");
-	
-	
 	for(uint8_t i = 2; i < 16; i++)
 		aes_buffer[i] = 0x00;
 	
 	aes_ecb_encrypt((uint32_t*)aes_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[8]));
-	
-	/*
-	for (uint16_t i = 0; i < 16; i++)
-	{
-		printf(" %"PRIXX8, aes_buffer[i]);
-	}
-	printf("\n");
-	
-	for (uint16_t i = 0; i < 16; i++)
-	{
-		printf(" %"PRIXX8, udp_buffer[i+8]);
-	}
-	*/
-	
-	//printf("\n");
-	
-	//udp_buffer[8] = DATA_RESERVED;
-	//udp_buffer[9] = DATA_RESERVED;
-	//udp_buffer[10] = DATA_RESERVED;
-	//udp_buffer[11] = DATA_RESERVED;
-	//udp_buffer[12] = DATA_RESERVED;
-	//udp_buffer[13] = DATA_RESERVED;
-	//udp_buffer[14] = DATA_RESERVED;
-	//udp_buffer[15] = DATA_RESERVED;
-	//udp_buffer[16] = DATA_RESERVED;
-	//udp_buffer[17] = DATA_RESERVED;
-	//udp_buffer[18] = DATA_RESERVED;
-	//udp_buffer[19] = DATA_RESERVED;
-	//udp_buffer[20] = DATA_RESERVED;
-	//udp_buffer[21] = DATA_RESERVED;
+
 	simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
 	packet_counter_root.u16++;
 }
@@ -253,12 +209,6 @@ void udbp_v5_join_stage_4_sender(const uip_ip6addr_t *dest_addr, const uint8_t *
 	nonce_key[14] = (uint8_t)((nonce >> 8) & 0xFF);
 	nonce_key[15] = (uint8_t)(nonce & 0xFF);
 	
-	//uint16_t nonce = 0xDEAD;
-	//aes_buffer[0] = (uint8_t)((nonce >> 8) & 0xFF);
-	//aes_buffer[1] = (uint8_t)(nonce & 0xFF);
-	//for(uint8_t i = 2; i < 16; i++)
-		//aes_buffer[i] = 0x00;
-	
 	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[12], (uint32_t*)(aes_buffer), 16);
 								
 	if(aes_buffer[0] == nonce_key[0] && aes_buffer[1] == nonce_key[1])
@@ -270,10 +220,7 @@ void udbp_v5_join_stage_4_sender(const uip_ip6addr_t *dest_addr, const uint8_t *
 					(uint16_t) ((data[UDBP_V5_HEADER_LENGTH + 1] << 8)  |
 								 data[UDBP_V5_HEADER_LENGTH]));				
 	}
-	
-	//printf("%i\n", (uint16_t) ((data[UDBP_V5_HEADER_LENGTH + 1] << 8)  |
-	//							 data[UDBP_V5_HEADER_LENGTH + 1]));
-						 
+					 
 	uint8_t payload_length = 18; //2 HEADER + 16 AES
 	uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
 	udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
@@ -290,39 +237,6 @@ void udbp_v5_join_stage_4_sender(const uip_ip6addr_t *dest_addr, const uint8_t *
 		aes_buffer[i] = 0x00;
 	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[8]), 16);
 	
-	/*for (uint16_t i = 0; i < 16; i++)
-	{
-		printf(" %"PRIXX8, nonce_key[i]);
-	}
-	printf("\n");
-	
-	for (uint16_t i = 0; i < 16; i++)
-	{
-		printf(" %"PRIXX8, aes_buffer[i]);
-	}
-	printf("\n");
-	
-	for (uint16_t i = 0; i < 16; i++)
-	{
-		printf(" %"PRIXX8, udp_buffer[i+8]);
-	}
-	*/
-	//printf("\n"); 
-	
-	//udp_buffer[8] = DATA_RESERVED;
-	//udp_buffer[9] = DATA_RESERVED;
-	//udp_buffer[10] = DATA_RESERVED;
-	//udp_buffer[11] = DATA_RESERVED;
-	//udp_buffer[12] = DATA_RESERVED;
-	//udp_buffer[13] = DATA_RESERVED;
-	//udp_buffer[14] = DATA_RESERVED;
-	//udp_buffer[15] = DATA_RESERVED;
-	//udp_buffer[16] = DATA_RESERVED;
-	//udp_buffer[17] = DATA_RESERVED;
-	//udp_buffer[18] = DATA_RESERVED;
-	//udp_buffer[19] = DATA_RESERVED;
-	//udp_buffer[20] = DATA_RESERVED;
-	//udp_buffer[21] = DATA_RESERVED;
 	simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
 	packet_counter_root.u16++;
 }
@@ -401,7 +315,6 @@ void udup_v5_dag_root_print(const uip_ip6addr_t *addr, const uint8_t *data, cons
    udup_v5_cr_uart_tx_buffer[9] = ((uint8_t *)addr)[14];
    udup_v5_cr_uart_tx_buffer[10] = ((uint8_t *)addr)[15];
 
-
    if (version == UDBP_PROTOCOL_VERSION_V5)
    {
       udup_v5_cr_uart_tx_buffer[11] = data[5]; //voltage
@@ -427,18 +340,11 @@ void udup_v5_dag_root_print(const uip_ip6addr_t *addr, const uint8_t *data, cons
       udup_v5_cr_uart_tx_buffer[i + UDUP_V5_CR_PAYLOAD_OFFSET] = data[i + payload_offset];
       //printf("%" PRIXX8 " ", data[i + payload_offset]);
    }
-   //printf("\n");
-   //cc26xx_uart_write_byte(0x55);
 
    /* Считаем контрольную сумму */
    crc16_calculated.u16 = crc16_arc(udup_v5_cr_uart_tx_buffer, UDUP_V5_CR_PAYLOAD_OFFSET + payload_length.u16);
    udup_v5_cr_uart_tx_buffer[UDUP_V5_CR_PAYLOAD_OFFSET + payload_length.u16+0] = crc16_calculated.u8[1]; //Меняем порядок байт на MSB-First
    udup_v5_cr_uart_tx_buffer[UDUP_V5_CR_PAYLOAD_OFFSET + payload_length.u16+1] = crc16_calculated.u8[0];
-
-   /*for (uint16_t i = 0; i < payload_length.u16; i++) {
-	  cc26xx_uart_write_byte(data[i + payload_offset]);
-      //printf("%" PRIXX8 " ", data[i + payload_offset]);
-   }*/
 
    /* Выводим весь пакет в UART в зависимости от настроек */
    if(uart_status_r() == 0)
@@ -462,13 +368,7 @@ void udp_data_receiver(struct simple_udp_connection *connection,
 {
 	//printf("udp_data_receiver\n");
    led_on(LED_A);
-/*
-   printf("Raw net packet: ");
-   for (uint16_t i = 0; i < datalen; i++) {
-      printf("%" PRIXX8 " ", data[i]);
-   }
-   printf("\n");
-*/
+
    uip_ip6addr_t node_addr;
    uip_ip6addr_copy(&node_addr, sender_addr);
 
@@ -932,40 +832,68 @@ static uint8_t iterator_to_byte(uint8_t iterator)
 	return 0;
 }
 /*---------------------------------------------------------------------------*/
-static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
+static void uart_to_air() 
 {
-	//printf("uart_to_air\n");
-	//if (dest_addr == NULL)
-		//return;
-
-
-	//fd00:0000:0000:0000:0212:4b00:0c46:7a01
-	//uip_ipaddr_t addr = { 0xfd, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x12, 0x4b, 0x00, 0x0c, 0x46, 0x7a, 0x01 };
+	uip_ipaddr_t addr;
+	uint16_t nonce;
 	
-	uip_ipaddr_t addr = find_addr((uint32_t)((udup_v5_rc_uart_rx_buffer[0] << 24) |
-											 (udup_v5_rc_uart_rx_buffer[1] << 16) |
-											 (udup_v5_rc_uart_rx_buffer[2] << 8)  |
-											  udup_v5_rc_uart_rx_buffer[3]));
-											  
-	uip_ip6addr_t addr_not_found;
-	uip_ip6addr(&addr_not_found, 0, 0, 0, 0, 0, 0, 0, 0);
-	
-	if((((&addr)->u16[0])  == 0x00)  && //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
-		(((&addr)->u16[1])  == 0x00) && //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
-		(((&addr)->u16[2])  == 0x00) && //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
-		(((&addr)->u16[3])  == 0x00) && //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
-		(((&addr)->u16[4])  == 0x00) && //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
-		(((&addr)->u16[5])  == 0x00) && //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
-		(((&addr)->u16[6])  == 0x00) && //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
-		(((&addr)->u16[7])  == 0x00))	//ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ И ПРЕОТЛАДИТЬ
-	{	
-		return; //Нету такого адреса
+	if(udup_v5_data_iterator < 7) //Если команда меньше 7 байт, то она для однобайтно адресуемых счетчиков
+	{
+		addr = find_addr((uint32_t)(udup_v5_rc_uart_rx_buffer[0]));
+		
+		if((((&addr)->u16[0])  == 0x00) && 
+		(((&addr)->u16[1])  == 0x00) && 
+		(((&addr)->u16[2])  == 0x00) && 
+		(((&addr)->u16[3])  == 0x00) &&
+		(((&addr)->u16[4])  == 0x00) &&
+		(((&addr)->u16[5])  == 0x00) && 
+		(((&addr)->u16[6])  == 0x00) && 
+		(((&addr)->u16[7])  == 0x00))
+		{
+			return;
+		}
+		
+		nonce = get_nonce((uint32_t)(udup_v5_rc_uart_rx_buffer[0]));
 	}
-	
-	uint16_t nonce = get_nonce((uint32_t) ( (udup_v5_rc_uart_rx_buffer[0] << 24) |
-											(udup_v5_rc_uart_rx_buffer[1] << 16) |
-											(udup_v5_rc_uart_rx_buffer[2] << 8)  |
-											(udup_v5_rc_uart_rx_buffer[3] )));
+	else //В первую очередь проверяем по четырехбайтному адресу, а потом по однобайтному
+	{
+		addr = find_addr((uint32_t)((udup_v5_rc_uart_rx_buffer[0] << 24) |
+												 (udup_v5_rc_uart_rx_buffer[1] << 16) |
+												 (udup_v5_rc_uart_rx_buffer[2] << 8)  |
+												  udup_v5_rc_uart_rx_buffer[3]));
+		if((((&addr)->u16[0])  == 0x00) && 
+		(((&addr)->u16[1])  == 0x00) && 
+		(((&addr)->u16[2])  == 0x00) && 
+		(((&addr)->u16[3])  == 0x00) &&
+		(((&addr)->u16[4])  == 0x00) &&
+		(((&addr)->u16[5])  == 0x00) && 
+		(((&addr)->u16[6])  == 0x00) && 
+		(((&addr)->u16[7])  == 0x00))	
+		{	
+					addr = find_addr((uint32_t)(udup_v5_rc_uart_rx_buffer[0]));
+		
+					if((((&addr)->u16[0])  == 0x00) && 
+					(((&addr)->u16[1])  == 0x00) && 
+					(((&addr)->u16[2])  == 0x00) && 
+					(((&addr)->u16[3])  == 0x00) &&
+					(((&addr)->u16[4])  == 0x00) &&
+					(((&addr)->u16[5])  == 0x00) && 
+					(((&addr)->u16[6])  == 0x00) && 
+					(((&addr)->u16[7])  == 0x00))
+					{
+						return;
+					}
+					
+					nonce = get_nonce((uint32_t)(udup_v5_rc_uart_rx_buffer[0]));
+		}
+		else
+		{
+			nonce = get_nonce((uint32_t)((udup_v5_rc_uart_rx_buffer[0] << 24) |
+										 (udup_v5_rc_uart_rx_buffer[1] << 16) |
+										 (udup_v5_rc_uart_rx_buffer[2] << 8)  |
+										 (udup_v5_rc_uart_rx_buffer[3] )));
+		}
+	}
 	
 	nonce_key[0] = (uint8_t)((nonce >> 8) & 0xFF);
 	nonce_key[1] = (uint8_t)(nonce & 0xFF);
@@ -983,18 +911,6 @@ static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ �
 	nonce_key[13] = (uint8_t)(nonce & 0xFF);
 	nonce_key[14] = (uint8_t)((nonce >> 8) & 0xFF);
 	nonce_key[15] = (uint8_t)(nonce & 0xFF);
-	
-	
-	//if(addr == addr_not_found)
-		//return;
-											  
-	//printf("\nSerial: %lu\n", (uint32_t)((udup_v5_rc_uart_rx_buffer[0] << 24) |
-	//								     (udup_v5_rc_uart_rx_buffer[1] << 16) |
-	//									 (udup_v5_rc_uart_rx_buffer[2] << 8)  |
-	//									  udup_v5_rc_uart_rx_buffer[3]));
-	//uip_debug_ipaddr_print(&addr);
-	//printf("\n");
-	//printf("route_table_ptr: %i\n", route_table_ptr);
 
 	uint8_t payload_length = iterator_to_byte(udup_v5_data_iterator + 3);
 	uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
@@ -1007,7 +923,7 @@ static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ �
 	
 	aes_buffer[0] = packet_counter_root.u8[0];
 	aes_buffer[1] = packet_counter_root.u8[1];
-	aes_buffer[2] = udup_v5_data_iterator;//Длина пакета
+	aes_buffer[2] = udup_v5_data_iterator; //Длина пакета
 	
 	for(uint8_t i = 3; i < payload_length; i++)
 	{
@@ -1018,20 +934,110 @@ static void uart_to_air() //ЧО ЗА ХУЙНЯ НАДО ПЕРЕДЕЛАТЬ �
 	}
 	
 	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[UDBP_V5_HEADER_LENGTH]), payload_length);
-
-	
-	//for (uint16_t i = 0; i < payload_length + UDBP_V5_HEADER_LENGTH; i++) 
-	//{
-	//	cc26xx_uart_write_byte(udp_buffer[i]);
-	//}
-	
-	
-	//for(uint8_t i = 0; i < udup_v5_data_iterator; i++) /*Копирование из буфера приема UART*/
-	//	udp_buffer[i+8] = udup_v5_rc_uart_rx_buffer[i];
 	
 	simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
 	packet_counter_root.u16++;
 }
+
+/*---------------------------------------------------------------------------*/
+
+PROCESS_THREAD(settings_root_init, ev, data)
+{
+	PROCESS_BEGIN();
+	if (ev == PROCESS_EVENT_EXIT)
+		return 1;
+
+	read_eeprom((uint8_t*)&eeprom_root, sizeof(eeprom_root));
+	
+	if(eeprom_root.aes_key_configured == true) //При первом включении забивает нормальные настройки сети
+	{
+		if((eeprom_root.channel != 26) && (eeprom_root.panid != 0xAABB))
+		{
+			eeprom_root.channel = 26;
+			eeprom_root.panid = 0xAABB;
+			write_eeprom((uint8_t*)&eeprom_root, sizeof(eeprom_root));
+		}
+	}
+	
+	if(!eeprom_root.aes_key_configured) 
+	{
+		printf("AES-128 key:");
+		for (uint8_t i = 0; i < 16; i++)
+		{
+			aes_key[i] = eeprom_root.aes_key[i];
+			printf(" %"PRIXX8, aes_key[i]);
+		}
+		printf("\n");
+		// ;
+	}
+	else
+	{
+		printf("AES-128 key not declared\n******************************\n******PLEASE SET AES KEY******\n******************************\n");
+		// led_mode_set(LED_FAST_BLINK);
+		while(eeprom_root.aes_key_configured)
+		{
+			PROCESS_YIELD();
+		}		
+	}
+	
+	// if(!eeprom_root.interface_configured) 
+	// {
+		// interface = eeprom_root.interface;
+	
+		// if(interface == INTERFACE_RS485)
+			// printf("Installed interface RS485\n");
+		// else if(interface == INTERFACE_CAN)
+			// printf("Installed interface CAN\n");
+		// else
+			// printf("Unknown interface\n");
+	// }
+	// else
+	// {
+		// printf("Interface not declared\n******************************\n*****PLEASE SET INTERFACE*****\n******************************\n");
+		// led_mode_set(LED_FAST_BLINK);
+		
+		// while(eeprom_root.interface_configured)
+		// {
+			// PROCESS_YIELD();
+		// }	
+	// }
+	
+	radio_value_t channel = 0;
+	NETSTACK_RADIO.get_value(RADIO_PARAM_CHANNEL, &channel);
+	
+	if(channel != eeprom_root.channel)
+	{
+		NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, eeprom_root.channel);
+		
+		if (ti_lib_chipinfo_chip_family_is_cc26xx())
+		{
+			uint32_t freq_mhz = (2405 + 5 * (eeprom_root.channel - 11));
+			printf("Changed the radio-channel to: %"PRIint" (%"PRIu32" MHz)\n", (int)eeprom_root.channel, freq_mhz);
+		}
+
+		if (ti_lib_chipinfo_chip_family_is_cc13xx())
+		{
+			uint32_t freq_khz = 863125 + (eeprom_root.channel * 200);
+			printf("Changed the radio-channel to: %"PRIint" (%"PRIu32" kHz)\n", (int)eeprom_root.channel, freq_khz);
+		}
+	}
+	
+	if (ti_lib_chipinfo_chip_family_is_cc26xx())
+	{
+		radio_value_t panid = 0;
+		NETSTACK_RADIO.get_value(RADIO_PARAM_PAN_ID, &panid);
+		
+		if(panid != eeprom_root.panid)
+		{
+			NETSTACK_RADIO.set_value(RADIO_PARAM_PAN_ID, eeprom_root.panid);
+			printf("PAN ID changed to: %"PRIXX16"\n", eeprom_root.panid);
+		}
+	}
+	
+	process_post(&rpl_root_process, PROCESS_EVENT_CONTINUE, NULL);
+	PROCESS_END();
+}
+
 /*---------------------------------------------------------------------------*/
 
 PROCESS_THREAD(main_root_process, ev, data)
@@ -1054,7 +1060,7 @@ PROCESS_THREAD(main_root_process, ev, data)
       {
 		 if(uart == 1)
 		 {
-			 if(udup_v5_data_iterator > 6)
+			 if(udup_v5_data_iterator > 3)
 			 {
 				crc_uart = crc16_modbus(udup_v5_rc_uart_rx_buffer, udup_v5_data_iterator-2);
 				if(crc_uart == (uint16_t)((udup_v5_rc_uart_rx_buffer[udup_v5_data_iterator-1] << 8) | 

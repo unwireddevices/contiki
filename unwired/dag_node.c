@@ -153,7 +153,6 @@ static uint8_t aes_buffer[128];
 static uint8_t aes_key[16];
 static uint8_t nonce_key[16];
 
-//static struct eeprom eeprom_settings;
 static eeprom_t eeprom_dag;
 
 static uint8_t interface; 
@@ -328,7 +327,7 @@ void udbp_v5_uart_to_root_sender(char* data)
 		uint16_t crc_uart;
 		crc_uart = crc16_modbus((uint8_t*)&data[1], (data[0] - 2));
 		
-		if(data[0] > 6)
+		if(data[0] > 3)
 		{
 			if(crc_uart != (uint16_t)((data[((uint8_t)(data[0]))] << 8) | data[(data[0]-1)]))
 			{
@@ -337,7 +336,7 @@ void udbp_v5_uart_to_root_sender(char* data)
 		}
 		else
 		{
-			return; //Слишком маленькая длина фрейма 4 байта адреса и 2 CRC16
+			return; //Слишком маленькая длина фрейма
 		}
 		
 		uip_ipaddr_t addr;
@@ -365,33 +364,6 @@ void udbp_v5_uart_to_root_sender(char* data)
 		}
 	
 		aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[UDBP_V5_HEADER_LENGTH]), payload_length);
-
-
-		//for(uint8_t i = 1; i < (data[0] + 1); i++) /*Копирование из буфера приема UART*/
-		//	udp_buffer[i+7] = data[i];
-		  
-		  
-		//udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH - 2] = 0x12;//(uint8_t)(crc_uart >> 8);//CRC16
-		//udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH - 1] = 0x34;//(uint8_t)(crc_uart & 0xFF);//CRC16
-		
-		//udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH - 2] = (uint8_t)((uint16_t)((data[(data[0])] << 8) | data[(data[0]-1)]) >> 8);//CRC16
-		//udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH - 1] = (uint8_t)((uint16_t)((data[(data[0])] << 8) | data[(data[0]-1)]) & 0xFF);//CRC16
-/*
-		udp_buffer[8] = DATA_RESERVED;
-		udp_buffer[9] = DATA_RESERVED;
-		udp_buffer[10] = DATA_RESERVED;
-		udp_buffer[11] = DATA_RESERVED;
-		udp_buffer[12] = DATA_RESERVED;
-		udp_buffer[13] = DATA_RESERVED;
-		udp_buffer[14] = DATA_RESERVED;
-		udp_buffer[15] = DATA_RESERVED;
-		udp_buffer[16] = DATA_RESERVED;
-		udp_buffer[17] = DATA_RESERVED;
-		udp_buffer[18] = DATA_RESERVED;
-		udp_buffer[19] = DATA_RESERVED;
-		udp_buffer[20] = DATA_RESERVED;
-		udp_buffer[21] = DATA_RESERVED;
- */
 
 		net_on(RADIO_ON_TIMER_OFF);
 		simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
@@ -439,12 +411,6 @@ void udbp_v5_join_stage_1_sender(const uip_ipaddr_t *dest_addr)
 	udp_buffer[15] = (uint8_t)((serial >> 16) & 0xFF); 	// SERIAL
 	udp_buffer[16] = (uint8_t)((serial >> 8) & 0xFF);  	// SERIAL
 	udp_buffer[17] = (uint8_t)(serial & 0xFF);			// SERIAL
-/*
-	udp_buffer[18] = DATA_RESERVED;
-	udp_buffer[19] = DATA_RESERVED;
-	udp_buffer[20] = DATA_RESERVED;
-	udp_buffer[21] = DATA_RESERVED;
- */
 
 	simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
 }
@@ -503,47 +469,9 @@ static void udbp_v5_join_stage_3_sender(const uip_ipaddr_t *dest_addr,
 	nonce_key[14] = aes_buffer[0];
 	nonce_key[15] = aes_buffer[1];
 	
-	/*
-	for (uint16_t i = 0; i < 16; i++)
-	{
-		printf(" %"PRIXX8, nonce_key[i]);
-	}
-	printf("\n");
-	
-	for (uint16_t i = 0; i < 16; i++)
-	{
-		printf(" %"PRIXX8, aes_buffer[i]);
-	}
-	printf("\n");
-	
-	for (uint16_t i = 0; i < 16; i++)
-	{
-		printf(" %"PRIXX8, udp_buffer[i+12]);
-	}
-	printf("\n");
-	*/
-	
 	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[12]), 16);
-	
-/*	
-	udp_buffer[12] = DATA_RESERVED;
-	udp_buffer[13] = DATA_RESERVED;
-	udp_buffer[14] = DATA_RESERVED;
-	udp_buffer[15] = DATA_RESERVED;
-	udp_buffer[16] = DATA_RESERVED;
-	udp_buffer[17] = DATA_RESERVED;
-	udp_buffer[18] = DATA_RESERVED;
-	udp_buffer[19] = DATA_RESERVED;
-	udp_buffer[20] = DATA_RESERVED;
-	udp_buffer[21] = DATA_RESERVED;
- */
 
 	simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
-
-	//uip_ipaddr_copy(&root_addr, sender_addr);
-	//process_post(&dag_node_process, PROCESS_EVENT_CONTINUE, NULL);
-	//etimer_set(&maintenance_timer, 0);
-	//packet_counter_node.u16 = 0;
 }
 /*---------------------------------------------------------------------------*/
 static void udbp_v5_join_stage_4_handler(const uip_ipaddr_t *sender_addr,
@@ -556,26 +484,6 @@ static void udbp_v5_join_stage_4_handler(const uip_ipaddr_t *sender_addr,
 		return;
 			
 	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[8], (uint32_t*)(aes_buffer), 16);
-	
-	/*
-	for (uint16_t i = 0; i < 16; i++)
-	{
-		printf(" %"PRIXX8, nonce_key[i]);
-	}
-	printf("\n");
-	
-	for (uint16_t i = 0; i < 16; i++)
-	{
-		printf(" %"PRIXX8, data[i+8]);
-	}
-	printf("\n");
-	
-	for (uint16_t i = 0; i < 16; i++)
-	{
-		printf(" %"PRIXX8, aes_buffer[i]);
-	}
-	printf("\n");
-	*/
 	
 	if( (aes_buffer[0] == 0x00)  &&
 		(aes_buffer[1] == 0x00)  &&
@@ -596,7 +504,6 @@ static void udbp_v5_join_stage_4_handler(const uip_ipaddr_t *sender_addr,
 	{
 		packet_counter_root.u8[0] = data[6];
 		packet_counter_root.u8[1] = data[7];
-		//printf("%i\n", packet_counter_root.u16);////////////////////////////////////////
 		uip_ipaddr_copy(&root_addr, sender_addr); //Авторизован
 		process_post(&dag_node_process, PROCESS_EVENT_CONTINUE, NULL);
 		etimer_set(&maintenance_timer, 0);
@@ -876,20 +783,7 @@ void udbp_v5_message_sender(uint8_t message_type, uint8_t data_1, uint8_t data_2
 	udp_buffer[8] = message_type;
 	udp_buffer[9] = data_1;
 	udp_buffer[10] = data_2;
-/*
-	udp_buffer[11] = DATA_RESERVED;
-	udp_buffer[12] = DATA_RESERVED;
-	udp_buffer[13] = DATA_RESERVED;
-	udp_buffer[14] = DATA_RESERVED;
-	udp_buffer[15] = DATA_RESERVED;
-	udp_buffer[16] = DATA_RESERVED;
-	udp_buffer[17] = DATA_RESERVED;
-	udp_buffer[18] = DATA_RESERVED;
-	udp_buffer[19] = DATA_RESERVED;
-	udp_buffer[20] = DATA_RESERVED;
-	udp_buffer[21] = DATA_RESERVED;
- */
-
+	
 	net_on(RADIO_ON_TIMER_OFF);
 	simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
 	packet_counter_node.u16++;
@@ -1060,6 +954,7 @@ PROCESS_THREAD(settings_dag_init, ev, data)
 			printf(" %"PRIXX8, aes_key[i]);
 		}
 		printf("\n");
+		// ;
 	}
 	else
 	{
@@ -1124,8 +1019,6 @@ PROCESS_THREAD(settings_dag_init, ev, data)
 			printf("PAN ID changed to: %"PRIXX16"\n", eeprom_dag.panid);
 		}
 	}
-	
-	hexraw_print(sizeof(eeprom_dag), (uint8_t*)(&eeprom_dag));
 	
 	process_post(&main_process, PROCESS_EVENT_CONTINUE, NULL);
 	PROCESS_END();

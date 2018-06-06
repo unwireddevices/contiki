@@ -42,6 +42,9 @@
 
 #include "../ud_binary_protocol.h"
 
+#define INTERFACE_RS485 			0 //
+#define INTERFACE_CAN 				1 //
+
 /*---------------------------------------------------------------------------*/
 
  typedef enum hex_to_bin_errno_t{
@@ -53,6 +56,7 @@
 /* main UPD connection */
 struct simple_udp_connection udp_connection;
 
+PROCESS_NAME(settings_root_init);
 PROCESS_NAME(main_root_process);
 
 /*---------------------------------------------------------------------------*/
