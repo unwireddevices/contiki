@@ -25,51 +25,19 @@
  * SUCH DAMAGE.
  */
 /*---------------------------------------------------------------------------*/
-/*
-* \file
-*         RPL-root service for Unwired Devices mesh 
-* \author
-*         Manchenko Oleg man4enkoos@gmail.com
-*/
+/**
+ * \file
+ *         Header file for internal flash read-write functions
+ * \author
+ *         Vladislav Zaytsev vvzvlad@gmail.com vz@unwds.com
+ */
 /*---------------------------------------------------------------------------*/
 
 #include "contiki.h"
-#include "net/ip/uip.h"
-#include "net/ipv6/uip-ds6.h"
-
-#include <stdio.h>
-#include <string.h>
-
-#include "../ud_binary_protocol.h"
-
-#define INTERFACE_RS485 			0 //
-#define INTERFACE_CAN 				1 //
 
 /*---------------------------------------------------------------------------*/
 
-/* main UPD connection */
-struct simple_udp_connection udp_connection;
-
-PROCESS_NAME(main_root_process);
-
-/*---------------------------------------------------------------------------*/
-
-void rpl_initialize();
-
-void root_node_initialize();
-
-void udp_data_receiver(struct simple_udp_connection *connection,
-                       const uip_ipaddr_t *sender_addr,
-                       uint16_t sender_port,
-                       const uip_ipaddr_t *receiver_addr,
-                       uint16_t receiver_port,
-                       const uint8_t *data,
-                       uint16_t datalen);
-
-int uart_data_receiver(unsigned char uart_char);
-
-void set_uart_r(void);
-void unset_uart_r(void);
-uint8_t uart_status_r(void);
+PROCESS_NAME(settings_root_init);
+PROCESS_NAME(settings_dag_init);
 
 /*---------------------------------------------------------------------------*/

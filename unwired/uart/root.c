@@ -27,9 +27,9 @@
 /*---------------------------------------------------------------------------*/
 /*
 * \file
-*         RPL-root service for Unwired Devices mesh smart house system(UDMSHS %) <- this is smile
+*         RPL-root service for Unwired Devices mesh 
 * \author
-*         Vladislav Zaytsev vvzvlad@gmail.com vz@unwds.com
+*         Manchenko Oleg man4enkoos@gmail.com
 */
 /*---------------------------------------------------------------------------*/
 
@@ -62,9 +62,9 @@
 #include "root.h"
 #include "../root-node.h"
 #include "../system-common.h"//
+#include "../settings-init-common.h"//
 
 #include "sys/etimer.h"
-
 
 #define CC26XX_UART_INTERRUPT_ALL ( UART_INT_OE | UART_INT_BE | UART_INT_PE | \
 									UART_INT_FE | UART_INT_RT | UART_INT_TX | \
@@ -134,9 +134,7 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 	printf("Start Unwired RLP root.\n");
 		
 	process_start(&settings_root_init, NULL);
-	
 	PROCESS_YIELD_UNTIL(ev == PROCESS_EVENT_CONTINUE);
-	
 	process_exit(&settings_root_init);
 	
 	/* if you do not execute "cleanall" target, rpl-root can build in "leaf" configuration. Diagnostic message */
@@ -144,12 +142,10 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 		printf("\nWARNING: leaf mode on rpl-root!\n");
 
 	rpl_initialize();
-
 	root_node_initialize();
 
 	static struct etimer shell_off;
 	etimer_set(&shell_off, CLOCK_SECOND * 15);
-
 	PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&shell_off));
    
 	if (BOARD_IOID_UART_TX != BOARD_IOID_ALT_UART_TX || BOARD_IOID_UART_RX != BOARD_IOID_ALT_UART_RX)
@@ -176,7 +172,7 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 			led_on(LED_A);
 			if(uart_status_r() == 0)
 				printf("UDM: Button E long click, reboot\n");
-				watchdog_reboot();
+			watchdog_reboot();
 		}
 	}
 

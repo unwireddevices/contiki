@@ -70,7 +70,7 @@ typedef  struct {
 	uint8_t interface_configured;	
 	uint8_t aes_key_configured;		
 	uint8_t serial_configured;	
-}eeprom_t;
+} eeprom_t;
 
 /*---------------------------------------------------------------------------*/
 uint32_t write_eeprom(uint8_t *pui8DataBuffer, uint32_t ui32Count);

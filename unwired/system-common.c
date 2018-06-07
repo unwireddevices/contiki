@@ -60,224 +60,243 @@
 
 /*---------------------------------------------------------------------------*/
 
-void
-flash_damp_hex(uint8_t mode)
+void flash_damp_hex(uint8_t mode)
 {
-   const uint32_t start_adress = (ota_images[1-1] << 12);
-   const uint32_t read_length = 0x400;
-   uint8_t flash_read_data_buffer[read_length];
+	const uint32_t start_adress = (ota_images[1-1] << 12);
+	const uint32_t read_length = 0x400;
+	uint8_t flash_read_data_buffer[read_length];
 
-   printf("SPIFLASH DAMP: \n");
-   for (uint8_t page=0; page < 100; page++ )
-   {
-      watchdog_periodic();
-      ext_flash_open();
-      bool eeprom_access = ext_flash_read(start_adress+(read_length*page), read_length, flash_read_data_buffer);
-      ext_flash_close();
+	printf("SPIFLASH DAMP: \n");
+	for (uint8_t page = 0; page < 100; page++ )
+	{
+		watchdog_periodic();
+		ext_flash_open();
+		bool eeprom_access = ext_flash_read(start_adress + (read_length * page), read_length, flash_read_data_buffer);
+		ext_flash_close();
 
-      if(!eeprom_access)
-      {
-         printf("SPIFLASH: Error - Could not read EEPROM\n");
-      }
-      else
-      {
-         if (mode == HEXVIEW_MODE)
-            hexview_print(read_length, flash_read_data_buffer, start_adress+(read_length*page));
-         if (mode == HEXRAW_MODE)
-            hexraw_print(read_length, flash_read_data_buffer);
-      }
-   }
-   printf("\nSPIFLASH DAMP END \n");
-
+		if(!eeprom_access)
+		{
+			printf("SPIFLASH: Error - Could not read EEPROM\n");
+		}
+		else
+		{
+			if (mode == HEXVIEW_MODE)
+				hexview_print(read_length, flash_read_data_buffer, start_adress+(read_length*page));
+			if (mode == HEXRAW_MODE)
+				hexraw_print(read_length, flash_read_data_buffer);
+		}
+	}
+	printf("\nSPIFLASH DAMP END \n");
 }
 
 /*---------------------------------------------------------------------------*/
 
-void
-hexraw_print(uint32_t flash_length, uint8_t *flash_read_data_buffer)
+void hexraw_print(uint32_t flash_length, uint8_t *flash_read_data_buffer)
 {
-   for (uint32_t i = 0; i < flash_length; i++)
-   {
-         printf("%"PRIXX8, flash_read_data_buffer[i]);
-   }
+	for (uint32_t i = 0; i < flash_length; i++)
+	{
+		printf("%"PRIXX8, flash_read_data_buffer[i]);
+	}
 }
 
 /*---------------------------------------------------------------------------*/
 
-void
-hexview_print(uint32_t flash_length, uint8_t *flash_read_data_buffer, uint32_t offset)
+void hexview_print(uint32_t flash_length, uint8_t *flash_read_data_buffer, uint32_t offset)
 {
-
-   for (uint32_t i = 0; i < flash_length; i = i + 16)
-   {
-      printf("0x%"PRIXX32": ", i + offset);
-      for (int i2 = 0; i2 < 16; i2++)
-      {
-         printf("%"PRIXX8" ", flash_read_data_buffer[i2+i]);
-         if (i2 == 7) { printf(" "); }
-      }
-      printf("\n");
-   }
-
+	for (uint32_t i = 0; i < flash_length; i = i + 16)
+	{
+		printf("0x%"PRIXX32": ", i + offset);
+		for (int i2 = 0; i2 < 16; i2++)
+		{
+			printf("%"PRIXX8" ", flash_read_data_buffer[i2+i]);
+			if (i2 == 7) 
+				printf(" ");
+		}
+		printf("\n");
+	}
 }
 
 /*---------------------------------------------------------------------------*/
 
 uint16_t crc16_arc(uint8_t *data, uint16_t len)
 {
-   uint16_t crc = 0x0000;
-   uint16_t j;
-   int i;
-   // Note: 0xA001 is the reflection of 0x8005
-   for (j = len; j > 0; j--)
-   {
-      crc ^= *data++;
-      for (i = 0; i < 8; i++)
-      {
-         if (crc & 1)
-            crc = (crc >> 1) ^ 0xA001;
-         else
-            crc >>= 1;
-      }
-   }
-   return (crc);
+	uint16_t crc = 0x0000;
+	uint16_t j;
+	int i;
+	// Note: 0xA001 is the reflection of 0x8005
+	for (j = len; j > 0; j--)
+	{
+		crc ^= *data++;
+		for (i = 0; i < 8; i++)
+		{
+			if (crc & 1)
+				crc = (crc >> 1) ^ 0xA001;
+			else
+				crc >>= 1;
+		}
+	}
+	
+	return (crc);
 }
 
 /*---------------------------------------------------------------------------*/
 
 uint16_t crc16_modbus(uint8_t *data, uint16_t len)
 {
-   uint16_t crc = 0xFFFF;
-   uint16_t j;
-   int i;
-   // Note: 0xA001 is the reflection of 0x8005
-   for (j = len; j > 0; j--)
-   {
-      crc ^= *data++;
-      for (i = 0; i < 8; i++)
-      {
-         if (crc & 1)
-            crc = (crc >> 1) ^ 0xA001;
-         else
-            crc >>= 1;
-      }
-   }
-   return (crc);
+	uint16_t crc = 0xFFFF;
+	uint16_t j;
+	int i;
+	// Note: 0xA001 is the reflection of 0x8005
+	for (j = len; j > 0; j--)
+	{
+		crc ^= *data++;
+		for (i = 0; i < 8; i++)
+		{
+			if (crc & 1)
+				crc = (crc >> 1) ^ 0xA001;
+			else
+				crc >>= 1;
+		}
+	}
+	
+	return (crc);
 }
 
 /*---------------------------------------------------------------------------*/
 
 uint8_t get_voltage()
 {
-   return (uint8_t)((((batmon_sensor.value(BATMON_SENSOR_TYPE_VOLT) * 125) >> 5)-2000)/50);
+	return (uint8_t)((((batmon_sensor.value(BATMON_SENSOR_TYPE_VOLT) * 125) >> 5) - 2000) / 50);
 }
 
 /*---------------------------------------------------------------------------*/
 
 uint8_t get_temperature()
 {
-   uint32_t temp_offset = batmon_sensor.value(BATMON_SENSOR_TYPE_TEMP)+50;
-   uint8_t temp_offset_u8 = (uint8_t)temp_offset;
-   return temp_offset_u8;
+	uint32_t temp_offset = batmon_sensor.value(BATMON_SENSOR_TYPE_TEMP) + 50;
+	uint8_t temp_offset_u8 = (uint8_t)temp_offset;
+	
+	return temp_offset_u8;
 }
 
 /*---------------------------------------------------------------------------*/
 
 uint8_t get_parent_rssi()
 {
-   const rpl_dag_t *dag = NULL;
-   const struct link_stats *stat_parent = NULL;
-   dag = rpl_get_any_dag();
-   if (dag != NULL)
-   {
-      stat_parent = rpl_get_parent_link_stats(dag->preferred_parent);
-      if (stat_parent != NULL)
-      {
-         int16_t rssi_int = (stat_parent->rssi)+200;
-         uint16_t rssi_uint = (uint16_t)rssi_int;
-         uint8_t rssi_uint_8t = (uint8_t)rssi_uint;
-         return rssi_uint_8t;
-      }
-   }
-
-   return 0xFF;
+	const rpl_dag_t *dag = NULL;
+	const struct link_stats *stat_parent = NULL;
+	dag = rpl_get_any_dag();
+	if (dag != NULL)
+	{
+		stat_parent = rpl_get_parent_link_stats(dag->preferred_parent);
+		if (stat_parent != NULL)
+		{
+			int16_t rssi_int = ((stat_parent->rssi) + 200);
+			uint16_t rssi_uint = (uint16_t)rssi_int;
+			uint8_t rssi_uint_8t = (uint8_t)rssi_uint;
+			return rssi_uint_8t;
+		}
+	}
+	
+	return 0xFF;
 }
 
 /*---------------------------------------------------------------------------*/
 
-
-str2int_errno_t hex_str2uint16(uint16_t *out, char *s) {
-   char *end;
-   if (s[0] == '\0' || isspace((unsigned char) s[0]))
-       return STR2INT_INCONVERTIBLE;
-   errno = 0;
-   long l = strtol(s, &end, 16);
-   /* Both checks are needed because INT_MAX == LONG_MAX is possible. */
-   if (l > 0xFFFF || (errno == ERANGE && l == LONG_MAX))
-       return STR2INT_OVERFLOW;
-   if (l < 0 || (errno == ERANGE && l == LONG_MIN))
-       return STR2INT_UNDERFLOW;
-   if (*end != '\0')
-       return STR2INT_INCONVERTIBLE;
-   *out = (uint16_t)l;
-   return STR2INT_SUCCESS;
+str2int_errno_t hex_str2uint16(uint16_t *out, char *s) 
+{
+	char *end;
+	if (s[0] == '\0' || isspace((unsigned char) s[0]))
+		return STR2INT_INCONVERTIBLE;
+	
+	errno = 0;
+	long l = strtol(s, &end, 16);
+   
+	/* Both checks are needed because INT_MAX == LONG_MAX is possible. */
+	if (l > 0xFFFF || (errno == ERANGE && l == LONG_MAX))
+		return STR2INT_OVERFLOW;
+   
+	if (l < 0 || (errno == ERANGE && l == LONG_MIN))
+		return STR2INT_UNDERFLOW;
+   
+	if (*end != '\0')
+		return STR2INT_INCONVERTIBLE;
+   
+	*out = (uint16_t)l;
+	return STR2INT_SUCCESS;
 }
 
 /*---------------------------------------------------------------------------*/
 
+str2int_errno_t hex_str2uint8(uint8_t *out, char *s) 
+{
+	char *end;
+	if (s[0] == '\0' || isspace((unsigned char) s[0]))
+		return STR2INT_INCONVERTIBLE;
+	
+	errno = 0;
+	long l = strtol(s, &end, 16);
 
-str2int_errno_t hex_str2uint8(uint8_t *out, char *s) {
-   char *end;
-   if (s[0] == '\0' || isspace((unsigned char) s[0]))
-       return STR2INT_INCONVERTIBLE;
-   errno = 0;
-   long l = strtol(s, &end, 16);
-   // Both checks are needed because INT_MAX == LONG_MAX is possible. //
-   if (l > 255 || (errno == ERANGE && l == LONG_MAX))
-       return STR2INT_OVERFLOW;
-   if (l < 0 || (errno == ERANGE && l == LONG_MIN))
-       return STR2INT_UNDERFLOW;
-   if (*end != '\0')
-       return STR2INT_INCONVERTIBLE;
-   *out = (uint8_t)l;
-   return STR2INT_SUCCESS;
-}
-
-
-/*---------------------------------------------------------------------------*/
-
-str2int_errno_t dec_str2uint8(uint8_t *out, char *s) {
-    char *end;
-    if (s[0] == '\0' || isspace((unsigned char) s[0]))
-        return STR2INT_INCONVERTIBLE;
-    errno = 0;
-    long l = strtol(s, &end, 10);
-    /* Both checks are needed because INT_MAX == LONG_MAX is possible. */
-    if (l > 255 || (errno == ERANGE && l == LONG_MAX))
-        return STR2INT_OVERFLOW;
-    if (l < 0 || (errno == ERANGE && l == LONG_MIN))
-        return STR2INT_UNDERFLOW;
-    if (*end != '\0')
-        return STR2INT_INCONVERTIBLE;
-    *out = (uint8_t)l;
-    return STR2INT_SUCCESS;
+	// Both checks are needed because INT_MAX == LONG_MAX is possible. //
+	if (l > 255 || (errno == ERANGE && l == LONG_MAX))
+		return STR2INT_OVERFLOW;
+	
+	if (l < 0 || (errno == ERANGE && l == LONG_MIN))
+		return STR2INT_UNDERFLOW;
+	
+	if (*end != '\0')
+		return STR2INT_INCONVERTIBLE;
+	
+	*out = (uint8_t)l;
+	return STR2INT_SUCCESS;
 }
 
 /*---------------------------------------------------------------------------*/
 
-str2int_errno_t dec_str2uint32(uint32_t *out, char *s) {
-    char *end;
-    if (s[0] == '\0' || isspace((unsigned char) s[0]))
-        return STR2INT_INCONVERTIBLE;
-    errno = 0;
-    long l = strtol(s, &end, 10);
-    /* Both checks are needed because INT_MAX == LONG_MAX is possible. */
-    if (l > 4294967294 || (errno == ERANGE && l == LONG_MAX))
-        return STR2INT_OVERFLOW;
-    if (l < 0 || (errno == ERANGE && l == LONG_MIN))
-        return STR2INT_UNDERFLOW;
-    if (*end != '\0')
-        return STR2INT_INCONVERTIBLE;
-    *out = (uint32_t)l;
-    return STR2INT_SUCCESS;
+str2int_errno_t dec_str2uint8(uint8_t *out, char *s) 
+{
+	char *end;
+	if (s[0] == '\0' || isspace((unsigned char) s[0]))
+		return STR2INT_INCONVERTIBLE;
+	
+	errno = 0;
+	long l = strtol(s, &end, 10);
+	
+	/* Both checks are needed because INT_MAX == LONG_MAX is possible. */
+	if (l > 255 || (errno == ERANGE && l == LONG_MAX))
+		return STR2INT_OVERFLOW;
+	
+	if (l < 0 || (errno == ERANGE && l == LONG_MIN))
+		return STR2INT_UNDERFLOW;
+	
+	if (*end != '\0')
+		return STR2INT_INCONVERTIBLE;
+	
+	*out = (uint8_t)l;
+	return STR2INT_SUCCESS;
+}
+
+/*---------------------------------------------------------------------------*/
+
+str2int_errno_t dec_str2uint32(uint32_t *out, char *s) 
+{
+	char *end;
+	if (s[0] == '\0' || isspace((unsigned char) s[0]))
+		return STR2INT_INCONVERTIBLE;
+
+	errno = 0;
+	long l = strtol(s, &end, 10);
+	
+	/* Both checks are needed because INT_MAX == LONG_MAX is possible. */
+	if (l > 4294967294 || (errno == ERANGE && l == LONG_MAX))
+		return STR2INT_OVERFLOW;
+	
+	if (l < 0 || (errno == ERANGE && l == LONG_MIN))
+		return STR2INT_UNDERFLOW;
+	
+	if (*end != '\0')
+		return STR2INT_INCONVERTIBLE;
+	
+	*out = (uint32_t)l;
+	return STR2INT_SUCCESS;
 }

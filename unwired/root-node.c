@@ -27,9 +27,9 @@
 /*---------------------------------------------------------------------------*/
 /*
 * \file
-*         RPL-root service for Unwired Devices mesh smart house system(UDMSHS %) <- this is smile
+*         RPL-root service for Unwired Devices mesh 
 * \author
-*         Vladislav Zaytsev vvzvlad@gmail.com vz@unwds.com
+*         Manchenko Oleg man4enkoos@gmail.com
 */
 /*---------------------------------------------------------------------------*/
 
@@ -64,11 +64,9 @@
 #include "root-node.h"
 #include "crypto-common.h"
 #include "rtc-common.h"
-#include "int-flash-common.h"
 
 #include "dev/serial-line.h"
 #include "../cpu/cc26xx-cc13xx/dev/cc26xx-uart.h"
-#include "uart/root.h"
 
 /*---------------------------------------------------------------------------*/
 
@@ -88,7 +86,6 @@ uint8_t aes_key[16] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0x0
 uint8_t aes_buffer[128];
 uint8_t nonce_key[16];
 
-
 static uint16_t udup_v5_data_iterator = 0;
 static struct timer udup_v5_timeout_timer;
 static struct ctimer wait_response;
@@ -96,11 +93,12 @@ static struct ctimer wait_response;
 static bool uart = 0;
 static bool wait_response_slave = 0;
 
-volatile union { uint16_t u16; uint8_t u8[2]; } packet_counter_root;
+volatile union 
+{ 
+	uint16_t u16; 
+	uint8_t u8[2]; 
+} packet_counter_root;
 
-static eeprom_t eeprom_root;
-
-PROCESS(settings_root_init, "Initializing settings");
 PROCESS(main_root_process, "main root process");
 
 /*---------------------------------------------------------------------------*/
@@ -114,7 +112,6 @@ static void udup_v5_dag_root_print(const uip_ip6addr_t *addr, const uint8_t *dat
 
 static uint8_t iterator_to_byte(uint8_t iterator);
 static void wait_response_reset(void *ptr);
-
 
 /*---------------------------------------------------------------------------*/
 
@@ -311,6 +308,7 @@ static void ack_packet_sender(const uip_ip6addr_t *dest_addr)
 }
 
 /*---------------------------------------------------------------------------*/
+
 static void uart_to_air() 
 {
 	uip_ipaddr_t addr;
@@ -581,16 +579,21 @@ int uart_data_receiver(unsigned char uart_char)
 }
 
 /*---------------------------------------------------------------------------*/
+
 void set_uart_r(void)
 {
 	uart = 1;
 }
+
 /*---------------------------------------------------------------------------*/
+
 void unset_uart_r(void)
 {
 	uart = 0;
 }
+
 /*---------------------------------------------------------------------------*/
+
 uint8_t uart_status_r(void)
 {
 	if(uart == 1)
@@ -598,6 +601,7 @@ uint8_t uart_status_r(void)
 	else
 		return 0;
 }
+
 /*---------------------------------------------------------------------------*/
 static uint8_t iterator_to_byte(uint8_t iterator)
 {
@@ -625,104 +629,6 @@ static uint8_t iterator_to_byte(uint8_t iterator)
 static void wait_response_reset(void *ptr)
 {
 	wait_response_slave = 0;
-}
-
-/*---------------------------------------------------------------------------*/
-PROCESS_THREAD(settings_root_init, ev, data)
-{
-	PROCESS_BEGIN();
-	if (ev == PROCESS_EVENT_EXIT)
-		return 1;
-
-	read_eeprom((uint8_t*)&eeprom_root, sizeof(eeprom_root));
-	
-	if(eeprom_root.aes_key_configured == true) //При первом включении забивает нормальные настройки сети
-	{
-		if((eeprom_root.channel != 26) && (eeprom_root.panid != 0xAABB))
-		{
-			eeprom_root.channel = 26;
-			eeprom_root.panid = 0xAABB;
-			write_eeprom((uint8_t*)&eeprom_root, sizeof(eeprom_root));
-		}
-	}
-	
-	if(!eeprom_root.aes_key_configured) 
-	{
-		// printf("AES-128 key:");
-		// for (uint8_t i = 0; i < 16; i++)
-		// {
-			// aes_key[i] = eeprom_root.aes_key[i];
-			// printf(" %"PRIXX8, aes_key[i]);
-		// }
-		// printf("\n");
-		;
-	}
-	else
-	{
-		printf("AES-128 key not declared\n******************************\n******PLEASE SET AES KEY******\n******************************\n");
-		// led_mode_set(LED_FAST_BLINK);
-		while(eeprom_root.aes_key_configured)
-		{
-			PROCESS_YIELD();
-		}		
-	}
-	
-	// if(!eeprom_root.interface_configured) 
-	// {
-		// interface = eeprom_root.interface;
-	
-		// if(interface == INTERFACE_RS485)
-			// printf("Installed interface RS485\n");
-		// else if(interface == INTERFACE_CAN)
-			// printf("Installed interface CAN\n");
-		// else
-			// printf("Unknown interface\n");
-	// }
-	// else
-	// {
-		// printf("Interface not declared\n******************************\n*****PLEASE SET INTERFACE*****\n******************************\n");
-		// led_mode_set(LED_FAST_BLINK);
-		
-		// while(eeprom_root.interface_configured)
-		// {
-			// PROCESS_YIELD();
-		// }	
-	// }
-	
-	radio_value_t channel = 0;
-	NETSTACK_RADIO.get_value(RADIO_PARAM_CHANNEL, &channel);
-	
-	if(channel != eeprom_root.channel)
-	{
-		NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, eeprom_root.channel);
-		
-		if (ti_lib_chipinfo_chip_family_is_cc26xx())
-		{
-			uint32_t freq_mhz = (2405 + 5 * (eeprom_root.channel - 11));
-			printf("Changed the radio-channel to: %"PRIint" (%"PRIu32" MHz)\n", (int)eeprom_root.channel, freq_mhz);
-		}
-
-		if (ti_lib_chipinfo_chip_family_is_cc13xx())
-		{
-			uint32_t freq_khz = 863125 + (eeprom_root.channel * 200);
-			printf("Changed the radio-channel to: %"PRIint" (%"PRIu32" kHz)\n", (int)eeprom_root.channel, freq_khz);
-		}
-	}
-	
-	if (ti_lib_chipinfo_chip_family_is_cc26xx())
-	{
-		radio_value_t panid = 0;
-		NETSTACK_RADIO.get_value(RADIO_PARAM_PAN_ID, &panid);
-		
-		if(panid != eeprom_root.panid)
-		{
-			NETSTACK_RADIO.set_value(RADIO_PARAM_PAN_ID, eeprom_root.panid);
-			printf("PAN ID changed to: %"PRIXX16"\n", eeprom_root.panid);
-		}
-	}
-	
-	process_post(&rpl_root_process, PROCESS_EVENT_CONTINUE, NULL);
-	PROCESS_END();
 }
 
 /*---------------------------------------------------------------------------*/
@@ -764,8 +670,6 @@ PROCESS_THREAD(main_root_process, ev, data)
 			else
 			{
 				// disable_interrupts();
-				// udup_v5_data_iterator--;
-
 				udup_v5_data_iterator = 0;
 				// enable_interrupts();
 			}

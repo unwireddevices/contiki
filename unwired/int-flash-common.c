@@ -71,6 +71,7 @@ void read_eeprom(uint8_t *pui8DataBuffer, uint32_t ui32Count)
 }
 
 /*---------------------------------------------------------------------------*/
+
 void user_flash_update_byte(uint8_t offset, uint8_t data)
 {
 	uint32_t old_vims_state = ti_lib_vims_mode_get(VIMS_BASE);
@@ -119,3 +120,5 @@ uint32_t flash_write(uint8_t *pui8DataBuffer, uint32_t ui32Address, uint32_t ui3
 	uint32_t write_status = ti_lib_flash_program(pui8DataBuffer, ui32Address, ui32Count);
 	return write_status;
 }
+
+/*---------------------------------------------------------------------------*/
