@@ -66,9 +66,9 @@
 #include "sys/etimer.h"
 
 
-#define CC26XX_UART_INTERRUPT_ALL (UART_INT_OE | UART_INT_BE | UART_INT_PE | \
-   UART_INT_FE | UART_INT_RT | UART_INT_TX | \
-   UART_INT_RX | UART_INT_CTS)
+#define CC26XX_UART_INTERRUPT_ALL ( UART_INT_OE | UART_INT_BE | UART_INT_PE | \
+									UART_INT_FE | UART_INT_RT | UART_INT_TX | \
+									UART_INT_RX | UART_INT_CTS)
 
 /*---------------------------------------------------------------------------*/
 
@@ -80,7 +80,6 @@ PROCESS(rpl_root_process, "Unwired RPL root and udp data receiver");
 AUTOSTART_PROCESSES(&rpl_root_process);
 
 /*---------------------------------------------------------------------------*/
-
 
 static void off_uart(uint32_t rx_dio, uint32_t tx_dio)
 {
@@ -128,14 +127,6 @@ static void on_uart(uint32_t rx_dio, uint32_t tx_dio, uint32_t baud_rate)
    ti_lib_uart_int_clear(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
 }
 
-void getRandomBytes(void *p_dest, unsigned p_size)
-{
-    // if(read(randfd, p_dest, p_size) != (int)p_size)
-    // {
-        // printf("Failed to get random bytes.\n");
-    // }
-}
-
 PROCESS_THREAD(rpl_root_process, ev, data)
 {
 	PROCESS_BEGIN();
@@ -177,18 +168,18 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 		//printf("\nUART_IBRD: %lu \nUART_FBRD: %lu \nLHCR: %lu \n ", (*(unsigned long*)(0x40001024)), (*(unsigned long*)(0x40001028)), (*(unsigned long*)(0x4000102C)) );
 	}
 
-   while (1)
-   {
-      PROCESS_WAIT_EVENT();
-      if (ev == sensors_event && data == &button_e_sensor_long_click)
-      {
-         led_on(LED_A);
-		 if(uart_status_r() == 0)
-			printf("UDM: Button E long click, reboot\n");
-         watchdog_reboot();
-      }
-   }
+	while (1)
+	{
+		PROCESS_WAIT_EVENT();
+		if (ev == sensors_event && data == &button_e_sensor_long_click)
+		{
+			led_on(LED_A);
+			if(uart_status_r() == 0)
+				printf("UDM: Button E long click, reboot\n");
+				watchdog_reboot();
+		}
+	}
 
-   PROCESS_END();
+	PROCESS_END();
 }
 /*---------------------------------------------------------------------------*/

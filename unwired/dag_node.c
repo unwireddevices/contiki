@@ -373,9 +373,9 @@ void udbp_v5_uart_to_root_sender(char* data)
 }
 /*---------------------------------------------------------------------------*/
 
-void udbp_v5_join_stage_1_sender(const uip_ipaddr_t *dest_addr)
+void join_stage_1_sender(const uip_ipaddr_t *dest_addr)
 {
-	//printf("udbp_v5_join_stage_1_sender\n");
+	//printf("join_stage_1_sender\n");
 	if (dest_addr == NULL)
 		return;
 
@@ -415,12 +415,11 @@ void udbp_v5_join_stage_1_sender(const uip_ipaddr_t *dest_addr)
 	simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
 }
 /*---------------------------------------------------------------------------*/
-//udbp_v5_join_stage_2_handler
-static void udbp_v5_join_stage_3_sender(const uip_ipaddr_t *dest_addr,
+static void join_stage_3_sender(const uip_ipaddr_t *dest_addr,
 										const uint8_t *data,
 										uint16_t datalen)
 {
-	//printf("udbp_v5_join_stage_3_sender\n");
+	//printf("join_stage_3_sender\n");
 	if (dest_addr == NULL)
 		return;
 	
@@ -474,11 +473,11 @@ static void udbp_v5_join_stage_3_sender(const uip_ipaddr_t *dest_addr,
 	simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
 }
 /*---------------------------------------------------------------------------*/
-static void udbp_v5_join_stage_4_handler(const uip_ipaddr_t *sender_addr,
+static void join_stage_4_handler(const uip_ipaddr_t *sender_addr,
 										const uint8_t *data,
 										uint16_t datalen)
 {
-	//printf("udbp_v5_join_stage_4_handler\n");
+	//printf("join_stage_4_handler\n");
 	
 	if (sender_addr == NULL)
 		return;
@@ -675,11 +674,11 @@ static void udp_receiver(struct simple_udp_connection *c,
             uint8_t packet_type = data[UDUP_V5_PACKET_TYPE];
             if (packet_type == DATA_TYPE_JOIN_V5_STAGE_2)
             {
-				udbp_v5_join_stage_3_sender(sender_addr, data, datalen);
+				join_stage_3_sender(sender_addr, data, datalen);
             }
 			else if (packet_type == DATA_TYPE_JOIN_V5_STAGE_4)
             {
-				udbp_v5_join_stage_4_handler(sender_addr, data, datalen);
+				join_stage_4_handler(sender_addr, data, datalen);
             }
             else if (packet_type == DATA_TYPE_ACK)
             {
@@ -1398,7 +1397,7 @@ PROCESS_THREAD(root_find_process, ev, data)
                   if ( led_mode != LED_FAST_BLINK)
                      led_mode_set(LED_FAST_BLINK);
 
-                  udbp_v5_join_stage_1_sender(&root_find_dag->dag_id);
+                  join_stage_1_sender(&root_find_dag->dag_id);
                }
             }
          }

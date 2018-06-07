@@ -47,10 +47,10 @@
 
 /*---------------------------------------------------------------------------*/
 
- typedef enum hex_to_bin_errno_t{
-   HEX2BIN_SUCCESS,
-   HEX2BIN_NONPARITY,
-   HEX2BIN_INCONVERTIBLE
+typedef enum hex_to_bin_errno_t{
+	HEX2BIN_SUCCESS,
+	HEX2BIN_NONPARITY,
+	HEX2BIN_INCONVERTIBLE
 } hex_to_bin_errno_t;
 
 /* main UPD connection */
@@ -74,7 +74,7 @@ void udp_data_receiver(struct simple_udp_connection *connection,
                        const uint8_t *data,
                        uint16_t datalen);
 
-int uart_data_receiver_udup_v5(unsigned char uart_char);
+int uart_data_receiver(unsigned char uart_char);
 
 void set_uart_r(void);
 void unset_uart_r(void);
