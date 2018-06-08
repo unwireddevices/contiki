@@ -28,9 +28,9 @@
 /*---------------------------------------------------------------------------*/
 /*
 * \file
-*         Button service for Unwired Devices mesh smart house system(UDMSHS %) <- this is smile
+*         Header file for UART service
 * \author
-*         Vladislav Zaytsev vvzvlad@gmail.com vz@unwds.com
+*         Manchenko Oleg man4enkoos@gmail.com
 */
 /*---------------------------------------------------------------------------*/
 
@@ -59,9 +59,6 @@
 #include "simple-udp.h"
 #include "system-common.h"
 #include "radio_power.h"
-//#include "sys/etimer.h"
-
-//#include "../../../"
 
 #include "uart.h"
 
@@ -69,16 +66,12 @@
 #include "dev/cc26xx-uart.h"
 #include "../ud_binary_protocol.h"
 #include "../dag_node.h"
-#include "../int-flash-common.h"
 
 #include "net/rpl/rpl-private.h"
 
-#define CC26XX_UART_INTERRUPT_ALL (UART_INT_OE | UART_INT_BE | UART_INT_PE | \
-   UART_INT_FE | UART_INT_RT | UART_INT_TX | \
-   UART_INT_RX | UART_INT_CTS)
-   
-//#define RS485_DE IOID_29
-//#define RS485_RE IOID_30
+#define CC26XX_UART_INTERRUPT_ALL ( UART_INT_OE | UART_INT_BE | UART_INT_PE | \
+									UART_INT_FE | UART_INT_RT | UART_INT_TX | \
+									UART_INT_RX | UART_INT_CTS)
 
 /*---------------------------------------------------------------------------*/
 /* Register button sensors */
@@ -86,7 +79,6 @@ SENSORS(&button_e_sensor_click, &button_e_sensor_long_click);
 
 /* register main button process */
 PROCESS(main_process, "UART process");
-//PROCESS(uart_process, "TEST Process");
 
 /* set autostart processes */
 AUTOSTART_PROCESSES(&main_process);
@@ -147,21 +139,8 @@ PROCESS_THREAD(main_process, ev, data)
 	printf("Start Unwired UART device.\n");
 	PROCESS_PAUSE();
 	
-	//ti_lib_gpio_clear_dio(RS485_DE);
-	//ti_lib_gpio_clear_dio(RS485_RE);
 	ti_lib_ioc_pin_type_gpio_output(RS485_DE);
 	ti_lib_ioc_pin_type_gpio_output(RS485_RE);
-	
-	//PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&shell_off));
-	
-	//settings_init();
-	
-	
-	
-	//serial = ((user_flash_read_byte(0) << 24) |
-	//		 (user_flash_read_byte(1) << 16)  |
-	//		 (user_flash_read_byte(2) << 8)   |
-	//		 user_flash_read_byte(3));
 	
 	if (BOARD_IOID_UART_RX == IOID_UNUSED)
 	{
@@ -177,44 +156,16 @@ PROCESS_THREAD(main_process, ev, data)
 		printf("DAG Node: Shell activated, type \"help\" for command list\n");
 	}
 	
-	//settings_init();
 	process_start(&settings_dag_init, NULL);
-	
 	PROCESS_YIELD_UNTIL(ev == PROCESS_EVENT_CONTINUE);
-	
 	process_exit(&settings_dag_init);
 	
 	process_start(&dag_node_process, NULL);
 	
 	static struct etimer shell_off;
-	etimer_set(&shell_off, CLOCK_SECOND * 15);
+	etimer_set(&shell_off, CLOCK_SECOND * 5);
 	
 	PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&shell_off));
-	
-	/*
-	if(serial != 0xFFFFFFFF)
-	{
-		printf("Serial: %lu\n", serial);
-		process_start(&dag_node_process, NULL);
-		PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&shell_off));
-	}
-	else
-	{
-		printf("Serial number not declared\n******************************\n***PLEASE SET SERIAL NUMBER***\n******************************\n");
-		led_mode_set(LED_FAST_BLINK);
-		while(serial == 0xFFFFFFFF)
-		{
-			PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&shell_off));
-			if(serial == 0xFFFFFFFF)
-			{
-				etimer_reset(&shell_off);
-				//printf("Reset etimer\n");
-			}
-		}	
-	}
-	*/
-	
-	//if (BOARD_IOID_UART_TX != BOARD_IOID_ALT_UART_TX || BOARD_IOID_UART_RX != BOARD_IOID_ALT_UART_RX)
 		
 	if(get_interface() == INTERFACE_RS485)
 	{
@@ -236,26 +187,6 @@ PROCESS_THREAD(main_process, ev, data)
 			on_uart(BOARD_IOID_CAN_UART_RX, BOARD_IOID_CAN_UART_TX, 9600);
 		}
 	}
-	//else
-		//printf("Unknown interface\n");
-	
-	// if (BOARD_IOID_UART_TX != BOARD_IOID_CAN_UART_TX || BOARD_IOID_CAN_UART_RX != BOARD_IOID_ALT_UART_RX)
-	// {
-		// if(uart_status() == 0)
-		// {
-			// printf("UDM: UART change to alt(RX: 26, TX: 25)\n");
-			// printf("UDM: UART change to alt(RX: 30, TX: 29)\n");
-			// printf("\nUART_IBRD: %lu \nUART_FBRD: %lu \nLHCR: %lu \n ", (*(unsigned long*)(0x40001024)), (*(unsigned long*)(0x40001028)), (*(unsigned long*)(0x4000102C)) );
-			// printf("UDM: UART change to alt(RX: %"PRIu16", TX: %"PRIu16")\n", BOARD_IOID_ALT_UART_RX, BOARD_IOID_ALT_UART_TX);
-		// }
-		// off_uart(BOARD_IOID_UART_RX, BOARD_IOID_UART_TX);
-		// on_uart(BOARD_IOID_CAN_UART_RX, BOARD_IOID_CAN_UART_TX, 9600);
-		// set_uart();
-		// on_uart(BOARD_IOID_UART_RX, BOARD_IOID_UART_TX, 9600);
-		// clock_delay((CLOCK_SECOND / 9600) * 1);
-		// printf("UDM: Alt UART active\n");
-		// printf("\nUART_IBRD: %lu \nUART_FBRD: %lu \nLHCR: %lu \n ", (*(unsigned long*)(0x40001024)), (*(unsigned long*)(0x40001028)), (*(unsigned long*)(0x4000102C)) );
-	// }
 	
 	set_uart();
 	while (1)
@@ -263,13 +194,10 @@ PROCESS_THREAD(main_process, ev, data)
 		PROCESS_YIELD();
 		if(ev == uart_event_message) 
 		{
-			if(wait_response_status() == 1) 
+			if(wait_response_status()) 
 			{
-				udbp_v5_uart_to_root_sender(data);
+				uart_to_air(data);
 			}
-			//printf("len: %i\n", ((char *)data)[0]);
-			//printf("received line: %s\n", (char *)data);
-			//udbp_v5_uart_to_root_sender(data);
 		} 
 	}
 
@@ -277,19 +205,3 @@ PROCESS_THREAD(main_process, ev, data)
 }
 
 /*---------------------------------------------------------------------------*/
-/*PROCESS_THREAD(test_process, ev, data)
-{
-	static struct etimer et;
-	PROCESS_BEGIN();
-	etimer_set(&et, CLOCK_SECOND);
-	printf("Start TEST\n");
-	
-	while(1) 
-	{
-		PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et));
-		
-		printf("TEST: sec\n");
-		etimer_reset(&et);
-	}
-	PROCESS_END();
- }*/

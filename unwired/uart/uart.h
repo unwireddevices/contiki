@@ -25,12 +25,12 @@
  * SUCH DAMAGE.
  */
 /*---------------------------------------------------------------------------*/
-/**
- * \file
- *         Header file for button service
- * \author
- *         Vladislav Zaytsev vvzvlad@gmail.com vz@unwds.com
- */
+/*
+* \file
+*         Header file for UART service
+* \author
+*         Manchenko Oleg man4enkoos@gmail.com
+*/
 /*---------------------------------------------------------------------------*/
 #ifndef UDP_UART_H_
 #define UDP_UART_H_
@@ -38,17 +38,8 @@
 #include "contiki.h"
 #include "net/ip/uip.h"
 /*---------------------------------------------------------------------------*/
-#define CURRENT_DEVICE_SLEEP_TYPE             DEVICE_SLEEP_TYPE_LEAF
-#define CURRENT_DEVICE_GROUP                  DEVICE_GROUP_BUTTON_SWITCH
-#define CURRENT_DEVICE_VERSION                DEVICE_VERSION_V1
-#define CURRENT_PROTOCOL_VERSION              PROTOCOL_VERSION_V1
-#define CURRENT_ABILITY_1BYTE                 0b10000000
-#define CURRENT_ABILITY_2BYTE                 0b00000000
-#define CURRENT_ABILITY_3BYTE                 0b00000000
-#define CURRENT_ABILITY_4BYTE                 0b00000000
 
 uint32_t serial; //Серийник счетчика
-//uint32_t serial = 0x00000000; //Серийник счетчика
 
 PROCESS_NAME(main_process);
 

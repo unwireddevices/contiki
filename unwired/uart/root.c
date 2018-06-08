@@ -62,7 +62,6 @@
 #include "root.h"
 #include "../root-node.h"
 #include "../system-common.h"//
-#include "../settings-init-common.h"//
 
 #include "sys/etimer.h"
 

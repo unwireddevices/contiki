@@ -51,46 +51,69 @@
 
 /*---------------------------------------------------------------------------*/
 
+uint8_t iterator_to_byte(uint8_t iterator)
+{
+	if(iterator <= 16)
+		return 16;
+	if((iterator > 16) && (iterator <= 32))
+		return 32;
+	if((iterator > 32) && (iterator <= 48))
+		return 48;
+	if((iterator > 48) && (iterator <= 64))
+		return 64;
+	if((iterator > 64) && (iterator <= 80))
+		return 80;
+	if((iterator > 80) && (iterator <= 96))
+		return 96;
+	if((iterator > 96) && (iterator <= 112))
+		return 112;
+	if((iterator > 112) && (iterator <= 128))
+		return 128;
+	return 0;
+}
+
+/*---------------------------------------------------------------------------*/
+
 enum crypto
 {
-   encrypt = 0x01,
-   decrypt = 0x00,
-   interrupts_enabled = 0x01,
-   interrupts_disabled = 0x00,
+	encrypt = 0x01,
+	decrypt = 0x00,
+	interrupts_enabled = 0x01,
+	interrupts_disabled = 0x00,
 };
 
 /*---------------------------------------------------------------------------*/
 
 void aes_cbc_nonce_gen(uint32_t *nonce)
 {
-   for (uint8_t i=0; i < 8; i++ )
-      ((uint16_t *)nonce )[i] = random_rand();
+	for (uint8_t i=0; i < 8; i++ )
+		((uint16_t *)nonce )[i] = random_rand();
 }
 
 /*---------------------------------------------------------------------------*/
 
 void periph_crypto_run()
 {
-   ti_lib_int_master_disable();
-   ti_lib_prcm_peripheral_run_enable(PRCM_PERIPH_CRYPTO);
-   ti_lib_prcm_peripheral_sleep_enable(PRCM_PERIPH_CRYPTO);
-   ti_lib_prcm_peripheral_deep_sleep_enable(PRCM_PERIPH_CRYPTO);
-   ti_lib_prcm_load_set();
-   while(!ti_lib_prcm_load_get());
-   ti_lib_int_master_enable();
+	ti_lib_int_master_disable();
+	ti_lib_prcm_peripheral_run_enable(PRCM_PERIPH_CRYPTO);
+	ti_lib_prcm_peripheral_sleep_enable(PRCM_PERIPH_CRYPTO);
+	ti_lib_prcm_peripheral_deep_sleep_enable(PRCM_PERIPH_CRYPTO);
+	ti_lib_prcm_load_set();
+	while(!ti_lib_prcm_load_get());
+	ti_lib_int_master_enable();
 }
 
 /*---------------------------------------------------------------------------*/
 
 void periph_crypto_stop()
 {
-   ti_lib_int_master_disable();
-   ti_lib_prcm_peripheral_run_disable(PRCM_PERIPH_CRYPTO);
-   ti_lib_prcm_peripheral_sleep_disable(PRCM_PERIPH_CRYPTO);
-   ti_lib_prcm_peripheral_deep_sleep_disable(PRCM_PERIPH_CRYPTO);
-   ti_lib_prcm_load_set();
-   while(!ti_lib_prcm_load_get());
-   ti_lib_int_master_enable();
+	ti_lib_int_master_disable();
+	ti_lib_prcm_peripheral_run_disable(PRCM_PERIPH_CRYPTO);
+	ti_lib_prcm_peripheral_sleep_disable(PRCM_PERIPH_CRYPTO);
+	ti_lib_prcm_peripheral_deep_sleep_disable(PRCM_PERIPH_CRYPTO);
+	ti_lib_prcm_load_set();
+	while(!ti_lib_prcm_load_get());
+	ti_lib_int_master_enable();
 }
 
 /*---------------------------------------------------------------------------*/
@@ -98,29 +121,29 @@ void periph_crypto_stop()
 
 void aes_cbc_encrypt(uint32_t *aes_key, uint32_t *nonce, uint32_t *input_data, uint32_t *output_data, uint32_t data_lenth)
 {
-   uint8_t key_index = CRYPTO_KEY_AREA_0;
-   //aes_cbc_nonce_gen(nonce);
+	uint8_t key_index = CRYPTO_KEY_AREA_0;
+	//aes_cbc_nonce_gen(nonce);
 
-   periph_crypto_run();
-   ti_lib_crypto_aes_load_key(aes_key, key_index);
-   ti_lib_crypto_aes_cbc(input_data, output_data, data_lenth, nonce, key_index, encrypt, interrupts_disabled);
-   while (ti_lib_crypto_aes_cbc_status() != AES_SUCCESS);
-   ti_lib_crypto_aes_cbc_finish();
-   periph_crypto_stop();
+	periph_crypto_run();
+	ti_lib_crypto_aes_load_key(aes_key, key_index);
+	ti_lib_crypto_aes_cbc(input_data, output_data, data_lenth, nonce, key_index, encrypt, interrupts_disabled);
+	while (ti_lib_crypto_aes_cbc_status() != AES_SUCCESS);
+	ti_lib_crypto_aes_cbc_finish();
+	periph_crypto_stop();
 }
 
 /*---------------------------------------------------------------------------*/
 
 void aes_cbc_decrypt(uint32_t *aes_key, uint32_t *nonce, uint32_t *input_data, uint32_t *output_data, uint32_t data_lenth)
 {
-   uint8_t key_index = CRYPTO_KEY_AREA_0;
+	uint8_t key_index = CRYPTO_KEY_AREA_0;
 
-   periph_crypto_run();
-   ti_lib_crypto_aes_load_key(aes_key, key_index);
-   ti_lib_crypto_aes_cbc(input_data, output_data, data_lenth, nonce, key_index, decrypt, interrupts_disabled);
-   while (ti_lib_crypto_aes_cbc_status() != AES_SUCCESS);
-   ti_lib_crypto_aes_cbc_finish();
-   periph_crypto_stop();
+	periph_crypto_run();
+	ti_lib_crypto_aes_load_key(aes_key, key_index);
+	ti_lib_crypto_aes_cbc(input_data, output_data, data_lenth, nonce, key_index, decrypt, interrupts_disabled);
+	while (ti_lib_crypto_aes_cbc_status() != AES_SUCCESS);
+	ti_lib_crypto_aes_cbc_finish();
+	periph_crypto_stop();
 }
 
 /*---------------------------------------------------------------------------*/
@@ -128,28 +151,28 @@ void aes_cbc_decrypt(uint32_t *aes_key, uint32_t *nonce, uint32_t *input_data, u
 
 void aes_ecb_encrypt(uint32_t *aes_key, uint32_t *input_data, uint32_t *output_data)
 {
-   uint8_t key_index = CRYPTO_KEY_AREA_0;
+	uint8_t key_index = CRYPTO_KEY_AREA_0;
 
-   periph_crypto_run();
-   ti_lib_crypto_aes_load_key(aes_key, key_index);
-   ti_lib_crypto_aes_ecb(input_data, output_data, key_index, encrypt, interrupts_disabled);
-   while (ti_lib_crypto_aes_ecb_status() != AES_SUCCESS);
-   ti_lib_crypto_aes_ecb_finish();
-   periph_crypto_stop();
+	periph_crypto_run();
+	ti_lib_crypto_aes_load_key(aes_key, key_index);
+	ti_lib_crypto_aes_ecb(input_data, output_data, key_index, encrypt, interrupts_disabled);
+	while (ti_lib_crypto_aes_ecb_status() != AES_SUCCESS);
+	ti_lib_crypto_aes_ecb_finish();
+	periph_crypto_stop();
 }
 
 /*---------------------------------------------------------------------------*/
 
 void aes_ecb_decrypt(uint32_t *aes_key, uint32_t *input_data, uint32_t *output_data)
 {
-   uint8_t key_index = CRYPTO_KEY_AREA_0;
+	uint8_t key_index = CRYPTO_KEY_AREA_0;
 
-   periph_crypto_run();
-   ti_lib_crypto_aes_load_key(aes_key, key_index);
-   ti_lib_crypto_aes_ecb(input_data, output_data, key_index, decrypt, interrupts_disabled);
-   while (ti_lib_crypto_aes_ecb_status() != AES_SUCCESS);
-   ti_lib_crypto_aes_ecb_finish();
-   periph_crypto_stop();
+	periph_crypto_run();
+	ti_lib_crypto_aes_load_key(aes_key, key_index);
+	ti_lib_crypto_aes_ecb(input_data, output_data, key_index, decrypt, interrupts_disabled);
+	while (ti_lib_crypto_aes_ecb_status() != AES_SUCCESS);
+	ti_lib_crypto_aes_ecb_finish();
+	periph_crypto_stop();
 }
 
 /*---------------------------------------------------------------------------*/

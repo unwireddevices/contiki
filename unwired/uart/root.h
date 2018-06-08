@@ -27,9 +27,9 @@
 /*---------------------------------------------------------------------------*/
 /*
 * \file
-*         RPL-root service for Unwired Devices mesh smart house system(UDMSHS %) <- this is smile
+*         RPL-root service for Unwired Devices mesh 
 * \author
-*         Vladislav Zaytsev vvzvlad@gmail.com vz@unwds.com
+*         Manchenko Oleg man4enkoos@gmail.com
 */
 /*---------------------------------------------------------------------------*/
 

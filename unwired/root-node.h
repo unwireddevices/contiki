@@ -50,6 +50,7 @@
 /* main UPD connection */
 struct simple_udp_connection udp_connection;
 
+PROCESS_NAME(settings_root_init);
 PROCESS_NAME(main_root_process);
 
 /*---------------------------------------------------------------------------*/

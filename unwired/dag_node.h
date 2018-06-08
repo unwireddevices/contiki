@@ -25,12 +25,12 @@
  * SUCH DAMAGE.
  */
 /*---------------------------------------------------------------------------*/
-/**
- * \file
- *         Header file for DAG-node service
- * \author
- *         Vladislav Zaytsev vvzvlad@gmail.com vz@unwds.com
- */
+/*
+* \file
+*         Header file for DAG-node service
+* \author
+*         Manchenko Oleg man4enkoos@gmail.com
+*/
 /*---------------------------------------------------------------------------*/
 
 #include "contiki.h"
@@ -73,8 +73,7 @@ void serial_update(uint32_t serial_new);
 uint32_t get_serial(void);
 void channel_update(uint8_t channel_new);
 void panid_update(uint16_t panid_new);
-void udbp_v5_message_sender(uint8_t message_type, uint8_t data_1, uint8_t data_2);
-void udbp_v5_uart_to_root_sender(char* data);
+void uart_to_air(char* data);
 void led_mode_set(uint8_t mode);
 bool wait_response_status(void);
 
@@ -82,9 +81,7 @@ PROCESS_NAME(settings_dag_init);
 PROCESS_NAME(dag_node_process);
 PROCESS_NAME(dag_node_button_process);
 PROCESS_NAME(root_find_process);
-PROCESS_NAME(status_send_process);
 PROCESS_NAME(maintenance_process);
 PROCESS_NAME(led_process);
-PROCESS_NAME(fw_update_process);
 
 /*---------------------------------------------------------------------------*/
