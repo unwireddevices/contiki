@@ -58,8 +58,63 @@
 #include "ota-main.h"
 #include "ota-common.h"
 
-/*---------------------------------------------------------------------------*/
+#define CC26XX_UART_INTERRUPT_ALL ( UART_INT_OE | UART_INT_BE | UART_INT_PE | \
+									UART_INT_FE | UART_INT_RT | UART_INT_TX | \
+									UART_INT_RX | UART_INT_CTS)
 
+/*---------------------------------------------------------------------------*/
+/*Иннициализация UART*/
+void on_uart(uint32_t rx_dio, uint32_t tx_dio, uint32_t baud_rate)
+{
+   if(baud_rate == 9600) //Не обновляется скорость UART
+   {
+	  (*(unsigned long*)(0x40001024)) = 312;
+	  (*(unsigned long*)(0x40001028)) = 32;
+	  (*(unsigned long*)(0x4000102C)) = 112; //без обновления регистра LCRH скорость не обновляется (FEN && WLEN)
+   }
+   else 
+   {
+	  (*(unsigned long*)(0x40001024)) = 26;
+	  (*(unsigned long*)(0x40001028)) = 3;
+	  (*(unsigned long*)(0x4000102C)) = 112; //без обновления регистра LCRH скорость не обновляется (FEN && WLEN)
+   }
+   
+   ti_lib_ioc_io_port_pull_set(IOID_26, IOC_IOPULL_UP);
+   ti_lib_ioc_pin_type_gpio_output(tx_dio);
+   ti_lib_gpio_set_dio(tx_dio);
+   while(ti_lib_uart_busy(UART0_BASE));
+   ti_lib_ioc_pin_type_uart(UART0_BASE, rx_dio, tx_dio, IOID_UNUSED, IOID_UNUSED);
+   ti_lib_uart_config_set_exp_clk(UART0_BASE, ti_lib_sys_ctrl_clock_get(), baud_rate, 
+                  (UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE | UART_CONFIG_PAR_NONE));
+   ti_lib_uart_fifo_level_set(UART0_BASE, UART_FIFO_TX7_8, UART_FIFO_RX7_8);
+   ti_lib_uart_fifo_enable(UART0_BASE);
+   ti_lib_uart_int_enable(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
+   ti_lib_uart_int_clear(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
+   while(ti_lib_uart_busy(UART0_BASE));
+   ti_lib_uart_enable(UART0_BASE);
+   while(ti_lib_uart_busy(UART0_BASE));
+   ti_lib_uart_int_clear(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
+}
+
+/*---------------------------------------------------------------------------*/
+/*Деиннициализация UART*/
+void off_uart(uint32_t rx_dio, uint32_t tx_dio)
+{
+   ti_lib_ioc_port_configure_set(tx_dio, IOC_PORT_GPIO, IOC_STD_OUTPUT);
+   ti_lib_ioc_port_configure_set(rx_dio, IOC_PORT_GPIO, IOC_STD_INPUT);
+   ti_lib_gpio_set_output_enable_dio(tx_dio, GPIO_OUTPUT_ENABLE);
+   ti_lib_gpio_set_dio(tx_dio);
+
+   while(ti_lib_uart_busy(UART0_BASE));
+   ti_lib_uart_int_disable(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
+   ti_lib_uart_int_clear(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
+   ti_lib_uart_fifo_disable(UART0_BASE);
+   while(ti_lib_uart_busy(UART0_BASE));
+   ti_lib_uart_disable(UART0_BASE);
+}
+
+/*---------------------------------------------------------------------------*/
+/**/
 void flash_damp_hex(uint8_t mode)
 {
 	const uint32_t start_adress = (ota_images[1-1] << 12);
@@ -90,7 +145,7 @@ void flash_damp_hex(uint8_t mode)
 }
 
 /*---------------------------------------------------------------------------*/
-
+/*Выводит содержимое памяти по адресу*/
 void hexraw_print(uint32_t flash_length, uint8_t *flash_read_data_buffer)
 {
 	for (uint32_t i = 0; i < flash_length; i++)
@@ -100,7 +155,7 @@ void hexraw_print(uint32_t flash_length, uint8_t *flash_read_data_buffer)
 }
 
 /*---------------------------------------------------------------------------*/
-
+/*Выводит содержимое памяти по адресу*/
 void hexview_print(uint32_t flash_length, uint8_t *flash_read_data_buffer, uint32_t offset)
 {
 	for (uint32_t i = 0; i < flash_length; i = i + 16)
@@ -117,7 +172,7 @@ void hexview_print(uint32_t flash_length, uint8_t *flash_read_data_buffer, uint3
 }
 
 /*---------------------------------------------------------------------------*/
-
+/*Считает CRC16 со стартовым значением 0x0000*/
 uint16_t crc16_arc(uint8_t *data, uint16_t len)
 {
 	uint16_t crc = 0x0000;
@@ -140,7 +195,7 @@ uint16_t crc16_arc(uint8_t *data, uint16_t len)
 }
 
 /*---------------------------------------------------------------------------*/
-
+/*Считает CRC16 со стартовым значением 0xFFFF*/
 uint16_t crc16_modbus(uint8_t *data, uint16_t len)
 {
 	uint16_t crc = 0xFFFF;
@@ -163,14 +218,14 @@ uint16_t crc16_modbus(uint8_t *data, uint16_t len)
 }
 
 /*---------------------------------------------------------------------------*/
-
+/*Возвращает напряжение*/
 uint8_t get_voltage()
 {
 	return (uint8_t)((((batmon_sensor.value(BATMON_SENSOR_TYPE_VOLT) * 125) >> 5) - 2000) / 50);
 }
 
 /*---------------------------------------------------------------------------*/
-
+/*Возвращает темперетуру*/
 uint8_t get_temperature()
 {
 	uint32_t temp_offset = batmon_sensor.value(BATMON_SENSOR_TYPE_TEMP) + 50;
@@ -180,7 +235,7 @@ uint8_t get_temperature()
 }
 
 /*---------------------------------------------------------------------------*/
-
+/*Возвращает RSSI*/
 uint8_t get_parent_rssi()
 {
 	const rpl_dag_t *dag = NULL;
@@ -202,7 +257,7 @@ uint8_t get_parent_rssi()
 }
 
 /*---------------------------------------------------------------------------*/
-
+/**/
 str2int_errno_t hex_str2uint16(uint16_t *out, char *s) 
 {
 	char *end;
@@ -227,7 +282,7 @@ str2int_errno_t hex_str2uint16(uint16_t *out, char *s)
 }
 
 /*---------------------------------------------------------------------------*/
-
+/**/
 str2int_errno_t hex_str2uint8(uint8_t *out, char *s) 
 {
 	char *end;
@@ -252,7 +307,7 @@ str2int_errno_t hex_str2uint8(uint8_t *out, char *s)
 }
 
 /*---------------------------------------------------------------------------*/
-
+/**/
 str2int_errno_t dec_str2uint8(uint8_t *out, char *s) 
 {
 	char *end;
@@ -277,7 +332,7 @@ str2int_errno_t dec_str2uint8(uint8_t *out, char *s)
 }
 
 /*---------------------------------------------------------------------------*/
-
+/**/
 str2int_errno_t dec_str2uint32(uint32_t *out, char *s) 
 {
 	char *end;
@@ -300,3 +355,5 @@ str2int_errno_t dec_str2uint32(uint32_t *out, char *s)
 	*out = (uint32_t)l;
 	return STR2INT_SUCCESS;
 }
+
+/*---------------------------------------------------------------------------*/

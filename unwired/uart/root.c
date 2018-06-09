@@ -80,52 +80,6 @@ AUTOSTART_PROCESSES(&rpl_root_process);
 
 /*---------------------------------------------------------------------------*/
 
-static void off_uart(uint32_t rx_dio, uint32_t tx_dio)
-{
-   ti_lib_ioc_port_configure_set(tx_dio, IOC_PORT_GPIO, IOC_STD_OUTPUT);
-   ti_lib_ioc_port_configure_set(rx_dio, IOC_PORT_GPIO, IOC_STD_INPUT);
-   ti_lib_gpio_set_output_enable_dio(tx_dio, GPIO_OUTPUT_ENABLE);
-   ti_lib_gpio_set_dio(tx_dio);
-
-   while(ti_lib_uart_busy(UART0_BASE));
-   ti_lib_uart_int_disable(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
-   ti_lib_uart_int_clear(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
-   ti_lib_uart_fifo_disable(UART0_BASE);
-   while(ti_lib_uart_busy(UART0_BASE));
-   ti_lib_uart_disable(UART0_BASE);
-}
-
-static void on_uart(uint32_t rx_dio, uint32_t tx_dio, uint32_t baud_rate)
-{
-   if(baud_rate == 9600) //Не обновляется скорость UART
-   {
-	  (*(unsigned long*)(0x40001024)) = 312;
-	  (*(unsigned long*)(0x40001028)) = 32;
-	  (*(unsigned long*)(0x4000102C)) = 112; //без обновления регистра LCRH скорость не обновляется (FEN && WLEN)
-   }
-   else 
-   {
-	  (*(unsigned long*)(0x40001024)) = 312;
-	  (*(unsigned long*)(0x40001028)) = 32;
-	  (*(unsigned long*)(0x4000102C)) = 112; //без обновления регистра LCRH скорость не обновляется (FEN && WLEN)
-   }
-   
-   ti_lib_ioc_pin_type_gpio_output(tx_dio);
-   ti_lib_gpio_set_dio(tx_dio);
-   while(ti_lib_uart_busy(UART0_BASE));
-   ti_lib_ioc_pin_type_uart(UART0_BASE, rx_dio, tx_dio, IOID_UNUSED, IOID_UNUSED);
-   ti_lib_uart_config_set_exp_clk(UART0_BASE, ti_lib_sys_ctrl_clock_get(), baud_rate, 
-                  (UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE | UART_CONFIG_PAR_NONE));
-   ti_lib_uart_fifo_level_set(UART0_BASE, UART_FIFO_TX7_8, UART_FIFO_RX7_8);
-   ti_lib_uart_fifo_enable(UART0_BASE);
-   ti_lib_uart_int_enable(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
-   ti_lib_uart_int_clear(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
-   while(ti_lib_uart_busy(UART0_BASE));
-   ti_lib_uart_enable(UART0_BASE);
-   while(ti_lib_uart_busy(UART0_BASE));
-   ti_lib_uart_int_clear(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
-}
-
 PROCESS_THREAD(rpl_root_process, ev, data)
 {
 	PROCESS_BEGIN();
@@ -144,7 +98,7 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 	root_node_initialize();
 
 	static struct etimer shell_off;
-	etimer_set(&shell_off, CLOCK_SECOND * 15);
+	etimer_set(&shell_off, CLOCK_SECOND * 5);
 	PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&shell_off));
    
 	if (BOARD_IOID_UART_TX != BOARD_IOID_ALT_UART_TX || BOARD_IOID_UART_RX != BOARD_IOID_ALT_UART_RX)

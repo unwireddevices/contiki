@@ -86,22 +86,12 @@
 #define FW_DELAY						(2 * CLOCK_SECOND)
 #define FW_MAX_ERROR_COUNTER			5
 
-#define CURRENT_DEVICE_SLEEP_TYPE             DEVICE_SLEEP_TYPE_LEAF
-#define CURRENT_DEVICE_GROUP                  DEVICE_GROUP_BUTTON_SWITCH
-#define CURRENT_DEVICE_VERSION                DEVICE_VERSION_V1
-#define CURRENT_PROTOCOL_VERSION              PROTOCOL_VERSION_V1
-#define CURRENT_ABILITY_1BYTE                 0b10000000
-#define CURRENT_ABILITY_2BYTE                 0b00000000
-#define CURRENT_ABILITY_3BYTE                 0b00000000
-#define CURRENT_ABILITY_4BYTE                 0b00000000
-
 #define FALSE							0x00
 #define TRUE							0x01
 
 #define MAX_NON_ANSWERED_PINGS			3
 
 #define WAIT_RESPONSE					0.150 	//Максимальное время ожидания ответа от счетчика в секундах
-
 
 #define AES128_PACKAGE_LENGTH			16	//Длина пакета AES-128
 
@@ -119,35 +109,50 @@ volatile uint8_t spi_status;
 volatile uint8_t led_mode;
 
 volatile uint8_t non_answered_packet = 0;
-volatile uip_ipaddr_t root_addr;
+volatile uip_ipaddr_t root_addr;		/*Адресс root'а*/
 
 static struct etimer maintenance_timer;
 
-volatile u8_u16_t fw_chunk_quantity;
-volatile uint16_t fw_ext_flash_address = 0;
-volatile uint8_t fw_error_counter = 0;
+static struct ctimer wait_response; 	/*Таймер который запускатся после выдачи сообщения счетчику, если счетчик не ответил за это время, то сообщение принятые данные не передаются root'у*/
+static bool wait_response_slave = 0; 	/*Переменная которая отражает состояние таймера*/
 
-uint32_t ota_image_current_offset = 0;
+static volatile union 
+{ 
+	uint16_t u16; 
+	uint8_t u8[2]; 
+} packet_counter_root;					/*Счетчик покетов*/
 
-static struct ctimer wait_response;
-static bool wait_response_slave = 0;
+static uint8_t aes_buffer[128];			/*Буффер для шифрования*/
+static uint8_t aes_key[16];				/*Ключ шифрования для ECB*/
+static uint8_t nonce_key[16];			/*Сессионный ключ*/
 
-rpl_dag_t *rpl_probing_dag;
-
-volatile uint8_t process_message = 0;
-
-static volatile union { uint16_t u16; uint8_t u8[2]; } packet_counter_root;
-
-static uint8_t aes_buffer[128];
-static uint8_t aes_key[16];
-static uint8_t nonce_key[16];
-
-static eeprom_t eeprom_dag;
-static uint8_t interface; 
-extern uint32_t serial;
+static eeprom_t eeprom_dag;				/*Структура с значениями из EEPROM*/
+static uint8_t interface; 				/*Интерфейс общения с счетчиком*/
+extern uint32_t serial;					/*Серийный номер*/
 
 /*---------------------------------------------------------------------------*/
+/*PROTOTYPES OF FUNCTIONS*/
+static void udp_receiver(struct simple_udp_connection *c,
+						const uip_ipaddr_t *sender_addr,
+						uint16_t sender_port,
+						const uip_ipaddr_t *receiver_addr,
+						uint16_t receiver_port,
+						const uint8_t *data, 
+						uint16_t datalen);
+static void join_stage_1_sender(const uip_ipaddr_t *dest_addr);
+static void join_stage_3_sender(const uip_ipaddr_t *dest_addr,
+								const uint8_t *data,
+								uint16_t datalen);
+static void join_stage_4_handler(const uip_ipaddr_t *sender_addr,
+								const uint8_t *data,
+								uint16_t datalen);
+static void uart_from_air ( const uip_ipaddr_t *sender_addr,
+							const uint8_t *data,
+							uint16_t datalen);
+static void wait_response_reset(void *ptr);
 
+/*---------------------------------------------------------------------------*/
+/*PROTOTYPES OF PROCESS*/
 PROCESS(settings_dag_init, "Initializing settings of DAG");
 PROCESS(dag_node_process, "DAG-node process");
 PROCESS(dag_node_button_process, "DAG-node button process");
@@ -156,94 +161,209 @@ PROCESS(maintenance_process, "Maintenance process");
 PROCESS(led_process, "Led process");
 
 /*---------------------------------------------------------------------------*/
-
-uint8_t get_interface(void)
+/*Обработчик принятых пакетов*/
+static void udp_receiver(struct simple_udp_connection *c,
+						const uip_ipaddr_t *sender_addr,
+						uint16_t sender_port,
+						const uip_ipaddr_t *receiver_addr,
+						uint16_t receiver_port,
+						const uint8_t *data, 
+						uint16_t datalen)
 {
-	return interface;
+	uint8_t protocol_version = data[0];
+
+	if(uart_status() == 0)
+	{
+		printf("DAG Node: UDP packet received(%"PRIu8"): ", datalen);
+		for (uint16_t i = 0; i < datalen; i++)
+			printf("%"PRIXX8, data[i]);
+		printf("\n");
+	}
+
+	if (protocol_version == UDBP_PROTOCOL_VERSION_V5)
+	{
+		uint8_t endpoint = data[UDUP_V5_MODULE_ID];
+		if (endpoint == UNWDS_6LOWPAN_SYSTEM_MODULE_ID)
+		{
+			uint8_t packet_type = data[UDUP_V5_PACKET_TYPE];
+			
+			if (packet_type == DATA_TYPE_JOIN_V5_STAGE_2)
+			{
+				join_stage_3_sender(sender_addr, data, datalen);
+			}
+			
+			else if (packet_type == DATA_TYPE_JOIN_V5_STAGE_4)
+			{
+				join_stage_4_handler(sender_addr, data, datalen);
+			}
+			
+			else if (packet_type == UART_FROM_AIR_TO_TX)
+			{
+				uart_from_air(sender_addr, data, datalen);
+			}
+			
+			else
+			{
+				if(uart_status() == 0)
+					printf("DAG Node: Incompatible packet type(endpoint UNWDS_6LOWPAN_SYSTEM_MODULE_ID): %"PRIXX8"\n", packet_type);
+			}
+		}
+	}
+	else
+	{
+		if(uart_status() == 0)
+			printf("DAG Node: Incompatible protocol version: %"PRIXX8"\n", protocol_version);
+	}
+
+	led_mode_set(LED_FLASH);
 }
 
 /*---------------------------------------------------------------------------*/
-
-void interface_update(uint8_t interface_new)
+/*Первая стадия авторизации*/
+/*Передаём свой серийный номер*/
+static void join_stage_1_sender(const uip_ipaddr_t *dest_addr)
 {
-	eeprom_dag.interface_configured = false;
-	eeprom_dag.interface = interface_new;
+	if (dest_addr == NULL)
+		return;
+
+	uip_ipaddr_t addr;
+	uip_ip6addr_copy(&addr, dest_addr);
 	
-	write_eeprom(((uint8_t*)&eeprom_dag), sizeof(eeprom_dag));
+	if(uart_status() == 0)
+	{
+		printf("DAG Node: Send join packet to DAG-root node: ");
+		uip_debug_ipaddr_print(&addr);
+		printf("\n");
+	}
+
+	uint8_t payload_length = 8 + 4; //4 serial
+	uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
+	udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
+	udp_buffer[1] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
+	udp_buffer[2] = DATA_TYPE_JOIN_V5_STAGE_1;
+	udp_buffer[3] = get_parent_rssi();
+	udp_buffer[4] = get_temperature();
+	udp_buffer[5] = get_voltage();
+
+	udp_buffer[6] = packet_counter_node.u8[0];//UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
+	udp_buffer[7] = packet_counter_node.u8[1];//DATA_TYPE_JOIN_V5_STAGE_1;
+	udp_buffer[8] = 0; //DEVICE_GROUP
+	udp_buffer[9] = 0; //DEVICE_SLEEP_TYPE
+	udp_buffer[10] = 0; //ABILITY
+	udp_buffer[11] = 0; //ABILITY
+	udp_buffer[12] = 0; //ABILITY
+	udp_buffer[13] = 0; //ABILITY
 	
-	watchdog_reboot();
+	udp_buffer[14] = (uint8_t)((serial >> 24) & 0xFF);	// SERIAL 00  00  92  F6
+	udp_buffer[15] = (uint8_t)((serial >> 16) & 0xFF); 	// SERIAL
+	udp_buffer[16] = (uint8_t)((serial >> 8) & 0xFF);  	// SERIAL
+	udp_buffer[17] = (uint8_t)(serial & 0xFF);			// SERIAL
+
+	simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
 }
 
 /*---------------------------------------------------------------------------*/
+/*Третья стадия авторизации*/
+/*Получаем nonce и отправляем его root'у зашифрованым AES128-CBC*/
+static void join_stage_3_sender(const uip_ipaddr_t *dest_addr,
+								const uint8_t *data,
+								uint16_t datalen)
+{
+	if (dest_addr == NULL)
+		return;
+	
+	uip_ipaddr_t addr;
+	uip_ip6addr_copy(&addr, dest_addr);
+	
+	if(uart_status() == 0)
+	{
+		printf("DAG Node: Send join packet stage 3 to DAG-root node:");
+		uip_debug_ipaddr_print(&addr);
+		printf("\n");
+	}
+	
+	uint8_t payload_length = 2 + 4 + 16; //2 header + 4 serial + 16 AES
+	uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
+	udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
+	udp_buffer[1] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;//packet_counter_node.u8[0];
+	udp_buffer[2] = DATA_TYPE_JOIN_V5_STAGE_3;//packet_counter_node.u8[1];
+	udp_buffer[3] = get_parent_rssi();
+	udp_buffer[4] = get_temperature();
+	udp_buffer[5] = get_voltage();
 
-void aes128_key_update(const uint8_t *aes_key_new)
+	udp_buffer[6] = packet_counter_node.u8[0];//UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
+	udp_buffer[7] = packet_counter_node.u8[1];//DATA_TYPE_JOIN_V5_STAGE_3;
+	
+	udp_buffer[8] = (uint8_t)((serial >> 24) & 0xFF);	// SERIAL 00  00  92  F6
+	udp_buffer[9] = (uint8_t)((serial >> 16) & 0xFF); 	// SERIAL
+	udp_buffer[10] = (uint8_t)((serial >> 8) & 0xFF);  	// SERIAL
+	udp_buffer[11] = (uint8_t)(serial & 0xFF);			// SERIAL
+	
+	aes_ecb_decrypt((uint32_t*)aes_key, (uint32_t*)&data[8], (uint32_t*)aes_buffer);
+	nonce_key[0] = aes_buffer[0];
+	nonce_key[1] = aes_buffer[1];
+	nonce_key[2] = aes_buffer[0];
+	nonce_key[3] = aes_buffer[1];
+	nonce_key[4] = aes_buffer[0];
+	nonce_key[5] = aes_buffer[1];
+	nonce_key[6] = aes_buffer[0];
+	nonce_key[7] = aes_buffer[1];
+	nonce_key[8] = aes_buffer[0];
+	nonce_key[9] = aes_buffer[1];
+	nonce_key[10] = aes_buffer[0];
+	nonce_key[11] = aes_buffer[1];
+	nonce_key[12] = aes_buffer[0];
+	nonce_key[13] = aes_buffer[1];
+	nonce_key[14] = aes_buffer[0];
+	nonce_key[15] = aes_buffer[1];
+	
+	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[12]), 16);
+
+	simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
+}
+/*---------------------------------------------------------------------------*/
+/*Обработчик четвертой стадии авторизации*/
+/*Сравниваем данные пришедшие от root'а для того что бы удостоверится в том что используются правильные настройки шифрования*/
+static void join_stage_4_handler(const uip_ipaddr_t *sender_addr,
+								 const uint8_t *data,
+								 uint16_t datalen)
 {	
-	eeprom_dag.aes_key_configured = false;
+	if (sender_addr == NULL)
+		return;
+			
+	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[8], (uint32_t*)(aes_buffer), 16);
 	
-	for(uint8_t i = 0; i < 16; i++)
-		eeprom_dag.aes_key[i] = aes_key_new[i];
+	if( (aes_buffer[0] == 0x00)  &&
+		(aes_buffer[1] == 0x00)  &&
+		(aes_buffer[2] == 0x00)  &&
+		(aes_buffer[3] == 0x00)  &&
+		(aes_buffer[4] == 0x00)  &&
+		(aes_buffer[5] == 0x00)  &&
+		(aes_buffer[6] == 0x00)  &&
+		(aes_buffer[7] == 0x00)  &&
+		(aes_buffer[8] == 0x00)  &&
+		(aes_buffer[9] == 0x00)  &&
+		(aes_buffer[10] == 0x00) &&
+		(aes_buffer[11] == 0x00) &&
+		(aes_buffer[12] == 0x00) &&
+		(aes_buffer[13] == 0x00) &&
+		(aes_buffer[14] == 0x00) &&
+		(aes_buffer[15] == 0x00))
+	{
+		packet_counter_root.u8[0] = data[6];
+		packet_counter_root.u8[1] = data[7];
+		uip_ipaddr_copy(&root_addr, sender_addr); //Авторизован
+		process_post(&dag_node_process, PROCESS_EVENT_CONTINUE, NULL);
+		etimer_set(&maintenance_timer, 0);
+		packet_counter_node.u16 = 1;
+		return;
+	}
 	
-	write_eeprom(((uint8_t*)&eeprom_dag), sizeof(eeprom_dag));
-	
-	watchdog_reboot();
+	printf("Authorisation Error\n"); //Не авторизован
 }
 
 /*---------------------------------------------------------------------------*/
-
-uint8_t *get_aes128_key(void)
-{
-	return aes_key;
-}
-
-/*---------------------------------------------------------------------------*/
-
-void serial_update(uint32_t serial_new)
-{
-	eeprom_dag.serial_configured = false;
-	eeprom_dag.serial = serial_new;
-	
-	write_eeprom(((uint8_t*)&eeprom_dag), sizeof(eeprom_dag));
-	
-	watchdog_reboot();
-}
-
-/*---------------------------------------------------------------------------*/
-
-uint32_t get_serial(void)
-{
-	return serial;
-}
-
-/*---------------------------------------------------------------------------*/
-
-void channel_update(uint8_t channel_new)
-{
-	eeprom_dag.channel = channel_new;
-	write_eeprom(((uint8_t*)&eeprom_dag), sizeof(eeprom_dag));
-}
-
-/*---------------------------------------------------------------------------*/
-void panid_update(uint16_t panid_new)
-{
-	eeprom_dag.panid = panid_new;
-	write_eeprom(((uint8_t*)&eeprom_dag), sizeof(eeprom_dag));
-}
-/*---------------------------------------------------------------------------*/
-
-static void wait_response_reset(void *ptr)
-{
-	wait_response_slave = 0;
-}
-
-/*---------------------------------------------------------------------------*/
-
-bool wait_response_status(void)
-{
-	return wait_response_slave;
-}
-
-/*---------------------------------------------------------------------------*/
-
+/*Передает данные полученные из радио от root'а на счетчик через UART*/
 static void uart_from_air ( const uip_ipaddr_t *sender_addr,
 							const uint8_t *data,
 							uint16_t datalen)
@@ -292,7 +412,7 @@ static void uart_from_air ( const uip_ipaddr_t *sender_addr,
 }
 
 /*---------------------------------------------------------------------------*/
-
+/*Передает данные полученные от счетчика root'у по радио*/
 void uart_to_air(char* data)
 {
 	if (node_mode == 2) //MODE_NOTROOT_SLEEP
@@ -349,224 +469,9 @@ void uart_to_air(char* data)
 		led_mode_set(LED_FLASH);
 	}
 }
-/*---------------------------------------------------------------------------*/
-
-void join_stage_1_sender(const uip_ipaddr_t *dest_addr)
-{
-	if (dest_addr == NULL)
-		return;
-
-	uip_ipaddr_t addr;
-	uip_ip6addr_copy(&addr, dest_addr);
-	
-	if(uart_status() == 0)
-	{
-		printf("DAG Node: Send join packet to DAG-root node: ");
-		uip_debug_ipaddr_print(&addr);
-		printf("\n");
-	}
-
-	uint8_t payload_length = 8 + 4; //4 serial
-	uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
-	udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
-	udp_buffer[1] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;//packet_counter_node.u8[0];
-	udp_buffer[2] = DATA_TYPE_JOIN_V5_STAGE_1;//packet_counter_node.u8[1];
-	udp_buffer[3] = get_parent_rssi();
-	udp_buffer[4] = get_temperature();
-	udp_buffer[5] = get_voltage();
-
-	udp_buffer[6] = packet_counter_node.u8[0];//UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
-	udp_buffer[7] = packet_counter_node.u8[1];//DATA_TYPE_JOIN_V5_STAGE_1;
-	udp_buffer[8] = CURRENT_DEVICE_GROUP;
-	udp_buffer[9] = CURRENT_DEVICE_SLEEP_TYPE;
-	udp_buffer[10] = CURRENT_ABILITY_1BYTE;
-	udp_buffer[11] = CURRENT_ABILITY_2BYTE;
-	udp_buffer[12] = CURRENT_ABILITY_3BYTE;
-	udp_buffer[13] = CURRENT_ABILITY_4BYTE;
-	
-	udp_buffer[14] = (uint8_t)((serial >> 24) & 0xFF);	// SERIAL 00  00  92  F6
-	udp_buffer[15] = (uint8_t)((serial >> 16) & 0xFF); 	// SERIAL
-	udp_buffer[16] = (uint8_t)((serial >> 8) & 0xFF);  	// SERIAL
-	udp_buffer[17] = (uint8_t)(serial & 0xFF);			// SERIAL
-
-	simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
-}
-/*---------------------------------------------------------------------------*/
-static void join_stage_3_sender(const uip_ipaddr_t *dest_addr,
-										const uint8_t *data,
-										uint16_t datalen)
-{
-	if (dest_addr == NULL)
-		return;
-	
-	uip_ipaddr_t addr;
-	uip_ip6addr_copy(&addr, dest_addr);
-	
-	if(uart_status() == 0)
-	{
-		printf("DAG Node: Send join packet stage 3 to DAG-root node:");
-		uip_debug_ipaddr_print(&addr);
-		printf("\n");
-	}
-	
-	uint8_t payload_length = 2 + 4 + 16; //2 header + 4 serial + 16 AES
-	uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
-	udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
-	udp_buffer[1] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;//packet_counter_node.u8[0];
-	udp_buffer[2] = DATA_TYPE_JOIN_V5_STAGE_3;//packet_counter_node.u8[1];
-	udp_buffer[3] = get_parent_rssi();
-	udp_buffer[4] = get_temperature();
-	udp_buffer[5] = get_voltage();
-
-	udp_buffer[6] = packet_counter_node.u8[0];//UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
-	udp_buffer[7] = packet_counter_node.u8[1];//DATA_TYPE_JOIN_V5_STAGE_3;
-	
-	udp_buffer[8] = (uint8_t)((serial >> 24) & 0xFF);	// SERIAL 00  00  92  F6
-	udp_buffer[9] = (uint8_t)((serial >> 16) & 0xFF); 	// SERIAL
-	udp_buffer[10] = (uint8_t)((serial >> 8) & 0xFF);  	// SERIAL
-	udp_buffer[11] = (uint8_t)(serial & 0xFF);			// SERIAL
-	
-	aes_ecb_decrypt((uint32_t*)aes_key, (uint32_t*)&data[8], (uint32_t*)aes_buffer);
-	nonce_key[0] = aes_buffer[0];
-	nonce_key[1] = aes_buffer[1];
-	nonce_key[2] = aes_buffer[0];
-	nonce_key[3] = aes_buffer[1];
-	nonce_key[4] = aes_buffer[0];
-	nonce_key[5] = aes_buffer[1];
-	nonce_key[6] = aes_buffer[0];
-	nonce_key[7] = aes_buffer[1];
-	nonce_key[8] = aes_buffer[0];
-	nonce_key[9] = aes_buffer[1];
-	nonce_key[10] = aes_buffer[0];
-	nonce_key[11] = aes_buffer[1];
-	nonce_key[12] = aes_buffer[0];
-	nonce_key[13] = aes_buffer[1];
-	nonce_key[14] = aes_buffer[0];
-	nonce_key[15] = aes_buffer[1];
-	
-	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[12]), 16);
-
-	simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
-}
-/*---------------------------------------------------------------------------*/
-static void join_stage_4_handler(const uip_ipaddr_t *sender_addr,
-										const uint8_t *data,
-										uint16_t datalen)
-{	
-	if (sender_addr == NULL)
-		return;
-			
-	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[8], (uint32_t*)(aes_buffer), 16);
-	
-	if( (aes_buffer[0] == 0x00)  &&
-		(aes_buffer[1] == 0x00)  &&
-		(aes_buffer[2] == 0x00)  &&
-		(aes_buffer[3] == 0x00)  &&
-		(aes_buffer[4] == 0x00)  &&
-		(aes_buffer[5] == 0x00)  &&
-		(aes_buffer[6] == 0x00)  &&
-		(aes_buffer[7] == 0x00)  &&
-		(aes_buffer[8] == 0x00)  &&
-		(aes_buffer[9] == 0x00)  &&
-		(aes_buffer[10] == 0x00) &&
-		(aes_buffer[11] == 0x00) &&
-		(aes_buffer[12] == 0x00) &&
-		(aes_buffer[13] == 0x00) &&
-		(aes_buffer[14] == 0x00) &&
-		(aes_buffer[15] == 0x00))
-	{
-		packet_counter_root.u8[0] = data[6];
-		packet_counter_root.u8[1] = data[7];
-		uip_ipaddr_copy(&root_addr, sender_addr); //Авторизован
-		process_post(&dag_node_process, PROCESS_EVENT_CONTINUE, NULL);
-		etimer_set(&maintenance_timer, 0);
-		packet_counter_node.u16 = 1;
-		return;
-	}
-	
-	printf("Authorisation Error\n");
-	//Не авторизован
-}
 
 /*---------------------------------------------------------------------------*/
-
-static void ack_handler(const uip_ipaddr_t *sender_addr,
-								const uint8_t *data,
-								uint16_t datalen)
-{
-	non_answered_packet = 0;
-	if(uart_status() == 0)
-		printf("DAG Node: ACK packet received, non-answered packet counter: %"PRId8" \n", non_answered_packet);
-	net_off(RADIO_OFF_NOW);
-	process_message = PT_MESSAGE_ACK_RECIEVED;
-	//process_post_synch(&main_process, PROCESS_EVENT_MSG, (process_data_t)&process_message);
-}
-
-/*---------------------------------------------------------------------------*/
-
-static void udp_receiver(struct simple_udp_connection *c,
-						const uip_ipaddr_t *sender_addr,
-						uint16_t sender_port,
-						const uip_ipaddr_t *receiver_addr,
-						uint16_t receiver_port,
-						const uint8_t *data, 
-						uint16_t datalen)
-{
-	uint8_t protocol_version = data[0];
-
-	if(uart_status() == 0)
-	{
-		printf("DAG Node: UDP packet received(%"PRIu8"): ", datalen);
-		for (uint16_t i = 0; i < datalen; i++)
-			printf("%"PRIXX8, data[i]);
-		printf("\n");
-	}
-
-	if (protocol_version == UDBP_PROTOCOL_VERSION_V5)
-	{
-		uint8_t endpoint = data[UDUP_V5_MODULE_ID];
-		if (endpoint == UNWDS_6LOWPAN_SYSTEM_MODULE_ID)
-		{
-			uint8_t packet_type = data[UDUP_V5_PACKET_TYPE];
-			
-			if (packet_type == DATA_TYPE_JOIN_V5_STAGE_2)
-			{
-				join_stage_3_sender(sender_addr, data, datalen);
-			}
-			
-			else if (packet_type == DATA_TYPE_JOIN_V5_STAGE_4)
-			{
-				join_stage_4_handler(sender_addr, data, datalen);
-			}
-			
-			else if (packet_type == DATA_TYPE_ACK)
-			{
-				ack_handler(sender_addr, data, datalen);
-			}
-			
-			else if (packet_type == UART_FROM_AIR_TO_TX)
-			{
-				uart_from_air(sender_addr, data, datalen);
-			}
-			
-			else
-			{
-				if(uart_status() == 0)
-					printf("DAG Node: Incompatible packet type(endpoint UNWDS_6LOWPAN_SYSTEM_MODULE_ID): %"PRIXX8"\n", packet_type);
-			}
-		}
-	}
-	else
-	{
-		if(uart_status() == 0)
-			printf("DAG Node: Incompatible protocol version: %"PRIXX8"\n", protocol_version);
-	}
-
-	led_mode_set(LED_FLASH);
-}
-
-/*---------------------------------------------------------------------------*/
-
+/*Функция управления светодиодами*/
 void led_mode_set(uint8_t mode)
 {
 	led_mode = mode;
@@ -576,14 +481,103 @@ void led_mode_set(uint8_t mode)
 	if (led_mode == LED_ON)
 		led_on(LED_A);
 
-	if (led_mode == LED_SLOW_BLINK || led_mode == LED_FAST_BLINK || led_mode == LED_FLASH)
+	if ((led_mode == LED_SLOW_BLINK) || (led_mode == LED_FAST_BLINK) || (led_mode == LED_FLASH))
 		process_start(&led_process, NULL);
 	else
 		process_exit(&led_process);
 }
 
 /*---------------------------------------------------------------------------*/
+/*Возвращает текущий интерфейс общения с счетчиком*/
+uint8_t get_interface(void)
+{
+	return interface;
+}
 
+/*---------------------------------------------------------------------------*/
+/*Обновляет интерфейс общения с счетчиком в EEPROM и перезагружает*/
+void interface_update(uint8_t interface_new)
+{
+	eeprom_dag.interface_configured = false;
+	eeprom_dag.interface = interface_new;
+	
+	write_eeprom(((uint8_t*)&eeprom_dag), sizeof(eeprom_dag));
+	
+	watchdog_reboot();
+}
+
+/*---------------------------------------------------------------------------*/
+/*Обновляет ключ шифрования и перезагружает*/
+void aes128_key_update(const uint8_t *aes_key_new)
+{	
+	eeprom_dag.aes_key_configured = false;
+	
+	for(uint8_t i = 0; i < 16; i++)
+		eeprom_dag.aes_key[i] = aes_key_new[i];
+	
+	write_eeprom(((uint8_t*)&eeprom_dag), sizeof(eeprom_dag));
+	
+	watchdog_reboot();
+}
+
+/*---------------------------------------------------------------------------*/
+/*Возвращает указатель на массив в котором хранится ключ шифрования*/
+uint8_t *get_aes128_key(void)
+{
+	return aes_key;
+}
+
+/*---------------------------------------------------------------------------*/
+/*Обновляет серийный номер в EEPROM и перезагружает*/
+void serial_update(uint32_t serial_new)
+{
+	eeprom_dag.serial_configured = false;
+	eeprom_dag.serial = serial_new;
+	
+	write_eeprom(((uint8_t*)&eeprom_dag), sizeof(eeprom_dag));
+	
+	watchdog_reboot();
+}
+
+/*---------------------------------------------------------------------------*/
+/*Возвращает серийный номер*/
+uint32_t get_serial(void)
+{
+	return serial;
+}
+
+/*---------------------------------------------------------------------------*/
+/*Обновляет channel в EEPROM*/
+void channel_update(uint8_t channel_new)
+{
+	eeprom_dag.channel = channel_new;
+	write_eeprom(((uint8_t*)&eeprom_dag), sizeof(eeprom_dag));
+}
+
+/*---------------------------------------------------------------------------*/
+/*Обновляет PANID в EEPROM*/
+void panid_update(uint16_t panid_new)
+{
+	eeprom_dag.panid = panid_new;
+	write_eeprom(((uint8_t*)&eeprom_dag), sizeof(eeprom_dag));
+}
+
+/*---------------------------------------------------------------------------*/
+/**/
+static void wait_response_reset(void *ptr)
+{
+	wait_response_slave = 0;
+}
+
+/*---------------------------------------------------------------------------*/
+/**/
+bool wait_response_status(void)
+{
+	return wait_response_slave;
+}
+
+/*---------------------------------------------------------------------------*/
+/*Процесс инициализации настроек из EEPROM*/
 PROCESS_THREAD(settings_dag_init, ev, data)
 {
 	PROCESS_BEGIN();
@@ -701,6 +695,7 @@ PROCESS_THREAD(settings_dag_init, ev, data)
 }
 
 /*---------------------------------------------------------------------------*/
+/*Процесс упарвления светодиодами*/
 PROCESS_THREAD(led_process, ev, data)
 {
 	PROCESS_BEGIN();
@@ -746,7 +741,7 @@ PROCESS_THREAD(led_process, ev, data)
 }
 
 /*---------------------------------------------------------------------------*/
-
+/*Процесс отслеживает нажатие кнопки. При нажатии происходит перезагрузка*/
 PROCESS_THREAD(dag_node_button_process, ev, data)
 {
 	PROCESS_BEGIN();
@@ -776,7 +771,7 @@ PROCESS_THREAD(dag_node_button_process, ev, data)
 }
 
 /*---------------------------------------------------------------------------*/
-
+/*Процесс*/
 PROCESS_THREAD(maintenance_process, ev, data)
 {
 	PROCESS_BEGIN();
@@ -860,11 +855,12 @@ PROCESS_THREAD(maintenance_process, ev, data)
 		etimer_set(&maintenance_timer, MAINTENANCE_INTERVAL);
 		PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&maintenance_timer) );
 	}
+	
 	PROCESS_END();
 }
 
 /*---------------------------------------------------------------------------*/
-
+/*Процесс поиска root'а*/
 PROCESS_THREAD(root_find_process, ev, data)
 {
 	PROCESS_BEGIN();
@@ -915,7 +911,7 @@ PROCESS_THREAD(root_find_process, ev, data)
 }
 
 /*---------------------------------------------------------------------------*/
-
+/*Запуск инициализации ноды (точка входа)*/
 PROCESS_THREAD(dag_node_process, ev, data)
 {
 	PROCESS_BEGIN();

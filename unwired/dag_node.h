@@ -50,8 +50,8 @@
 #define LED_SLOW_BLINK                          0x03
 #define LED_FAST_BLINK                          0x04
 
-#define INTERFACE_RS485 						0 //
-#define INTERFACE_CAN 							1 //
+#define INTERFACE_RS485 						0x00 
+#define INTERFACE_CAN 							0x01 
 
 /*---------------------------------------------------------------------------*/
 
@@ -60,22 +60,21 @@ volatile uip_ipaddr_t root_addr;
 volatile uint8_t node_mode;
 volatile union { uint16_t u16; uint8_t u8[2]; } packet_counter_node;
 
-struct interpocess_message
-{
-   volatile uint8_t payload[16];
-};
-
+/*---------------------------------------------------------------------------*/
+/*PROTOTYPES OF FUNCTIONS*/
+void uart_to_air(char* data);
+void led_mode_set(uint8_t mode);
 uint8_t get_interface(void);
 void interface_update(uint8_t interface_new);
-uint8_t *get_aes128_key(void);
 void aes128_key_update(const uint8_t *aes_key_new);
+uint8_t *get_aes128_key(void);
 void serial_update(uint32_t serial_new);
 uint32_t get_serial(void);
 void channel_update(uint8_t channel_new);
 void panid_update(uint16_t panid_new);
-void uart_to_air(char* data);
-void led_mode_set(uint8_t mode);
 bool wait_response_status(void);
+
+/*---------------------------------------------------------------------------*/
 
 PROCESS_NAME(settings_dag_init);
 PROCESS_NAME(dag_node_process);

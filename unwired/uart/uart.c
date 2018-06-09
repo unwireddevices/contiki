@@ -69,10 +69,6 @@
 
 #include "net/rpl/rpl-private.h"
 
-#define CC26XX_UART_INTERRUPT_ALL ( UART_INT_OE | UART_INT_BE | UART_INT_PE | \
-									UART_INT_FE | UART_INT_RT | UART_INT_TX | \
-									UART_INT_RX | UART_INT_CTS)
-
 /*---------------------------------------------------------------------------*/
 /* Register button sensors */
 SENSORS(&button_e_sensor_click, &button_e_sensor_long_click);
@@ -84,63 +80,15 @@ PROCESS(main_process, "UART process");
 AUTOSTART_PROCESSES(&main_process);
 
 /*---------------------------------------------------------------------------*/
-
-static void off_uart(uint32_t rx_dio, uint32_t tx_dio)
-{
-   ti_lib_ioc_port_configure_set(tx_dio, IOC_PORT_GPIO, IOC_STD_OUTPUT);
-   ti_lib_ioc_port_configure_set(rx_dio, IOC_PORT_GPIO, IOC_STD_INPUT);
-   ti_lib_gpio_set_output_enable_dio(tx_dio, GPIO_OUTPUT_ENABLE);
-   ti_lib_gpio_set_dio(tx_dio);
-
-   while(ti_lib_uart_busy(UART0_BASE));
-   ti_lib_uart_int_disable(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
-   ti_lib_uart_int_clear(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
-   ti_lib_uart_fifo_disable(UART0_BASE);
-   while(ti_lib_uart_busy(UART0_BASE));
-   ti_lib_uart_disable(UART0_BASE);
-}
-/*---------------------------------------------------------------------------*/
-static void on_uart(uint32_t rx_dio, uint32_t tx_dio, uint32_t baud_rate)
-{
-   if(baud_rate == 9600) //Не обновляется скорость UART
-   {
-	  (*(unsigned long*)(0x40001024)) = 312;
-	  (*(unsigned long*)(0x40001028)) = 32;
-	  (*(unsigned long*)(0x4000102C)) = 112; //без обновления регистра LCRH скорость не обновляется (FEN && WLEN)
-   }
-   else 
-   {
-	  (*(unsigned long*)(0x40001024)) = 26;
-	  (*(unsigned long*)(0x40001028)) = 3;
-	  (*(unsigned long*)(0x4000102C)) = 112; //без обновления регистра LCRH скорость не обновляется (FEN && WLEN)
-   }
-   
-   ti_lib_ioc_io_port_pull_set(IOID_26, IOC_IOPULL_UP);
-   ti_lib_ioc_pin_type_gpio_output(tx_dio);
-   ti_lib_gpio_set_dio(tx_dio);
-   while(ti_lib_uart_busy(UART0_BASE));
-   ti_lib_ioc_pin_type_uart(UART0_BASE, rx_dio, tx_dio, IOID_UNUSED, IOID_UNUSED);
-   ti_lib_uart_config_set_exp_clk(UART0_BASE, ti_lib_sys_ctrl_clock_get(), baud_rate, 
-                  (UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE | UART_CONFIG_PAR_NONE));
-   ti_lib_uart_fifo_level_set(UART0_BASE, UART_FIFO_TX7_8, UART_FIFO_RX7_8);
-   ti_lib_uart_fifo_enable(UART0_BASE);
-   ti_lib_uart_int_enable(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
-   ti_lib_uart_int_clear(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
-   while(ti_lib_uart_busy(UART0_BASE));
-   ti_lib_uart_enable(UART0_BASE);
-   while(ti_lib_uart_busy(UART0_BASE));
-   ti_lib_uart_int_clear(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
-}
-/*---------------------------------------------------------------------------*/
-
+/*Стартовый процесс (точка входа)*/
 PROCESS_THREAD(main_process, ev, data)
 {
 	PROCESS_BEGIN();
 	printf("Start Unwired UART device.\n");
 	PROCESS_PAUSE();
 	
-	ti_lib_ioc_pin_type_gpio_output(RS485_DE);
-	ti_lib_ioc_pin_type_gpio_output(RS485_RE);
+	ti_lib_ioc_pin_type_gpio_output(RS485_DE); 				/*Настройка ноги RS485_DE на выход*/
+	ti_lib_ioc_pin_type_gpio_output(RS485_RE); 				/*Настройка ноги RS485_RE на выход*/
 	
 	if (BOARD_IOID_UART_RX == IOID_UNUSED)
 	{
@@ -156,29 +104,30 @@ PROCESS_THREAD(main_process, ev, data)
 		printf("DAG Node: Shell activated, type \"help\" for command list\n");
 	}
 	
-	process_start(&settings_dag_init, NULL);
-	PROCESS_YIELD_UNTIL(ev == PROCESS_EVENT_CONTINUE);
-	process_exit(&settings_dag_init);
+	process_start(&settings_dag_init, NULL); 				/*Запуск процесса инициализации настроек из EEPROM*/
+	PROCESS_YIELD_UNTIL(ev == PROCESS_EVENT_CONTINUE); 		/*Ожидание окончание настройки*/
+	process_exit(&settings_dag_init); 						/*Завершение процесса*/
 	
-	process_start(&dag_node_process, NULL);
+	process_start(&dag_node_process, NULL);					/*Запуск ноды*/
 	
-	static struct etimer shell_off;
-	etimer_set(&shell_off, CLOCK_SECOND * 5);
+	static struct etimer shell_off;							/*Создание таймера по истечению которого выключается шелл*/
+	etimer_set(&shell_off, CLOCK_SECOND * 5);				/*Заводится таймер на 5 секунд*/
 	
-	PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&shell_off));
+	PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&shell_off));	/*Ожидание пока сработает таймер*/
 		
-	if(get_interface() == INTERFACE_RS485)
+	/*Инициализируем UART в нужном режиме*/
+	if(get_interface() == INTERFACE_RS485) 					/*Инициализация в режиме интерфейса: RS485*/
 	{
 		if (BOARD_IOID_UART_TX != BOARD_IOID_ALT_UART_TX || BOARD_IOID_UART_RX != BOARD_IOID_ALT_UART_RX)
 		{
 			printf("UDM: UART change to alt(RX: 26, TX: 25)\n");
 			off_uart(BOARD_IOID_UART_RX, BOARD_IOID_UART_TX);
 			on_uart(BOARD_IOID_ALT_UART_RX, BOARD_IOID_ALT_UART_TX, 9600);
-			ti_lib_gpio_clear_dio(RS485_DE);
-			ti_lib_gpio_clear_dio(RS485_RE);
+			ti_lib_gpio_clear_dio(RS485_DE);				/*Устанавливаем RS485_DE в низкий уровень. Интерфейс работает на приём*/
+			ti_lib_gpio_clear_dio(RS485_RE);				/*Устанавливаем RS485_RE в низкий уровень. Интерфейс работает на приём*/
 		}
 	}
-	else if(get_interface() == INTERFACE_CAN)
+	else if(get_interface() == INTERFACE_CAN)				/*Инициализация в режиме интерфейса: CAN*/
 	{
 		if (BOARD_IOID_UART_TX != BOARD_IOID_CAN_UART_TX || BOARD_IOID_UART_RX != BOARD_IOID_ALT_UART_RX)
 		{
@@ -188,15 +137,15 @@ PROCESS_THREAD(main_process, ev, data)
 		}
 	}
 	
-	set_uart();
-	while (1)
+	set_uart();							/*Запрещает выводить данные шелла в UART*/
+	while(1) 							/*Цикл который ожидает события uart_event_message*/
 	{
-		PROCESS_YIELD();
+		PROCESS_YIELD(); 
 		if(ev == uart_event_message) 
 		{
 			if(wait_response_status()) 
 			{
-				uart_to_air(data);
+				uart_to_air(data); 		/*Отправляет данные счетчику по радио*/
 			}
 		} 
 	}

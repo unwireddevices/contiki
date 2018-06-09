@@ -114,7 +114,9 @@ typedef enum str2int_errno_t
 } str2int_errno_t;
 
 /*---------------------------------------------------------------------------*/
-
+/*PROTOTYPES OF FUNCTIONS*/
+void on_uart(uint32_t rx_dio, uint32_t tx_dio, uint32_t baud_rate);
+void off_uart(uint32_t rx_dio, uint32_t tx_dio);
 void hexraw_print(uint32_t flash_length, uint8_t *flash_read_data_buffer);
 void hexview_print(uint32_t flash_length, uint8_t *flash_read_data_buffer, uint32_t offset);
 void flash_damp_hex(uint8_t mode);
@@ -131,4 +133,3 @@ str2int_errno_t dec_str2uint32(uint32_t *out, char *s);
 str2int_errno_t hex_str2uint8(uint8_t *out, char *s);
 
 /*---------------------------------------------------------------------------*/
-

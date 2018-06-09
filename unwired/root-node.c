@@ -80,8 +80,6 @@
 
 /*---------------------------------------------------------------------------*/
 
-void send_time_sync_resp_packet(const uip_ip6addr_t *dest_addr, const uint8_t *data, const uint16_t length);
-
 uint8_t udup_v5_rc_uart_rx_buffer[UDUP_V5_RC_MAX_LENGTH+1]; //+1 for \n(0x0A)
 uint8_t udup_v5_cr_uart_tx_buffer[UDUP_V5_CR_MAX_LENGTH];
 
@@ -98,28 +96,28 @@ static struct ctimer wait_response;
 static bool uart = 0;
 static bool wait_response_slave = 0;
 
-volatile union 
+static volatile union 
 { 
 	uint16_t u16; 
 	uint8_t u8[2]; 
-} packet_counter_root;
-
-PROCESS(settings_root_init, "Initializing settings of ROOT");
-PROCESS(main_root_process, "main root process");
+} packet_counter_root; 					/*Счетчик покетов*/
 
 /*---------------------------------------------------------------------------*/
 /*PROTOTYPES OF FUNCTIONS*/
 static void join_stage_2_sender(const uip_ip6addr_t *dest_addr, const uint8_t *data, const uint16_t length, uint8_t version);
 static void join_stage_4_sender(const uip_ip6addr_t *dest_addr, const uint8_t *data, const uint16_t length, uint8_t version);
-static void ack_packet_sender(const uip_ip6addr_t *dest_addr);
 static void uart_to_air();
 static void uart_from_air(const uip_ip6addr_t *addr, const uint8_t *data, const uint16_t length, uint8_t version);
 static void dag_root_print(const uip_ip6addr_t *addr, const uint8_t *data, const uint16_t length, uint8_t version);
-
 static void wait_response_reset(void *ptr);
 
 /*---------------------------------------------------------------------------*/
+/*PROTOTYPES OF PROCESS*/
+PROCESS(settings_root_init, "Initializing settings of ROOT");
+PROCESS(main_root_process, "main root process");
 
+/*---------------------------------------------------------------------------*/
+/*Обработчик принятых пакетов*/
 void udp_data_receiver(struct simple_udp_connection *connection,
                        const uip_ipaddr_t *sender_addr,
                        uint16_t sender_port,
@@ -161,7 +159,6 @@ void udp_data_receiver(struct simple_udp_connection *connection,
 				return;
 			}
 		}
-		ack_packet_sender(&node_addr);
 		dag_root_print(&node_addr, data, datalen, UDBP_PROTOCOL_VERSION_V5);
 	}
 
@@ -169,7 +166,8 @@ void udp_data_receiver(struct simple_udp_connection *connection,
 }
 
 /*---------------------------------------------------------------------------*/
-
+/*Вторая стадия авторизации*/
+/*Генерирует сессионный ключ (nonce) и отправляет его зашифрованым AES128-ECB, добавляет маршрут в таблицу*/
 static void join_stage_2_sender(const uip_ip6addr_t *dest_addr, const uint8_t *data, const uint16_t length, uint8_t version)
 {
 	if (dest_addr == NULL)
@@ -212,7 +210,8 @@ static void join_stage_2_sender(const uip_ip6addr_t *dest_addr, const uint8_t *d
 }
 
 /*---------------------------------------------------------------------------*/
-
+/*Четвертая стадия авторизации*/
+/*Принимает nonce зашифрованный AES128-CBC. Если сходится с тем что он сгенерировал, то авторизация прошла успешно, настройки шифрования верные. Отправляем пакет с нулями что бы DAG мог убедиться в этом*/
 static void join_stage_4_sender(const uip_ip6addr_t *dest_addr, const uint8_t *data, const uint16_t length, uint8_t version)
 {
 	if (dest_addr == NULL)
@@ -274,46 +273,7 @@ static void join_stage_4_sender(const uip_ip6addr_t *dest_addr, const uint8_t *d
 }
 
 /*---------------------------------------------------------------------------*/
-
-static void ack_packet_sender(const uip_ip6addr_t *dest_addr)
-{
-	if (dest_addr == NULL)
-		return;
-
-	uip_ipaddr_t addr;
-	uip_ip6addr_copy(&addr, dest_addr);
-
-	uint8_t payload_length = 16;
-	uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
-	udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
-	udp_buffer[1] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
-	udp_buffer[2] = DATA_TYPE_ACK;
-	udp_buffer[3] = get_parent_rssi();
-	udp_buffer[4] = get_temperature();
-	udp_buffer[5] = get_voltage();
-
-	udp_buffer[6] = packet_counter_root.u8[0];
-	udp_buffer[7] = packet_counter_root.u8[1];
-	udp_buffer[8] = DATA_RESERVED;
-	udp_buffer[9] = DATA_RESERVED;
-	udp_buffer[10] = DATA_RESERVED;
-	udp_buffer[11] = DATA_RESERVED;
-	udp_buffer[12] = DATA_RESERVED;
-	udp_buffer[13] = DATA_RESERVED;
-	udp_buffer[14] = DATA_RESERVED;
-	udp_buffer[15] = DATA_RESERVED;
-	udp_buffer[16] = DATA_RESERVED;
-	udp_buffer[17] = DATA_RESERVED;
-	udp_buffer[18] = DATA_RESERVED;
-	udp_buffer[19] = DATA_RESERVED;
-	udp_buffer[20] = DATA_RESERVED;
-	udp_buffer[21] = DATA_RESERVED;
-	simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
-	packet_counter_root.u16++;
-}
-
-/*---------------------------------------------------------------------------*/
-
+/*Передает данные полученные от УСПД счетчику по радио*/
 static void uart_to_air() 
 {
 	uip_ipaddr_t addr;
@@ -422,7 +382,7 @@ static void uart_to_air()
 }
 
 /*---------------------------------------------------------------------------*/
-
+/*Передает данные полученные от счетчика на УСПД*/
 static void uart_from_air(const uip_ip6addr_t *addr, const uint8_t *data, const uint16_t length, uint8_t version)
 {
 	if(wait_response_slave == 0)
@@ -446,7 +406,7 @@ static void uart_from_air(const uip_ip6addr_t *addr, const uint8_t *data, const 
 }
 
 /*---------------------------------------------------------------------------*/
-
+/**/
 static void dag_root_print(const uip_ip6addr_t *addr, const uint8_t *data, const uint16_t length, uint8_t version)
 {
 	if(uart == 1)
@@ -522,7 +482,7 @@ static void dag_root_print(const uip_ip6addr_t *addr, const uint8_t *data, const
 }
 
 /*---------------------------------------------------------------------------*/
-
+/*Иннициализация RPL*/
 void rpl_initialize()
 {
 	/* Set MESH-mode for dc-power rpl-root(not leaf-mode) */
@@ -552,7 +512,7 @@ void rpl_initialize()
 }
 
 /*---------------------------------------------------------------------------*/
-
+/*Иннициализация ноды*/
 void root_node_initialize()
 {
 	/* register udp-connection, set incoming upd-data handler(udp_data_receiver) */
@@ -570,7 +530,7 @@ void root_node_initialize()
 }
 
 /*---------------------------------------------------------------------------*/
-
+/*Обработчик прерывания UART*/
 int uart_data_receiver(unsigned char uart_char)
 {
 	led_blink(LED_A);
@@ -584,21 +544,21 @@ int uart_data_receiver(unsigned char uart_char)
 }
 
 /*---------------------------------------------------------------------------*/
-
+/**/
 void set_uart_r(void)
 {
 	uart = 1;
 }
 
 /*---------------------------------------------------------------------------*/
-
+/**/
 void unset_uart_r(void)
 {
 	uart = 0;
 }
 
 /*---------------------------------------------------------------------------*/
-
+/**/
 uint8_t uart_status_r(void)
 {
 	if(uart == 1)
@@ -608,14 +568,14 @@ uint8_t uart_status_r(void)
 }
 
 /*---------------------------------------------------------------------------*/
-
+/**/
 static void wait_response_reset(void *ptr)
 {
 	wait_response_slave = 0;
 }
 
 /*---------------------------------------------------------------------------*/
-
+/*Процесс инициализации настроек из EEPROM*/
 PROCESS_THREAD(settings_root_init, ev, data)
 {
 	PROCESS_BEGIN();
@@ -655,28 +615,6 @@ PROCESS_THREAD(settings_root_init, ev, data)
 		}		
 	}
 	
-	// if(!eeprom_root.interface_configured) 
-	// {
-		// interface = eeprom_root.interface;
-	
-		// if(interface == INTERFACE_RS485)
-			// printf("Installed interface RS485\n");
-		// else if(interface == INTERFACE_CAN)
-			// printf("Installed interface CAN\n");
-		// else
-			// printf("Unknown interface\n");
-	// }
-	// else
-	// {
-		// printf("Interface not declared\n******************************\n*****PLEASE SET INTERFACE*****\n******************************\n");
-		// led_mode_set(LED_FAST_BLINK);
-		
-		// while(eeprom_root.interface_configured)
-		// {
-			// PROCESS_YIELD();
-		// }	
-	// }
-	
 	radio_value_t channel = 0;
 	NETSTACK_RADIO.get_value(RADIO_PARAM_CHANNEL, &channel);
 	
@@ -714,7 +652,7 @@ PROCESS_THREAD(settings_root_init, ev, data)
 }
 
 /*---------------------------------------------------------------------------*/
-
+/**/
 PROCESS_THREAD(main_root_process, ev, data)
 {
 	PROCESS_BEGIN();
