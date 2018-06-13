@@ -74,6 +74,7 @@
 
 #include "xxf_types_helper.h"
 #include "ud_binary_protocol.h"
+#include "protocol.h"
 
 #include "dag_node.h"
 #include "uart/uart.h"
@@ -104,7 +105,6 @@
 /* struct for simple_udp_send */
 simple_udp_connection_t udp_connection;
 
-volatile uint8_t spi_status;
 
 volatile uint8_t led_mode;
 
@@ -116,11 +116,12 @@ static struct etimer maintenance_timer;
 static struct ctimer wait_response; 	/*Таймер который запускатся после выдачи сообщения счетчику, если счетчик не ответил за это время, то сообщение принятые данные не передаются root'у*/
 static bool wait_response_slave = 0; 	/*Переменная которая отражает состояние таймера*/
 
+/*Счетчик покетов*/
 static volatile union 
 { 
 	uint16_t u16; 
 	uint8_t u8[2]; 
-} packet_counter_root;					/*Счетчик покетов*/
+} packet_counter_root;					
 
 static uint8_t aes_buffer[128];			/*Буффер для шифрования*/
 static uint8_t aes_key[16];				/*Ключ шифрования для ECB*/
@@ -238,6 +239,8 @@ static void join_stage_1_sender(const uip_ipaddr_t *dest_addr)
 
 	uint8_t payload_length = 8 + 4; //4 serial
 	uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
+	
+	
 	udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
 	udp_buffer[1] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
 	udp_buffer[2] = DATA_TYPE_JOIN_V5_STAGE_1;
@@ -245,8 +248,8 @@ static void join_stage_1_sender(const uip_ipaddr_t *dest_addr)
 	udp_buffer[4] = get_temperature();
 	udp_buffer[5] = get_voltage();
 
-	udp_buffer[6] = packet_counter_node.u8[0];//UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
-	udp_buffer[7] = packet_counter_node.u8[1];//DATA_TYPE_JOIN_V5_STAGE_1;
+	udp_buffer[6] = packet_counter_node.u8[0];
+	udp_buffer[7] = packet_counter_node.u8[1];
 	udp_buffer[8] = 0; //DEVICE_GROUP
 	udp_buffer[9] = 0; //DEVICE_SLEEP_TYPE
 	udp_buffer[10] = 0; //ABILITY
@@ -771,7 +774,7 @@ PROCESS_THREAD(dag_node_button_process, ev, data)
 }
 
 /*---------------------------------------------------------------------------*/
-/*Процесс*/
+/*Процесс управления нодой*/
 PROCESS_THREAD(maintenance_process, ev, data)
 {
 	PROCESS_BEGIN();
@@ -917,38 +920,42 @@ PROCESS_THREAD(dag_node_process, ev, data)
 	PROCESS_BEGIN();
 	PROCESS_PAUSE();
 
+	/*Инициализация обработчика входящих пакетов*/
 	simple_udp_register(&udp_connection, UDP_DATA_PORT, NULL, UDP_DATA_PORT, udp_receiver);
 
+	/*Выбор режима работы RPL*/
 	if (CLASS == CLASS_B)
 		rpl_set_mode(RPL_MODE_LEAF);
 	else
 		rpl_set_mode(RPL_MODE_MESH);
 
-	node_mode = MODE_JOIN_PROGRESS;
-	spi_status = spi_test();
-	packet_counter_node.u16 = 1;
+	
+	node_mode = MODE_JOIN_PROGRESS; 	/*Установка начального режима работы устройства*/
+	packet_counter_node.u16 = 1;		/*Инициализация счетчика*/
 
+	/*Вывод информационного сообщения в консоль*/
 	if(uart_status() == 0)
-		printf("Node started, %s mode, %s class, SPI %s, version %"PRIu8".%"PRIu8"\n",
+		printf("Node started, %s mode, %s class, version %"PRIu8".%"PRIu8"\n",
 				rpl_get_mode() == RPL_MODE_LEAF ? "leaf" : "no-leaf",
 				CLASS == CLASS_B ? "B(sleep)" : "C(non-sleep)",
-				spi_status == SPI_EXT_FLASH_ACTIVE ? "active" : "non-active",
-				BIG_VERSION, LITTLE_VERSION);
+				BIG_VERSION, 
+				LITTLE_VERSION);
 
-	process_start(&dag_node_button_process, NULL);
-	process_start(&maintenance_process, NULL);
+	process_start(&dag_node_button_process, NULL);		/*Запускаем процес который отслеживает нажатие кнопок*/
+	process_start(&maintenance_process, NULL);			/*Запускаем процес управления нодой*/
 
-	SENSORS_ACTIVATE(batmon_sensor);
+	SENSORS_ACTIVATE(batmon_sensor);					/*Инициализация встроенного датчика температуры и напряжения процессора*/
 
-	PROCESS_YIELD_UNTIL(ev == PROCESS_EVENT_CONTINUE);
+	PROCESS_YIELD_UNTIL(ev == PROCESS_EVENT_CONTINUE);	/*Ожидаем пока нода авторизируется в сети*/
 
+	/*Вывод информационного сообщения в консоль*/
 	if(uart_status() == 0)
 		printf("DAG Node: DAG active, join stage 4 packet received, mode set to MODE_NORMAL\n");
 	
-	led_mode_set(LED_SLOW_BLINK);
-	node_mode = MODE_NORMAL;
-	net_mode(RADIO_FREEDOM);
-	net_off(RADIO_OFF_NOW);
+	led_mode_set(LED_SLOW_BLINK);	/*Включаем медленное мигание светодиодами*/
+	node_mode = MODE_NORMAL;		/*Изменение режима работы ноды. Нода работает в нормальном режиме*/
+	net_mode(RADIO_FREEDOM);		/**/
+	net_off(RADIO_OFF_NOW);			/**/
 
 	PROCESS_END();
 }
