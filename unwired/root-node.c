@@ -58,7 +58,8 @@
 #include "ti-lib.h"
 #include "dev/cc26xx-uart.h"
 
-#include "../ud_binary_protocol.h"
+#include "ud_binary_protocol.h"
+#include "protocol.h"
 #include "xxf_types_helper.h"
 #include "dev/watchdog.h"
 #include "root-node.h"
@@ -170,43 +171,62 @@ void udp_data_receiver(struct simple_udp_connection *connection,
 /*Генерирует сессионный ключ (nonce) и отправляет его зашифрованым AES128-ECB, добавляет маршрут в таблицу*/
 static void join_stage_2_sender(const uip_ip6addr_t *dest_addr, const uint8_t *data, const uint16_t length, uint8_t version)
 {
+	/*Проверка на то что передан существующий адрес*/
 	if (dest_addr == NULL)
 		return;
    
-	uip_ipaddr_t addr;
-	uip_ip6addr_copy(&addr, dest_addr);
+	uip_ipaddr_t addr;					/*Адрес на который отправится пакет*/
+	uip_ip6addr_copy(&addr, dest_addr);	/*Копируем адрес*/
 	
-	uint8_t payload_length = 18; //2 HEADER + 16 AES
-	uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
-	udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
-	udp_buffer[1] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
-	udp_buffer[2] = DATA_TYPE_JOIN_V5_STAGE_2;
-	udp_buffer[3] = get_parent_rssi();
-	udp_buffer[4] = get_temperature();
-	udp_buffer[5] = get_voltage();
-
-	udp_buffer[6] = packet_counter_root.u8[0];
-	udp_buffer[7] = packet_counter_root.u8[1];
+	uint8_t payload_length = CRYPTO_1_BLOCK_LENGTH;		/*Размер payload пакета*/
+	uint8_t udp_buffer[payload_length + HEADER_LENGTH];	/*Общий размер пакета (header + payload)*/
 	
-	uint16_t nonce = random_rand();
-		
-	add_route((uint32_t)((data[UDBP_V5_HEADER_LENGTH + 8] << 24) |
-						 (data[UDBP_V5_HEADER_LENGTH + 9] << 16) |
-						 (data[UDBP_V5_HEADER_LENGTH + 10] << 8) |
-						 (data[UDBP_V5_HEADER_LENGTH + 11] )), 
-						  &addr,
-						  nonce);
-						 
-	aes_buffer[0] = (uint8_t)((nonce >> 8) & 0xFF);
-	aes_buffer[1] = (uint8_t)(nonce & 0xFF);
+	/*Отражаем структуры на массивы*/ 
+	header_t *header_pack = (header_t*)&udp_buffer[0];
+	join_stage_1_t *join_stage_1_pack = (join_stage_1_t*)&data[HEADER_LENGTH];
+	join_stage_2_t *join_stage_2_pack = (join_stage_2_t*)&aes_buffer[0];
 	
+	/*Заполеяем пакет*/ 
+	/*Header*/ 
+	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
+	header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
+	header_pack->data_type = DATA_TYPE_JOIN_STAGE_2;			/*Тип пакета*/  
+	header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
+	header_pack->temperature = get_temperature();				/*Температура*/ 
+	header_pack->voltage = get_voltage();						/*Напряжение*/ 
+	header_pack->counter.u16 = packet_counter_root.u16;			/*Счетчик пакетов*/ 
+	header_pack->length = JOIN_STAGE_2_LENGTH;					/*Размер пакета (незашифрованного)*/
+	
+	/*Payload*/ 
+	uint16_t nonce = random_rand();				/*Генерируем сессионный ключ*/ 
+	
+	/*Добавляем маршрут*/ 
+	add_route ( join_stage_1_pack->serial.u32, 	/*Serial*/ 
+				&addr,							/*Address*/ 
+				nonce);							/*Nonce*/ 
+						
+	join_stage_2_pack->nonce.u16 = nonce;		/*Nonce*/ 
+	
+	/*Дозаполняем блок для шифрования нулями*/ 
 	for(uint8_t i = 2; i < 16; i++)
 		aes_buffer[i] = 0x00;
 	
+	/*Для отладки. Выводит незашифрованный payload пакета*/ 
+	printf("join_stage_2_sender:\n");
+	hexraw_print(JOIN_STAGE_2_LENGTH, aes_buffer);
+	printf("\n");
+	
+	/*Зашифровываем блок*/ 
 	aes_ecb_encrypt((uint32_t*)aes_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[8]));
 
-	simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
-	packet_counter_root.u16++;
+	/*Для отладки. Выводит содержимое пакета*/ 
+	printf("join_stage_2_sender:\n");
+	hexraw_print(HEADER_LENGTH + payload_length, udp_buffer);
+	printf("\n");
+	
+	/*Отправляем пакет*/ 
+	simple_udp_sendto(&udp_connection, udp_buffer, HEADER_LENGTH + payload_length, &addr);
+	packet_counter_root.u16++;	/*Инкрементируем счетчик пакетов*/ 
 }
 
 /*---------------------------------------------------------------------------*/

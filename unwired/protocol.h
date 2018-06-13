@@ -33,15 +33,47 @@
 */
 /*---------------------------------------------------------------------------*/
 
-#define HEADER_LENGTH 		8
-#define JOIN_STAGE_1_LENGTH 4
-#define JOIN_STAGE_2_LENGTH 2
-#define JOIN_STAGE_3_LENGTH 6
-#define JOIN_STAGE_4_LENGTH 16
+#define HEADER_LENGTH 			9
+#define JOIN_STAGE_1_LENGTH 	4
+#define JOIN_STAGE_2_LENGTH 	2
+#define JOIN_STAGE_3_LENGTH 	6
+#define JOIN_STAGE_4_LENGTH 	16
+
+#define CRYPTO_1_BLOCK_LENGTH 	16
+#define CRYPTO_2_BLOCK_LENGTH 	32
+#define CRYPTO_3_BLOCK_LENGTH 	48
+#define CRYPTO_4_BLOCK_LENGTH 	64
+#define CRYPTO_5_BLOCK_LENGTH 	80
+#define CRYPTO_6_BLOCK_LENGTH 	96
+#define CRYPTO_7_BLOCK_LENGTH 	112
+
+#define UDBP_PROTOCOL_VERSION	5
 
 
 
-
+/*---------------------------------------------------------------------------*/
+/* Data types */
+// #define DATA_TYPE_RESERVED_1				0x01 //Не используется
+// #define DATA_TYPE_SENSOR_DATA			0x02 //Данные с датчиков устройства
+// #define DATA_TYPE_RESERVED_2				0x03 //Не используется
+// #define DATA_TYPE_ACK					0x04 //Подтверждение доставки пакета
+// #define DATA_TYPE_COMMAND				0x05 //Команды возможностям устройства
+// #define DATA_TYPE_STATUS					0x06 //Пакет со статусными данными
+// #define DATA_TYPE_GET_STATUS				0x07 //Запрос статуса(не реализовано)
+// #define DATA_TYPE_SETTINGS				0x08 //Команда настройки параметров
+// #define DATA_TYPE_MESSAGE				0x09 //Сообщения
+// #define DATA_TYPE_SET_TIME				0x0A //Команда установки времени
+// #define DATA_TYPE_SET_SCHEDULE			0x0B //Команда установки расписания(не реализовано)
+// #define DATA_TYPE_FIRMWARE				0x0C //Данные для OTA
+// #define DATA_TYPE_UART					0x0D //Команда с данными UART
+// #define DATA_TYPE_FIRMWARE_CMD			0x0E //Команды OTA
+// #define DATA_TYPE_RESERVED_3				0x0F //Не используется
+#define DATA_TYPE_JOIN_STAGE_1				0x10 //Нода посылает запрос координатору
+#define DATA_TYPE_JOIN_STAGE_2				0x11 //Координатор отправляет ecb_encrypt(nonce=rand())
+#define DATA_TYPE_JOIN_STAGE_3				0x12 //Нода удостоверяет, что она знает ключ отправляя cbc_encrypt(nonce)
+#define DATA_TYPE_JOIN_STAGE_4				0x13 //Координатор отвечает ноде что она имеет право быть в сети
+// #define UART_FROM_AIR_TO_TX					0x20 //Пакет с UART
+// #define UART_FROM_RX_TO_AIR					0x21 //Пакет с UART
 
 /*---------------------------------------------------------------------------*/
 

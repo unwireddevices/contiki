@@ -224,12 +224,14 @@ static void udp_receiver(struct simple_udp_connection *c,
 /*Передаём свой серийный номер*/
 static void join_stage_1_sender(const uip_ipaddr_t *dest_addr)
 {
+	/*Проверка на то что передан существующий адрес*/
 	if (dest_addr == NULL)
 		return;
 
-	uip_ipaddr_t addr;
-	uip_ip6addr_copy(&addr, dest_addr);
+	uip_ipaddr_t addr;						/*Адрес на который отправится пакет*/
+	uip_ip6addr_copy(&addr, dest_addr);		/*Копируем адрес*/
 	
+	/*Вывод информационного сообщения в консоль*/
 	if(uart_status() == 0)
 	{
 		printf("DAG Node: Send join packet to DAG-root node: ");
@@ -237,32 +239,34 @@ static void join_stage_1_sender(const uip_ipaddr_t *dest_addr)
 		printf("\n");
 	}
 
-	uint8_t payload_length = 8 + 4; //4 serial
-	uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
+	uint8_t payload_length = JOIN_STAGE_1_LENGTH; 			/*Размер payload пакета*/
+	uint8_t udp_buffer[payload_length + HEADER_LENGTH];		/*Общий размер пакета (header + payload)*/
 	
+	/*Отражаем структуры на массив*/ 
+	header_t *header_pack = (header_t*)&udp_buffer[0];
+	join_stage_1_t *join_stage_1_pack = (join_stage_1_t*)&udp_buffer[HEADER_LENGTH];
 	
-	udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
-	udp_buffer[1] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
-	udp_buffer[2] = DATA_TYPE_JOIN_V5_STAGE_1;
-	udp_buffer[3] = get_parent_rssi();
-	udp_buffer[4] = get_temperature();
-	udp_buffer[5] = get_voltage();
+	/*Заполеяем пакет*/ 
+	/*Header*/ 
+	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
+	header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
+	header_pack->data_type = DATA_TYPE_JOIN_STAGE_1;			/*Тип пакета*/  
+	header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
+	header_pack->temperature = get_temperature();				/*Температура*/ 
+	header_pack->voltage = get_voltage();						/*Напряжение*/ 
+	header_pack->counter.u16 = packet_counter_node.u16;			/*Счетчик пакетов*/ 
+	header_pack->length = JOIN_STAGE_1_LENGTH;					/*Размер пакета*/
+	
+	/*Payload*/ 
+	join_stage_1_pack->serial.u32 = serial;						/*Серийный номер*/ 
 
-	udp_buffer[6] = packet_counter_node.u8[0];
-	udp_buffer[7] = packet_counter_node.u8[1];
-	udp_buffer[8] = 0; //DEVICE_GROUP
-	udp_buffer[9] = 0; //DEVICE_SLEEP_TYPE
-	udp_buffer[10] = 0; //ABILITY
-	udp_buffer[11] = 0; //ABILITY
-	udp_buffer[12] = 0; //ABILITY
-	udp_buffer[13] = 0; //ABILITY
-	
-	udp_buffer[14] = (uint8_t)((serial >> 24) & 0xFF);	// SERIAL 00  00  92  F6
-	udp_buffer[15] = (uint8_t)((serial >> 16) & 0xFF); 	// SERIAL
-	udp_buffer[16] = (uint8_t)((serial >> 8) & 0xFF);  	// SERIAL
-	udp_buffer[17] = (uint8_t)(serial & 0xFF);			// SERIAL
+	/*Для отладки. Выводит содержимое пакета*/ 
+	// printf("join_stage_1_sender:\n");
+	// hexraw_print(HEADER_LENGTH + payload_length, udp_buffer);
+	// printf("\n");
 
-	simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
+	/*Отправляем пакет*/ 
+	simple_udp_sendto(&udp_connection, udp_buffer, HEADER_LENGTH + payload_length , &addr);
 }
 
 /*---------------------------------------------------------------------------*/

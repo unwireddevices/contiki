@@ -150,7 +150,7 @@ void hexraw_print(uint32_t flash_length, uint8_t *flash_read_data_buffer)
 {
 	for (uint32_t i = 0; i < flash_length; i++)
 	{
-		printf("%"PRIXX8, flash_read_data_buffer[i]);
+		printf(" %"PRIXX8, flash_read_data_buffer[i]);
 	}
 }
 
