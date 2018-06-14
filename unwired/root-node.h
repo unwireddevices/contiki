@@ -46,19 +46,12 @@
 #define INTERFACE_CAN 				1 //
 
 /*---------------------------------------------------------------------------*/
-
 /* main UPD connection */
 struct simple_udp_connection udp_connection;
 
-PROCESS_NAME(settings_root_init);
-PROCESS_NAME(main_root_process);
-
 /*---------------------------------------------------------------------------*/
-
-void rpl_initialize();
-
-void root_node_initialize();
-
+/*PROTOTYPES OF FUNCTIONS*/
+/*Обработчик принятых пакетов*/
 void udp_data_receiver(struct simple_udp_connection *connection,
                        const uip_ipaddr_t *sender_addr,
                        uint16_t sender_port,
@@ -67,10 +60,26 @@ void udp_data_receiver(struct simple_udp_connection *connection,
                        const uint8_t *data,
                        uint16_t datalen);
 
+/*Иннициализация RPL*/
+void rpl_initialize();
+
+/*Иннициализация ноды*/
+void root_node_initialize();
+
+/*Обработчик прерывания UART*/
 int uart_data_receiver(unsigned char uart_char);
 
 void set_uart_r(void);
 void unset_uart_r(void);
 uint8_t uart_status_r(void);
+
+/*---------------------------------------------------------------------------*/
+/*DECLARE THE NAME OF A PROCESS*/
+
+/*Процесс инициализации настроек из EEPROM*/
+PROCESS_NAME(settings_root_init);
+
+/*Процесс управления ROOT'ом*/
+PROCESS_NAME(main_root_process);
 
 /*---------------------------------------------------------------------------*/

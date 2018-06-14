@@ -33,21 +33,41 @@
 */
 /*---------------------------------------------------------------------------*/
 
-#define HEADER_LENGTH 			9
-#define JOIN_STAGE_1_LENGTH 	4
-#define JOIN_STAGE_2_LENGTH 	2
-#define JOIN_STAGE_3_LENGTH 	6
-#define JOIN_STAGE_4_LENGTH 	16
+#define UDBP_PROTOCOL_VERSION		5
 
-#define CRYPTO_1_BLOCK_LENGTH 	16
-#define CRYPTO_2_BLOCK_LENGTH 	32
-#define CRYPTO_3_BLOCK_LENGTH 	48
-#define CRYPTO_4_BLOCK_LENGTH 	64
-#define CRYPTO_5_BLOCK_LENGTH 	80
-#define CRYPTO_6_BLOCK_LENGTH 	96
-#define CRYPTO_7_BLOCK_LENGTH 	112
+#define HEADER_OFFSET 				0
+#define PAYLOAD_OFFSET 				9
 
-#define UDBP_PROTOCOL_VERSION	5
+#define SERIAL_LENGTH 				4
+#define NONCE_LENGTH				2
+#define ARRAY_OF_ZEROS_LENGTH		16
+#define HEADER_UP_LENGTH			6
+#define HEADER_DOWN_LENGTH			3
+
+#define CRYPTO_1_BLOCK_LENGTH 		16	
+#define CRYPTO_2_BLOCK_LENGTH 		32
+#define CRYPTO_3_BLOCK_LENGTH 		48
+#define CRYPTO_4_BLOCK_LENGTH 		64
+#define CRYPTO_5_BLOCK_LENGTH 		80
+#define CRYPTO_6_BLOCK_LENGTH 		96
+#define CRYPTO_7_BLOCK_LENGTH 		112
+
+#define JOIN_STAGE_1_PAYLOAD_LENGTH SERIAL_LENGTH
+#define JOIN_STAGE_2_PAYLOAD_LENGTH CRYPTO_1_BLOCK_LENGTH
+#define JOIN_STAGE_3_PAYLOAD_LENGTH CRYPTO_1_BLOCK_LENGTH + SERIAL_LENGTH
+#define JOIN_STAGE_4_PAYLOAD_LENGTH CRYPTO_1_BLOCK_LENGTH
+
+
+header_up_t
+
+#define HEADER_LENGTH 				9
+#define JOIN_STAGE_1_LENGTH 		SERIAL_LENGTH
+#define JOIN_STAGE_2_LENGTH 		NONCE_LENGTH
+#define JOIN_STAGE_3_LENGTH 		SERIAL_LENGTH + NONCE_LENGTH
+#define JOIN_STAGE_4_LENGTH 		ARRAY_OF_ZEROS_LENGTH
+
+
+
 
 
 
@@ -155,8 +175,8 @@ typedef struct {
 } join_stage_2_t;
 
 typedef struct {		
-	u8_u16_t serial;
-	u8_u16_t nonce;
+	u8_u32_t serial;
+	crypto_1_block_t crypto_1_block;
 } join_stage_3_t;
 
 typedef struct {		

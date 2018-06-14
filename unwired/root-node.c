@@ -77,12 +77,10 @@
 #define UART_DATA_POLL_INTERVAL 5	//in main timer ticks, one tick ~8ms
 
 #define WAIT_RESPONSE 			3 	//Максимальное время ожидания ответа от счетчика в секундах
-#define AES128_PACKAGE_LENGTH	16	//Длина пакета AES-128
 
 /*---------------------------------------------------------------------------*/
 
-uint8_t udup_v5_rc_uart_rx_buffer[UDUP_V5_RC_MAX_LENGTH+1]; //+1 for \n(0x0A)
-uint8_t udup_v5_cr_uart_tx_buffer[UDUP_V5_CR_MAX_LENGTH];
+uint8_t uart_rx_buffer[127];
 
 uint8_t aes_key[16] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0x00, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
 uint8_t aes_buffer[128];
@@ -90,7 +88,7 @@ uint8_t nonce_key[16];
 
 static eeprom_t eeprom_root;
 
-static uint16_t udup_v5_data_iterator = 0;
+static uint16_t data_iterator = 0;
 static struct timer udup_v5_timeout_timer;
 static struct ctimer wait_response;
 
@@ -105,16 +103,19 @@ static volatile union
 
 /*---------------------------------------------------------------------------*/
 /*PROTOTYPES OF FUNCTIONS*/
-static void join_stage_2_sender(const uip_ip6addr_t *dest_addr, const uint8_t *data, const uint16_t length, uint8_t version);
-static void join_stage_4_sender(const uip_ip6addr_t *dest_addr, const uint8_t *data, const uint16_t length, uint8_t version);
+static void join_stage_2_sender(const uip_ip6addr_t *dest_addr, const uint8_t *data, const uint16_t length);
+static void join_stage_4_sender(const uip_ip6addr_t *dest_addr, const uint8_t *data, const uint16_t length);
 static void uart_to_air();
-static void uart_from_air(const uip_ip6addr_t *addr, const uint8_t *data, const uint16_t length, uint8_t version);
-static void dag_root_print(const uip_ip6addr_t *addr, const uint8_t *data, const uint16_t length, uint8_t version);
+static void uart_from_air(const uip_ip6addr_t *addr, const uint8_t *data, const uint16_t length);
 static void wait_response_reset(void *ptr);
 
 /*---------------------------------------------------------------------------*/
 /*PROTOTYPES OF PROCESS*/
+
+/*Процесс инициализации настроек из EEPROM*/
 PROCESS(settings_root_init, "Initializing settings of ROOT");
+
+/*Процесс управления ROOT'ом*/
 PROCESS(main_root_process, "main root process");
 
 /*---------------------------------------------------------------------------*/
@@ -127,63 +128,67 @@ void udp_data_receiver(struct simple_udp_connection *connection,
                        const uint8_t *data,
                        uint16_t datalen)
 {
-	led_on(LED_A);
+	led_on(LED_A); 								/*Включаем светодиод*/
 
-	uip_ip6addr_t node_addr;
-	uip_ip6addr_copy(&node_addr, sender_addr);
+	uip_ip6addr_t node_addr;					/*Выделяем память для адреса на который отправится пакет*/
+	uip_ip6addr_copy(&node_addr, sender_addr);	/*Копируем адрес*/
+	
+	/*Отражаем структуру на массив*/ 
+	header_t *header_pack = (header_t*)&data[HEADER_OFFSET];
 
-	uint8_t protocol_version = data[0];
-
-	if (protocol_version == UDBP_PROTOCOL_VERSION_V5)
+	/*Проверяем версию протокола*/ 
+	if(header_pack->protocol_version == UDBP_PROTOCOL_VERSION)
 	{
-		uint8_t v_5_module_id = data[UDUP_V5_MODULE_ID];
-		uint8_t v_5_packet_type = data[UDUP_V5_PACKET_TYPE];
-
-		if (v_5_module_id == UNWDS_6LOWPAN_SYSTEM_MODULE_ID)
+		/*Проверяем ID модуля*/ 
+		if (header_pack->device_id == UNWDS_6LOWPAN_SYSTEM_MODULE_ID)
 		{
-			if (v_5_packet_type == DATA_TYPE_JOIN_V5_STAGE_1)
+			/*Проверяем тип пакета*/ 
+			if (header_pack->data_type == DATA_TYPE_JOIN_STAGE_1)
 			{
-				join_stage_2_sender(&node_addr, data, datalen, UDBP_PROTOCOL_VERSION_V5);
-				led_off(LED_A);
+				/*Вторая стадия авторизации*/
+				join_stage_2_sender(&node_addr, data, datalen);
+				led_off(LED_A);		/*Выключаем светодиод*/
 				return;
 			}
-			else if(v_5_packet_type == DATA_TYPE_JOIN_V5_STAGE_3)
+			else if(header_pack->data_type == DATA_TYPE_JOIN_STAGE_3)
 			{
-				join_stage_4_sender(&node_addr, data, datalen, UDBP_PROTOCOL_VERSION_V5);
-				led_off(LED_A);
+				/*Четвертая стадия авторизации*/
+				join_stage_4_sender(&node_addr, data, datalen);
+				led_off(LED_A);		/*Выключаем светодиод*/
 				return;
 			}
-			else if(v_5_packet_type == UART_FROM_RX_TO_AIR)
+			else if(header_pack->data_type == UART_FROM_RX_TO_AIR)
 			{
-				uart_from_air(&node_addr, data, datalen, UDBP_PROTOCOL_VERSION_V5);
-				led_off(LED_A);
+				/*Передаём данные полученные от счетчика на УСПД*/
+				uart_from_air(&node_addr, data, datalen);
+				led_off(LED_A);		/*Выключаем светодиод*/
 				return;
 			}
 		}
-		dag_root_print(&node_addr, data, datalen, UDBP_PROTOCOL_VERSION_V5);
 	}
 
+	/*Выключаем светодиод*/
 	led_off(LED_A);
 }
 
 /*---------------------------------------------------------------------------*/
 /*Вторая стадия авторизации*/
 /*Генерирует сессионный ключ (nonce) и отправляет его зашифрованым AES128-ECB, добавляет маршрут в таблицу*/
-static void join_stage_2_sender(const uip_ip6addr_t *dest_addr, const uint8_t *data, const uint16_t length, uint8_t version)
+static void join_stage_2_sender(const uip_ip6addr_t *dest_addr, const uint8_t *data, const uint16_t length)
 {
 	/*Проверка на то что передан существующий адрес*/
 	if (dest_addr == NULL)
 		return;
    
-	uip_ipaddr_t addr;					/*Адрес на который отправится пакет*/
+	uip_ipaddr_t addr;					/*Выделяем память для адреса на который отправится пакет*/
 	uip_ip6addr_copy(&addr, dest_addr);	/*Копируем адрес*/
 	
-	uint8_t payload_length = CRYPTO_1_BLOCK_LENGTH;		/*Размер payload пакета*/
-	uint8_t udp_buffer[payload_length + HEADER_LENGTH];	/*Общий размер пакета (header + payload)*/
+	/*Выделяем память под пакет. Общий размер пакета (header + payload)*/
+	uint8_t udp_buffer[HEADER_LENGTH + JOIN_STAGE_2_PAYLOAD_LENGTH];
 	
 	/*Отражаем структуры на массивы*/ 
-	header_t *header_pack = (header_t*)&udp_buffer[0];
-	join_stage_1_t *join_stage_1_pack = (join_stage_1_t*)&data[HEADER_LENGTH];
+	header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
+	join_stage_1_t *join_stage_1_pack = (join_stage_1_t*)&data[PAYLOAD_OFFSET];
 	join_stage_2_t *join_stage_2_pack = (join_stage_2_t*)&aes_buffer[0];
 	
 	/*Заполеяем пакет*/ 
@@ -200,6 +205,9 @@ static void join_stage_2_sender(const uip_ip6addr_t *dest_addr, const uint8_t *d
 	/*Payload*/ 
 	uint16_t nonce = random_rand();				/*Генерируем сессионный ключ*/ 
 	
+	/*Для отладки. Выводим nonce*/ 
+	// printf("Join_stage_2_sender nonce: %i\n", nonce);
+	
 	/*Добавляем маршрут*/ 
 	add_route ( join_stage_1_pack->serial.u32, 	/*Serial*/ 
 				&addr,							/*Address*/ 
@@ -212,96 +220,108 @@ static void join_stage_2_sender(const uip_ip6addr_t *dest_addr, const uint8_t *d
 		aes_buffer[i] = 0x00;
 	
 	/*Для отладки. Выводит незашифрованный payload пакета*/ 
-	printf("join_stage_2_sender:\n");
-	hexraw_print(JOIN_STAGE_2_LENGTH, aes_buffer);
-	printf("\n");
+	// printf("Join_stage_2_sender payload:\n");
+	// hexraw_print(JOIN_STAGE_2_LENGTH, aes_buffer);
+	// printf("\n");
 	
 	/*Зашифровываем блок*/ 
-	aes_ecb_encrypt((uint32_t*)aes_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[8]));
+	aes_ecb_encrypt((uint32_t*)aes_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[PAYLOAD_OFFSET]));
 
 	/*Для отладки. Выводит содержимое пакета*/ 
-	printf("join_stage_2_sender:\n");
-	hexraw_print(HEADER_LENGTH + payload_length, udp_buffer);
-	printf("\n");
+	// printf("Join_stage_2_sender pack:\n");
+	// hexraw_print((HEADER_LENGTH + JOIN_STAGE_2_PAYLOAD_LENGTH), udp_buffer);
+	// printf("\n");
 	
 	/*Отправляем пакет*/ 
-	simple_udp_sendto(&udp_connection, udp_buffer, HEADER_LENGTH + payload_length, &addr);
+	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_LENGTH + JOIN_STAGE_2_PAYLOAD_LENGTH), &addr);
 	packet_counter_root.u16++;	/*Инкрементируем счетчик пакетов*/ 
 }
 
 /*---------------------------------------------------------------------------*/
 /*Четвертая стадия авторизации*/
 /*Принимает nonce зашифрованный AES128-CBC. Если сходится с тем что он сгенерировал, то авторизация прошла успешно, настройки шифрования верные. Отправляем пакет с нулями что бы DAG мог убедиться в этом*/
-static void join_stage_4_sender(const uip_ip6addr_t *dest_addr, const uint8_t *data, const uint16_t length, uint8_t version)
+static void join_stage_4_sender(const uip_ip6addr_t *dest_addr, const uint8_t *data, const uint16_t length)
 {
+	/*Проверка на то что передан существующий адрес*/
 	if (dest_addr == NULL)
 		return;
 	
-	uip_ipaddr_t addr;
-	uip_ip6addr_copy(&addr, dest_addr);
+	uip_ipaddr_t addr;						/*Выделяем память для адреса на который отправится пакет*/
+	uip_ip6addr_copy(&addr, dest_addr);		/*Копируем адрес*/
 	
-	uint16_t nonce = get_nonce( (uint32_t) ((data[UDBP_V5_HEADER_LENGTH + 2] << 24) |
-											(data[UDBP_V5_HEADER_LENGTH + 3] << 16) |
-											(data[UDBP_V5_HEADER_LENGTH + 4] << 8)  |
-											(data[UDBP_V5_HEADER_LENGTH + 5] )));
+	/*Выделяем память под пакет. Общий размер пакета (header + payload)*/
+	uint8_t udp_buffer[HEADER_LENGTH + JOIN_STAGE_4_PAYLOAD_LENGTH];	
+	
+	/*Отражаем структуры на массивы*/ 
+	header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
+	join_stage_3_t *join_stage_3_pack = (join_stage_3_t*)&data[PAYLOAD_OFFSET];
+	join_stage_4_t *join_stage_4_pack = (join_stage_4_t*)&aes_buffer[0];
+	
+	/*Получаем nonce*/
+	u8_u16_t nonce;
+	nonce.u16 = get_nonce(join_stage_3_pack->serial.u32);	
+	
+	/*Для отладки. Выводит serial и nonce*/ 
+	// printf("Join_stage_4_sender serial: %lu\n", join_stage_3_pack->serial.u32);
+	// printf("Join_stage_4_sender nonce: %i\n", nonce.u16);
 
-	nonce_key[0] = (uint8_t)((nonce >> 8) & 0xFF);
-	nonce_key[1] = (uint8_t)(nonce & 0xFF);
-	nonce_key[2] = (uint8_t)((nonce >> 8) & 0xFF);
-	nonce_key[3] = (uint8_t)(nonce & 0xFF);
-	nonce_key[4] = (uint8_t)((nonce >> 8) & 0xFF);
-	nonce_key[5] = (uint8_t)(nonce & 0xFF);
-	nonce_key[6] = (uint8_t)((nonce >> 8) & 0xFF);
-	nonce_key[7] = (uint8_t)(nonce & 0xFF);
-	nonce_key[8] = (uint8_t)((nonce >> 8) & 0xFF);
-	nonce_key[9] = (uint8_t)(nonce & 0xFF);
-	nonce_key[10] = (uint8_t)((nonce >> 8) & 0xFF);
-	nonce_key[11] = (uint8_t)(nonce & 0xFF);
-	nonce_key[12] = (uint8_t)((nonce >> 8) & 0xFF);
-	nonce_key[13] = (uint8_t)(nonce & 0xFF);
-	nonce_key[14] = (uint8_t)((nonce >> 8) & 0xFF);
-	nonce_key[15] = (uint8_t)(nonce & 0xFF);
-	
-	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[12], (uint32_t*)(aes_buffer), 16);
-								
-	if(aes_buffer[0] == nonce_key[0] && aes_buffer[1] == nonce_key[1])
-	{		
-		unlock_addr((uint32_t) ((data[UDBP_V5_HEADER_LENGTH + 2] << 24) |
-								(data[UDBP_V5_HEADER_LENGTH + 3] << 16) |
-								(data[UDBP_V5_HEADER_LENGTH + 4] << 8)  |
-								(data[UDBP_V5_HEADER_LENGTH + 5] )));				
+	/*Копируем полученный nonce и используем его в качестве сессионного ключа (AES128-CBC)*/
+	for(int i = 0; i < 16; i += 2)
+	{
+		nonce_key[i] = nonce.u8[1];	
+		nonce_key[i+1] = nonce.u8[0];	
 	}
-					 
-	uint8_t payload_length = 18; //2 HEADER + 16 AES
-	uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
-	udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
-	udp_buffer[1] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID; 
-	udp_buffer[2] = DATA_TYPE_JOIN_V5_STAGE_4; 
-	udp_buffer[3] = get_parent_rssi();
-	udp_buffer[4] = get_temperature();
-	udp_buffer[5] = get_voltage();
-
-	udp_buffer[6] = packet_counter_root.u8[0]; 
-	udp_buffer[7] = packet_counter_root.u8[1]; 
 	
+	/*Расшифровываем блок*/ 
+	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[PAYLOAD_OFFSET + SERIAL_LENGTH], (uint32_t*)(aes_buffer), CRYPTO_1_BLOCK_LENGTH);
+	
+	/*Если nonce'ы совпадают, то авторизация прошла успешно, шифрование настроенно правильно*/ 
+	if((aes_buffer[0] == nonce_key[0]) && (aes_buffer[1] == nonce_key[1]))
+	{		
+		unlock_addr(join_stage_3_pack->serial.u32);		/*Разрешаем обрабатывать пакеты принятые с авторизированного устройства*/ 		
+	}
+	
+	/*Заполеяем пакет*/ 
+	/*Header*/ 
+	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
+	header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
+	header_pack->data_type = DATA_TYPE_JOIN_STAGE_4;			/*Тип пакета*/  
+	header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
+	header_pack->temperature = get_temperature();				/*Температура*/ 
+	header_pack->voltage = get_voltage();						/*Напряжение*/ 
+	header_pack->counter.u16 = packet_counter_root.u16;			/*Счетчик пакетов*/ 
+	header_pack->length = JOIN_STAGE_4_LENGTH;					/*Размер пакета*/
+	
+	/*Payload*/ 
+	/*Заполняем пакет нулями и отправляем его DAG'у. Если они после расшифровки получит массив нулей, то он считает что авторизавался и настройки шифрования верны*/ 
 	for(uint8_t i = 0; i < 16; i++)
-		aes_buffer[i] = 0x00;
-	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[8]), 16);
+		join_stage_4_pack->array_of_zeros[i] = 0;
 	
-	simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
-	packet_counter_root.u16++;
+	/*Зашифровываем блок*/
+	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[PAYLOAD_OFFSET]), CRYPTO_1_BLOCK_LENGTH);
+	
+	/*Для отладки. Выводит содержимое пакета*/ 
+	// printf("Join_stage_4_sender pack:\n");
+	// hexraw_print((HEADER_LENGTH + JOIN_STAGE_4_PAYLOAD_LENGTH), udp_buffer);
+	// printf("\n");
+	
+	/*Отправляем пакет*/ 
+	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_LENGTH + JOIN_STAGE_4_PAYLOAD_LENGTH), &addr);
+	packet_counter_root.u16++;		/*Инкрементируем счетчик пакетов*/
 }
 
 /*---------------------------------------------------------------------------*/
 /*Передает данные полученные от УСПД счетчику по радио*/
 static void uart_to_air() 
 {
-	uip_ipaddr_t addr;
-	uint16_t nonce;
+	uip_ipaddr_t addr;		/*Выделяем память для адреса на который отправится пакет*/
+	uint16_t nonce;			/*Выделяем память для nonce*/
 	
-	if(udup_v5_data_iterator < 7) //Если команда меньше 7 байт, то она для однобайтно адресуемых счетчиков
+	/*Парсим серийник из данных принятых из UART от УСПД и ищем в таблице IPv6 адрес*/
+	/*Если команда меньше 7 байт, то она для однобайтно адресуемых счетчиков*/
+	if(data_iterator < 7) 
 	{
-		addr = find_addr((uint32_t)(udup_v5_rc_uart_rx_buffer[0]));
+		addr = find_addr((uint32_t)(uart_rx_buffer[0]));
 		
 		if((((&addr)->u16[0])  == 0x00) && 
 		(((&addr)->u16[1])  == 0x00) && 
@@ -315,14 +335,16 @@ static void uart_to_air()
 			return;
 		}
 		
-		nonce = get_nonce((uint32_t)(udup_v5_rc_uart_rx_buffer[0]));
+		nonce = get_nonce((uint32_t)(uart_rx_buffer[0]));
 	}
-	else //В первую очередь проверяем по четырехбайтному адресу, а потом по однобайтному
+	
+	/*В первую очередь проверяем по четырехбайтному адресу, а потом по однобайтному*/
+	else 
 	{
-		addr = find_addr((uint32_t)((udup_v5_rc_uart_rx_buffer[0] << 24) |
-												 (udup_v5_rc_uart_rx_buffer[1] << 16) |
-												 (udup_v5_rc_uart_rx_buffer[2] << 8)  |
-												  udup_v5_rc_uart_rx_buffer[3]));
+		addr = find_addr((uint32_t)((uart_rx_buffer[0] << 24) |
+												 (uart_rx_buffer[1] << 16) |
+												 (uart_rx_buffer[2] << 8)  |
+												  uart_rx_buffer[3]));
 		if((((&addr)->u16[0])  == 0x00) && 
 		(((&addr)->u16[1])  == 0x00) && 
 		(((&addr)->u16[2])  == 0x00) && 
@@ -332,7 +354,7 @@ static void uart_to_air()
 		(((&addr)->u16[6])  == 0x00) && 
 		(((&addr)->u16[7])  == 0x00))	
 		{	
-					addr = find_addr((uint32_t)(udup_v5_rc_uart_rx_buffer[0]));
+					addr = find_addr((uint32_t)(uart_rx_buffer[0]));
 		
 					if((((&addr)->u16[0])  == 0x00) && 
 					(((&addr)->u16[1])  == 0x00) && 
@@ -346,14 +368,14 @@ static void uart_to_air()
 						return;
 					}
 					
-					nonce = get_nonce((uint32_t)(udup_v5_rc_uart_rx_buffer[0]));
+					nonce = get_nonce((uint32_t)(uart_rx_buffer[0]));
 		}
 		else
 		{
-			nonce = get_nonce((uint32_t)((udup_v5_rc_uart_rx_buffer[0] << 24) |
-										 (udup_v5_rc_uart_rx_buffer[1] << 16) |
-										 (udup_v5_rc_uart_rx_buffer[2] << 8)  |
-										 (udup_v5_rc_uart_rx_buffer[3] )));
+			nonce = get_nonce((uint32_t)((uart_rx_buffer[0] << 24) |
+										 (uart_rx_buffer[1] << 16) |
+										 (uart_rx_buffer[2] << 8)  |
+										 (uart_rx_buffer[3] )));
 		}
 	}
 	
@@ -374,8 +396,15 @@ static void uart_to_air()
 	nonce_key[14] = (uint8_t)((nonce >> 8) & 0xFF);
 	nonce_key[15] = (uint8_t)(nonce & 0xFF);
 
-	uint8_t payload_length = iterator_to_byte(udup_v5_data_iterator + 3);
+	uint8_t payload_length = iterator_to_byte(data_iterator + 3);
 	uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
+	
+	//
+	//
+	//
+	//
+	//
+	
 	udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
 	udp_buffer[1] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
 	udp_buffer[2] = UART_FROM_AIR_TO_TX;
@@ -385,25 +414,28 @@ static void uart_to_air()
 	
 	aes_buffer[0] = packet_counter_root.u8[0];
 	aes_buffer[1] = packet_counter_root.u8[1];
-	aes_buffer[2] = udup_v5_data_iterator; //Длина пакета
+	aes_buffer[2] = data_iterator; //Длина пакета
 	
+	/*Заполняем блок для шифрования*/ 
 	for(uint8_t i = 3; i < payload_length; i++)
 	{
-		if(i < (udup_v5_data_iterator + 3))
-			aes_buffer[i] = udup_v5_rc_uart_rx_buffer[i-3];
+		if(i < (data_iterator + 3))
+			aes_buffer[i] = uart_rx_buffer[i-3];	/*Заполняем блок для шифрования данными*/ 
 		else
-			aes_buffer[i] = 0x00;
+			aes_buffer[i] = 0x00;					/*Дозаполняем блок для шифрования нулями*/ 
 	}
 	
+	/*Зашифровываем блок*/
 	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[UDBP_V5_HEADER_LENGTH]), payload_length);
 	
+	/*Отправляем пакет*/ 
 	simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
-	packet_counter_root.u16++;
+	packet_counter_root.u16++;		/*Инкрементируем счетчик пакетов*/
 }
 
 /*---------------------------------------------------------------------------*/
-/*Передает данные полученные от счетчика на УСПД*/
-static void uart_from_air(const uip_ip6addr_t *addr, const uint8_t *data, const uint16_t length, uint8_t version)
+/*Передаём данные полученные от счетчика на УСПД*/
+static void uart_from_air(const uip_ip6addr_t *addr, const uint8_t *data, const uint16_t length)
 {
 	if(wait_response_slave == 0)
 		return;
@@ -423,82 +455,6 @@ static void uart_from_air(const uip_ip6addr_t *addr, const uint8_t *data, const 
 		for(uint16_t i = 0; i < aes_buffer[2]; i++)
 			cc26xx_uart_write_byte(aes_buffer[i + 3]);
 	}
-}
-
-/*---------------------------------------------------------------------------*/
-/**/
-static void dag_root_print(const uip_ip6addr_t *addr, const uint8_t *data, const uint16_t length, uint8_t version)
-{
-	if(uart == 1)
-		return;
-	if (addr == NULL || data == NULL)
-		return;
-
-	u8_u16_t payload_length;
-	u8_u16_t crc16_calculated;
-	uint8_t payload_offset = 0;
-	uint8_t udbp_version = 0x04;
-
-	if (version == UDBP_PROTOCOL_VERSION_V5)
-	{
-		payload_offset = UDBP_V5_HEADER_LENGTH;
-		udbp_version = 0x05;
-	}
-
-	udup_v5_cr_uart_tx_buffer[0] = UDUP_V5_MAGIC_BYTE;
-	udup_v5_cr_uart_tx_buffer[1] = udbp_version;
-	udup_v5_cr_uart_tx_buffer[2] = UDUP_V5_COMMAND_TYPE_NET_PACKET;
-
-	udup_v5_cr_uart_tx_buffer[3] = ((uint8_t *)addr)[8];
-	udup_v5_cr_uart_tx_buffer[4] = ((uint8_t *)addr)[9];
-	udup_v5_cr_uart_tx_buffer[5] = ((uint8_t *)addr)[10];
-	udup_v5_cr_uart_tx_buffer[6] = ((uint8_t *)addr)[11];
-	udup_v5_cr_uart_tx_buffer[7] = ((uint8_t *)addr)[12];
-	udup_v5_cr_uart_tx_buffer[8] = ((uint8_t *)addr)[13];
-	udup_v5_cr_uart_tx_buffer[9] = ((uint8_t *)addr)[14];
-	udup_v5_cr_uart_tx_buffer[10] = ((uint8_t *)addr)[15];
-
-	if (version == UDBP_PROTOCOL_VERSION_V5)
-	{
-		udup_v5_cr_uart_tx_buffer[11] = data[5]; //voltage
-		udup_v5_cr_uart_tx_buffer[12] = data[3]; //rssi
-	}
-	else
-	{
-	/* Призрак будущих полей */
-	udup_v5_cr_uart_tx_buffer[11] = 0xDE; //voltage
-	udup_v5_cr_uart_tx_buffer[12] = 0xAD; //rssi
-	}
-
-	/* Считаем длину пакета */
-	if (length - payload_offset > UDUP_V5_CR_MAX_PAYLOAD_LENGTH)
-		payload_length.u16 = UDUP_V5_CR_MAX_PAYLOAD_LENGTH;
-	else
-		payload_length.u16 = length - payload_offset;
-  
-	udup_v5_cr_uart_tx_buffer[13] = payload_length.u8[1]; //Меняем порядок байт на MSB-First
-	udup_v5_cr_uart_tx_buffer[14] = payload_length.u8[0];
-
-	/* Переносим данные */
-	for (uint16_t i = 0; i < payload_length.u16; i++) 
-	{
-		udup_v5_cr_uart_tx_buffer[i + UDUP_V5_CR_PAYLOAD_OFFSET] = data[i + payload_offset];
-		//printf("%" PRIXX8 " ", data[i + payload_offset]);
-	}
-
-	/* Считаем контрольную сумму */
-	crc16_calculated.u16 = crc16_arc(udup_v5_cr_uart_tx_buffer, UDUP_V5_CR_PAYLOAD_OFFSET + payload_length.u16);
-	udup_v5_cr_uart_tx_buffer[UDUP_V5_CR_PAYLOAD_OFFSET + payload_length.u16+0] = crc16_calculated.u8[1]; //Меняем порядок байт на MSB-First
-	udup_v5_cr_uart_tx_buffer[UDUP_V5_CR_PAYLOAD_OFFSET + payload_length.u16+1] = crc16_calculated.u8[0];
-
-	/* Выводим весь пакет в UART в зависимости от настроек */
-	if(uart_status_r() == 0)
-	{
-		for (uint16_t i = 0; i < UDUP_V5_CR_PAYLOAD_OFFSET + payload_length.u16 + UDUP_V5_CRC_LENGTH; i++)
-			printf("%"PRIXX8, udup_v5_cr_uart_tx_buffer[i]);
-		printf("\n");
-	}
-
 }
 
 /*---------------------------------------------------------------------------*/
@@ -554,10 +510,10 @@ void root_node_initialize()
 int uart_data_receiver(unsigned char uart_char)
 {
 	led_blink(LED_A);
-	if(udup_v5_data_iterator < UDUP_V5_RC_MAX_LENGTH)
+	if(data_iterator < UDUP_V5_RC_MAX_LENGTH)
 	{
-		udup_v5_rc_uart_rx_buffer[udup_v5_data_iterator] = uart_char;
-		udup_v5_data_iterator++;
+		uart_rx_buffer[data_iterator] = uart_char;
+		data_iterator++;
 		timer_restart(&udup_v5_timeout_timer);
 	}
 	return 1;
@@ -672,7 +628,7 @@ PROCESS_THREAD(settings_root_init, ev, data)
 }
 
 /*---------------------------------------------------------------------------*/
-/**/
+/*Процесс управления ROOT'ом*/
 PROCESS_THREAD(main_root_process, ev, data)
 {
 	PROCESS_BEGIN();
@@ -689,15 +645,15 @@ PROCESS_THREAD(main_root_process, ev, data)
 		etimer_set(&main_root_process_timer, 1);
 		PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&main_root_process_timer));
 
-		if (timer_expired(&udup_v5_timeout_timer) && udup_v5_data_iterator > 0)
+		if (timer_expired(&udup_v5_timeout_timer) && data_iterator > 0)
 		{
 			if(uart == 1)
 			{
-				if(udup_v5_data_iterator > 3)
+				if(data_iterator > 3)
 				{
-					crc_uart = crc16_modbus(udup_v5_rc_uart_rx_buffer, udup_v5_data_iterator-2);
-					if(crc_uart == (uint16_t) ((udup_v5_rc_uart_rx_buffer[udup_v5_data_iterator-1] << 8) | 
-												udup_v5_rc_uart_rx_buffer[udup_v5_data_iterator-2]))
+					crc_uart = crc16_modbus(uart_rx_buffer, data_iterator-2);
+					if(crc_uart == (uint16_t) ((uart_rx_buffer[data_iterator-1] << 8) | 
+												uart_rx_buffer[data_iterator-2]))
 					{
 						wait_response_slave = 1;
 						ctimer_set(&wait_response, WAIT_RESPONSE * CLOCK_SECOND, wait_response_reset, NULL);
@@ -705,12 +661,12 @@ PROCESS_THREAD(main_root_process, ev, data)
 					}
 				}
 				
-				udup_v5_data_iterator = 0;
+				data_iterator = 0;
 			}
 			else
 			{
 				// disable_interrupts();
-				udup_v5_data_iterator = 0;
+				data_iterator = 0;
 				// enable_interrupts();
 			}
 		}

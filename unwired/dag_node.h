@@ -58,29 +58,68 @@
 simple_udp_connection_t udp_connection;
 volatile uip_ipaddr_t root_addr;
 volatile uint8_t node_mode;
-volatile union { uint16_t u16; uint8_t u8[2]; } packet_counter_node;
+
+volatile union 
+{ 
+	uint16_t u16; 
+	uint8_t u8[2]; 
+} packet_counter_node;		/*Счетчик покетов*/
 
 /*---------------------------------------------------------------------------*/
 /*PROTOTYPES OF FUNCTIONS*/
+
+/*Передает данные полученные от счетчика ROOT'у по радио*/
 void uart_to_air(char* data);
+
+/*Функция управления светодиодами*/
 void led_mode_set(uint8_t mode);
+
+/*Возвращает текущий интерфейс общения с счетчиком*/
 uint8_t get_interface(void);
+
+/*Обновляет интерфейс общения с счетчиком в EEPROM и перезагружает*/
 void interface_update(uint8_t interface_new);
+
+/*Обновляет ключ шифрования и перезагружает*/
 void aes128_key_update(const uint8_t *aes_key_new);
+
+/*Возвращает указатель на массив в котором хранится ключ шифрования*/
 uint8_t *get_aes128_key(void);
+
+/*Обновляет серийный номер в EEPROM и перезагружает*/
 void serial_update(uint32_t serial_new);
+
+/*Возвращает серийный номер*/
 uint32_t get_serial(void);
+
+/*Обновляет channel в EEPROM*/
 void channel_update(uint8_t channel_new);
+
+/*Обновляет PANID в EEPROM*/
 void panid_update(uint16_t panid_new);
+
+/**/
 bool wait_response_status(void);
 
 /*---------------------------------------------------------------------------*/
+/*DECLARE THE NAME OF A PROCESS*/
 
+/*Процесс инициализации настроек из EEPROM*/
 PROCESS_NAME(settings_dag_init);
+
+/*Запуск инициализации ноды (точка входа)*/
 PROCESS_NAME(dag_node_process);
+
+/*Процесс отслеживает нажатие кнопки. При нажатии происходит перезагрузка*/
 PROCESS_NAME(dag_node_button_process);
+
+/*Процесс поиска ROOT'а*/
 PROCESS_NAME(root_find_process);
+
+/*Процесс управления нодой*/
 PROCESS_NAME(maintenance_process);
+
+/*Процесс упарвления светодиодами*/
 PROCESS_NAME(led_process);
 
 /*---------------------------------------------------------------------------*/

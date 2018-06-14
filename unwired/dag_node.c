@@ -94,8 +94,6 @@
 
 #define WAIT_RESPONSE					0.150 	//Максимальное время ожидания ответа от счетчика в секундах
 
-#define AES128_PACKAGE_LENGTH			16	//Длина пакета AES-128
-
 #define CC26XX_UART_INTERRUPT_ALL ( UART_INT_OE | UART_INT_BE | UART_INT_PE | \
 									UART_INT_FE | UART_INT_RT | UART_INT_TX | \
 									UART_INT_RX | UART_INT_CTS)
@@ -133,6 +131,8 @@ extern uint32_t serial;					/*Серийный номер*/
 
 /*---------------------------------------------------------------------------*/
 /*PROTOTYPES OF FUNCTIONS*/
+
+/*Обработчик принятых пакетов*/
 static void udp_receiver(struct simple_udp_connection *c,
 						const uip_ipaddr_t *sender_addr,
 						uint16_t sender_port,
@@ -140,25 +140,47 @@ static void udp_receiver(struct simple_udp_connection *c,
 						uint16_t receiver_port,
 						const uint8_t *data, 
 						uint16_t datalen);
+						
+/*Первая стадия авторизации*/
 static void join_stage_1_sender(const uip_ipaddr_t *dest_addr);
+
+/*Третья стадия авторизации*/
 static void join_stage_3_sender(const uip_ipaddr_t *dest_addr,
 								const uint8_t *data,
 								uint16_t datalen);
+
+/*Обработчик четвертой стадии авторизации*/
 static void join_stage_4_handler(const uip_ipaddr_t *sender_addr,
 								const uint8_t *data,
 								uint16_t datalen);
+
+/*Передает данные полученные из радио от ROOT'а на счетчик через UART*/
 static void uart_from_air ( const uip_ipaddr_t *sender_addr,
 							const uint8_t *data,
 							uint16_t datalen);
+
+/**/
 static void wait_response_reset(void *ptr);
 
 /*---------------------------------------------------------------------------*/
 /*PROTOTYPES OF PROCESS*/
+
+/*Процесс инициализации настроек из EEPROM*/
 PROCESS(settings_dag_init, "Initializing settings of DAG");
+
+/*Запуск инициализации ноды (точка входа)*/
 PROCESS(dag_node_process, "DAG-node process");
+
+/*Процесс отслеживает нажатие кнопки. При нажатии происходит перезагрузка*/
 PROCESS(dag_node_button_process, "DAG-node button process");
+
+/*Процесс поиска ROOT'а*/
 PROCESS(root_find_process, "Root find process");
+
+/*Процесс управления нодой*/
 PROCESS(maintenance_process, "Maintenance process");
+
+/*Процесс упарвления светодиодами*/
 PROCESS(led_process, "Led process");
 
 /*---------------------------------------------------------------------------*/
@@ -171,51 +193,60 @@ static void udp_receiver(struct simple_udp_connection *c,
 						const uint8_t *data, 
 						uint16_t datalen)
 {
-	uint8_t protocol_version = data[0];
+	/*Отражаем структуру на массив*/ 
+	header_t *header_pack = (header_t*)&data[HEADER_OFFSET];
 
+	/*Вывод информационного сообщения в консоль*/
 	if(uart_status() == 0)
 	{
 		printf("DAG Node: UDP packet received(%"PRIu8"): ", datalen);
-		for (uint16_t i = 0; i < datalen; i++)
+		for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
 			printf("%"PRIXX8, data[i]);
 		printf("\n");
 	}
-
-	if (protocol_version == UDBP_PROTOCOL_VERSION_V5)
+	
+	/*Проверяем версию протокола*/ 
+	if(header_pack->protocol_version == UDBP_PROTOCOL_VERSION)
 	{
-		uint8_t endpoint = data[UDUP_V5_MODULE_ID];
-		if (endpoint == UNWDS_6LOWPAN_SYSTEM_MODULE_ID)
+		/*Проверяем ID модуля*/ 
+		if(header_pack->device_id == UNWDS_6LOWPAN_SYSTEM_MODULE_ID)
 		{
-			uint8_t packet_type = data[UDUP_V5_PACKET_TYPE];
-			
-			if (packet_type == DATA_TYPE_JOIN_V5_STAGE_2)
+			/*Проверяем тип пакета*/ 
+			if (header_pack->data_type == DATA_TYPE_JOIN_STAGE_2)
 			{
+				/*Третья стадия авторизации*/
 				join_stage_3_sender(sender_addr, data, datalen);
 			}
 			
-			else if (packet_type == DATA_TYPE_JOIN_V5_STAGE_4)
+			else if (header_pack->data_type == DATA_TYPE_JOIN_STAGE_4)
 			{
+				/*Обработчик четвертой стадии авторизации*/
 				join_stage_4_handler(sender_addr, data, datalen);
 			}
 			
-			else if (packet_type == UART_FROM_AIR_TO_TX)
+			else if (header_pack->data_type == UART_FROM_AIR_TO_TX)
 			{
+				/*Передает данные полученные из радио от root'а на счетчик через UART*/
 				uart_from_air(sender_addr, data, datalen);
 			}
 			
 			else
 			{
+				/*Вывод информационного сообщения в консоль*/
 				if(uart_status() == 0)
-					printf("DAG Node: Incompatible packet type(endpoint UNWDS_6LOWPAN_SYSTEM_MODULE_ID): %"PRIXX8"\n", packet_type);
+					printf("DAG Node: Incompatible packet type(endpoint UNWDS_6LOWPAN_SYSTEM_MODULE_ID): %"PRIXX8"\n", header_pack->data_type);
 			}
 		}
 	}
+	
 	else
 	{
+		/*Вывод информационного сообщения в консоль*/
 		if(uart_status() == 0)
-			printf("DAG Node: Incompatible protocol version: %"PRIXX8"\n", protocol_version);
+			printf("DAG Node: Incompatible protocol version: %"PRIXX8"\n", header_pack->protocol_version);
 	}
 
+	/*Мигаем светодиодом*/
 	led_mode_set(LED_FLASH);
 }
 
@@ -228,7 +259,7 @@ static void join_stage_1_sender(const uip_ipaddr_t *dest_addr)
 	if (dest_addr == NULL)
 		return;
 
-	uip_ipaddr_t addr;						/*Адрес на который отправится пакет*/
+	uip_ipaddr_t addr;						/*Выделяем память для адреса на который отправится пакет*/
 	uip_ip6addr_copy(&addr, dest_addr);		/*Копируем адрес*/
 	
 	/*Вывод информационного сообщения в консоль*/
@@ -239,12 +270,12 @@ static void join_stage_1_sender(const uip_ipaddr_t *dest_addr)
 		printf("\n");
 	}
 
-	uint8_t payload_length = JOIN_STAGE_1_LENGTH; 			/*Размер payload пакета*/
-	uint8_t udp_buffer[payload_length + HEADER_LENGTH];		/*Общий размер пакета (header + payload)*/
+	/*Выделяем память под пакет. Общий размер пакета (header + payload)*/	
+	uint8_t udp_buffer[HEADER_LENGTH + JOIN_STAGE_1_PAYLOAD_LENGTH];
 	
 	/*Отражаем структуры на массив*/ 
-	header_t *header_pack = (header_t*)&udp_buffer[0];
-	join_stage_1_t *join_stage_1_pack = (join_stage_1_t*)&udp_buffer[HEADER_LENGTH];
+	header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
+	join_stage_1_t *join_stage_1_pack = (join_stage_1_t*)&udp_buffer[PAYLOAD_OFFSET];
 	
 	/*Заполеяем пакет*/ 
 	/*Header*/ 
@@ -261,12 +292,13 @@ static void join_stage_1_sender(const uip_ipaddr_t *dest_addr)
 	join_stage_1_pack->serial.u32 = serial;						/*Серийный номер*/ 
 
 	/*Для отладки. Выводит содержимое пакета*/ 
-	// printf("join_stage_1_sender:\n");
-	// hexraw_print(HEADER_LENGTH + payload_length, udp_buffer);
+	// printf("Join_stage_1_sender serial: %i\n", join_stage_1_pack->serial.u32);
+	// printf("Join_stage_1_sender plaintext:\n");
+	// hexraw_print((HEADER_LENGTH + JOIN_STAGE_1_PAYLOAD_LENGTH), udp_buffer);
 	// printf("\n");
 
 	/*Отправляем пакет*/ 
-	simple_udp_sendto(&udp_connection, udp_buffer, HEADER_LENGTH + payload_length , &addr);
+	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_LENGTH + JOIN_STAGE_1_PAYLOAD_LENGTH), &addr);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -276,12 +308,14 @@ static void join_stage_3_sender(const uip_ipaddr_t *dest_addr,
 								const uint8_t *data,
 								uint16_t datalen)
 {
+	/*Проверка на то что передан существующий адрес*/
 	if (dest_addr == NULL)
 		return;
 	
-	uip_ipaddr_t addr;
-	uip_ip6addr_copy(&addr, dest_addr);
+	uip_ipaddr_t addr;						/*Выделяем память для адреса на который отправится пакет*/
+	uip_ip6addr_copy(&addr, dest_addr);		/*Копируем адрес*/
 	
+	/*Вывод информационного сообщения в консоль*/
 	if(uart_status() == 0)
 	{
 		printf("DAG Node: Send join packet stage 3 to DAG-root node:");
@@ -289,44 +323,54 @@ static void join_stage_3_sender(const uip_ipaddr_t *dest_addr,
 		printf("\n");
 	}
 	
-	uint8_t payload_length = 2 + 4 + 16; //2 header + 4 serial + 16 AES
-	uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
-	udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
-	udp_buffer[1] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;//packet_counter_node.u8[0];
-	udp_buffer[2] = DATA_TYPE_JOIN_V5_STAGE_3;//packet_counter_node.u8[1];
-	udp_buffer[3] = get_parent_rssi();
-	udp_buffer[4] = get_temperature();
-	udp_buffer[5] = get_voltage();
+	/*Выделяем память под пакет. Общий размер пакета (header + payload)*/
+	uint8_t udp_buffer[HEADER_LENGTH + JOIN_STAGE_3_PAYLOAD_LENGTH];	
+	
+	/*Отражаем структуры на массивы*/ 
+	header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
+	join_stage_2_t *join_stage_2_pack = (join_stage_2_t*)&aes_buffer[0];
+	join_stage_3_t *join_stage_3_pack = (join_stage_3_t*)&udp_buffer[PAYLOAD_OFFSET];
+	
+	
+	/*Заполеяем пакет*/ 
+	/*Header*/ 
+	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
+	header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
+	header_pack->data_type = DATA_TYPE_JOIN_STAGE_3;			/*Тип пакета*/  
+	header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
+	header_pack->temperature = get_temperature();				/*Температура*/ 
+	header_pack->voltage = get_voltage();						/*Напряжение*/ 
+	header_pack->counter.u16 = packet_counter_node.u16;			/*Счетчик пакетов*/ 
+	header_pack->length = JOIN_STAGE_3_LENGTH;					/*Размер пакета*/
+	
+	/*Payload*/ 
+	join_stage_3_pack->serial.u32 = serial;						/*Serial*/ 
+	
+	/*Расшифровываем блок*/ 
+	aes_ecb_decrypt((uint32_t*)aes_key, (uint32_t*)&data[PAYLOAD_OFFSET], (uint32_t*)aes_buffer);
+	
+	/*Копируем полученный nonce и используем его в качестве сессионного ключа (AES128-CBC)*/
+	for(int i = 0; i < 16; i += 2)
+	{
+		nonce_key[i] = join_stage_2_pack->nonce.u8[1];	
+		nonce_key[i+1] = join_stage_2_pack->nonce.u8[0];	
+	}
+	
+	/*Для отладки. Выводит содержимое пакета*/ 
+	// printf("Join_stage_3_sender nonce: %i\n", join_stage_2_pack->nonce.u16);
+	// hexraw_print(16, nonce_key);
+	// printf("\n");
+	
+	/*Зашифровываем блок*/
+	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&join_stage_3_pack->crypto_1_block), CRYPTO_1_BLOCK_LENGTH);		
 
-	udp_buffer[6] = packet_counter_node.u8[0];//UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
-	udp_buffer[7] = packet_counter_node.u8[1];//DATA_TYPE_JOIN_V5_STAGE_3;
+	/*Для отладки. Выводит содержимое пакета*/ 
+	// printf("Join_stage_3_sender pack:\n");
+	// hexraw_print((HEADER_LENGTH + JOIN_STAGE_3_PAYLOAD_LENGTH), udp_buffer);
+	// printf("\n");
 	
-	udp_buffer[8] = (uint8_t)((serial >> 24) & 0xFF);	// SERIAL 00  00  92  F6
-	udp_buffer[9] = (uint8_t)((serial >> 16) & 0xFF); 	// SERIAL
-	udp_buffer[10] = (uint8_t)((serial >> 8) & 0xFF);  	// SERIAL
-	udp_buffer[11] = (uint8_t)(serial & 0xFF);			// SERIAL
-	
-	aes_ecb_decrypt((uint32_t*)aes_key, (uint32_t*)&data[8], (uint32_t*)aes_buffer);
-	nonce_key[0] = aes_buffer[0];
-	nonce_key[1] = aes_buffer[1];
-	nonce_key[2] = aes_buffer[0];
-	nonce_key[3] = aes_buffer[1];
-	nonce_key[4] = aes_buffer[0];
-	nonce_key[5] = aes_buffer[1];
-	nonce_key[6] = aes_buffer[0];
-	nonce_key[7] = aes_buffer[1];
-	nonce_key[8] = aes_buffer[0];
-	nonce_key[9] = aes_buffer[1];
-	nonce_key[10] = aes_buffer[0];
-	nonce_key[11] = aes_buffer[1];
-	nonce_key[12] = aes_buffer[0];
-	nonce_key[13] = aes_buffer[1];
-	nonce_key[14] = aes_buffer[0];
-	nonce_key[15] = aes_buffer[1];
-	
-	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[12]), 16);
-
-	simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
+	/*Отправляем пакет*/ 
+	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_LENGTH + JOIN_STAGE_3_PAYLOAD_LENGTH), &addr);
 }
 /*---------------------------------------------------------------------------*/
 /*Обработчик четвертой стадии авторизации*/
@@ -335,11 +379,18 @@ static void join_stage_4_handler(const uip_ipaddr_t *sender_addr,
 								 const uint8_t *data,
 								 uint16_t datalen)
 {	
+	/*Проверка на то что передан существующий адрес*/
 	if (sender_addr == NULL)
 		return;
-			
-	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[8], (uint32_t*)(aes_buffer), 16);
+
+	/*Отражаем структуры на массивы*/ 
+	header_t *header_pack = (header_t*)&data[HEADER_OFFSET];
+	join_stage_4_t *join_stage_4_pack = (join_stage_4_t*)&aes_buffer[0];
 	
+	/*Расшифровываем блок*/ 
+	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[PAYLOAD_OFFSET], (uint32_t*)(aes_buffer), CRYPTO_1_BLOCK_LENGTH);
+	
+	/*Проверяем массив. Если все нули, то авториция прошла успешно*/ 
 	if( (aes_buffer[0] == 0x00)  &&
 		(aes_buffer[1] == 0x00)  &&
 		(aes_buffer[2] == 0x00)  &&
@@ -357,20 +408,20 @@ static void join_stage_4_handler(const uip_ipaddr_t *sender_addr,
 		(aes_buffer[14] == 0x00) &&
 		(aes_buffer[15] == 0x00))
 	{
-		packet_counter_root.u8[0] = data[6];
-		packet_counter_root.u8[1] = data[7];
-		uip_ipaddr_copy(&root_addr, sender_addr); //Авторизован
-		process_post(&dag_node_process, PROCESS_EVENT_CONTINUE, NULL);
-		etimer_set(&maintenance_timer, 0);
-		packet_counter_node.u16 = 1;
+		packet_counter_root.u16 = header_pack->counter.u16;				/*Сохраняем счетчик пакетов ROOT'а*/ 
+		uip_ipaddr_copy(&root_addr, sender_addr); 						/*Копируем адрес ROOT'а с которым авторизировались*/ 
+		packet_counter_node.u16 = 1;									/*Инициализируем счетчик пакетов*/
+		etimer_set(&maintenance_timer, 0);								/*Устанавливаем таймер*/ 
+		process_post(&dag_node_process, PROCESS_EVENT_CONTINUE, NULL);	/*Передаем управление dag_node_process*/ 
 		return;
 	}
 	
-	printf("Authorisation Error\n"); //Не авторизован
+	/*Выводим: Ошибка авторизации*/
+	printf("Authorisation Error\n"); 
 }
 
 /*---------------------------------------------------------------------------*/
-/*Передает данные полученные из радио от root'а на счетчик через UART*/
+/*Передает данные полученные из радио от ROOT'а на счетчик через UART*/
 static void uart_from_air ( const uip_ipaddr_t *sender_addr,
 							const uint8_t *data,
 							uint16_t datalen)
@@ -419,7 +470,7 @@ static void uart_from_air ( const uip_ipaddr_t *sender_addr,
 }
 
 /*---------------------------------------------------------------------------*/
-/*Передает данные полученные от счетчика root'у по радио*/
+/*Передает данные полученные от счетчика ROOT'у по радио*/
 void uart_to_air(char* data)
 {
 	if (node_mode == 2) //MODE_NOTROOT_SLEEP
@@ -867,7 +918,7 @@ PROCESS_THREAD(maintenance_process, ev, data)
 }
 
 /*---------------------------------------------------------------------------*/
-/*Процесс поиска root'а*/
+/*Процесс поиска ROOT'а*/
 PROCESS_THREAD(root_find_process, ev, data)
 {
 	PROCESS_BEGIN();
