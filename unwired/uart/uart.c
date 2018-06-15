@@ -111,7 +111,7 @@ PROCESS_THREAD(main_process, ev, data)
 	process_start(&dag_node_process, NULL);					/*Запуск ноды*/
 	
 	static struct etimer shell_off;							/*Создание таймера по истечению которого выключается шелл*/
-	etimer_set(&shell_off, CLOCK_SECOND * 60);				/*Заводится таймер на 5 секунд*/
+	etimer_set(&shell_off, CLOCK_SECOND * 5);				/*Заводится таймер на 5 секунд*/
 	
 	PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&shell_off));	/*Ожидание пока сработает таймер*/
 		
@@ -137,7 +137,8 @@ PROCESS_THREAD(main_process, ev, data)
 		}
 	}
 	
-	set_uart();							/*Запрещает выводить данные шелла в UART*/
+	set_uart();							/*Запрещает выводить данные консоли в UART*/
+	
 	while(1) 							/*Цикл который ожидает события uart_event_message*/
 	{
 		PROCESS_YIELD(); 

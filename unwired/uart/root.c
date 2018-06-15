@@ -98,7 +98,7 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 	root_node_initialize();
 
 	static struct etimer shell_off;
-	etimer_set(&shell_off, CLOCK_SECOND * 60);
+	etimer_set(&shell_off, CLOCK_SECOND * 5);
 	PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&shell_off));
    
 	if (BOARD_IOID_UART_TX != BOARD_IOID_ALT_UART_TX || BOARD_IOID_UART_RX != BOARD_IOID_ALT_UART_RX)

@@ -191,7 +191,7 @@ static void join_stage_2_sender(const uip_ip6addr_t *dest_addr, const uint8_t *d
 	join_stage_1_t *join_stage_1_pack = (join_stage_1_t*)&data[PAYLOAD_OFFSET];
 	join_stage_2_t *join_stage_2_pack = (join_stage_2_t*)&aes_buffer[0];
 	
-	/*Заполеяем пакет*/ 
+	/*Заполняем пакет*/  
 	/*Header*/ 
 	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
 	header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
@@ -272,16 +272,16 @@ static void join_stage_4_sender(const uip_ip6addr_t *dest_addr, const uint8_t *d
 		nonce_key[i+1] = nonce.u8[0];	
 	}
 	
-	/*Расшифровываем блок*/ 
+	/*Расшифровываем данные*/
 	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[PAYLOAD_OFFSET + SERIAL_LENGTH], (uint32_t*)(aes_buffer), CRYPTO_1_BLOCK_LENGTH);
 	
 	/*Если nonce'ы совпадают, то авторизация прошла успешно, шифрование настроенно правильно*/ 
-	if((aes_buffer[0] == nonce_key[0]) && (aes_buffer[1] == nonce_key[1]))
+	if((aes_buffer[0] == nonce_key[1]) && (aes_buffer[1] == nonce_key[0]))
 	{		
 		unlock_addr(join_stage_3_pack->serial.u32);		/*Разрешаем обрабатывать пакеты принятые с авторизированного устройства*/ 		
 	}
 	
-	/*Заполеяем пакет*/ 
+	/*Заполняем пакет*/  
 	/*Header*/ 
 	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
 	header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
@@ -297,7 +297,7 @@ static void join_stage_4_sender(const uip_ip6addr_t *dest_addr, const uint8_t *d
 	for(uint8_t i = 0; i < 16; i++)
 		join_stage_4_pack->array_of_zeros[i] = 0;
 	
-	/*Зашифровываем блок*/
+	/*Зашифровываем данные*/
 	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[PAYLOAD_OFFSET]), CRYPTO_1_BLOCK_LENGTH);
 	
 	/*Для отладки. Выводит содержимое пакета*/ 
@@ -396,40 +396,42 @@ static void uart_to_air()
 	nonce_key[14] = (uint8_t)((nonce >> 8) & 0xFF);
 	nonce_key[15] = (uint8_t)(nonce & 0xFF);
 
-	uint8_t payload_length = iterator_to_byte(data_iterator + 3);
-	uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
+	/*Выделяем память под пакет. Общий размер пакета (header + payload)*/
+	/*Нижняя часть header'а будет шифроваться. Поэтому для рассчета payload'а нужно учитывать её*/
+	uint8_t crypto_length = iterator_to_byte(data_iterator + HEADER_DOWN_LENGTH);
+	uint8_t udp_buffer[HEADER_UP_LENGTH + crypto_length];
 	
-	//
-	//
-	//
-	//
-	//
+	/*Отражаем структуры на массивы*/ 
+	header_up_t *header_up_pack = (header_up_t*)&udp_buffer[HEADER_OFFSET];
+	header_down_t *header_down_pack = (header_down_t*)&aes_buffer[0];	
 	
-	udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
-	udp_buffer[1] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
-	udp_buffer[2] = UART_FROM_AIR_TO_TX;
-	udp_buffer[3] = get_parent_rssi();
-	udp_buffer[4] = get_temperature();
-	udp_buffer[5] = get_voltage();
+	/*Заполняем пакет*/  
+	/*Header*/ 
+	header_up_pack->protocol_version = UDBP_PROTOCOL_VERSION; 	/*Текущая версия протокола*/ 
+	header_up_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
+	header_up_pack->data_type = UART_FROM_AIR_TO_TX;			/*Тип пакета*/  
+	header_up_pack->rssi = get_parent_rssi();					/*RSSI*/ 
+	header_up_pack->temperature = get_temperature();			/*Температура*/ 
+	header_up_pack->voltage = get_voltage();					/*Напряжение*/ 
 	
-	aes_buffer[0] = packet_counter_root.u8[0];
-	aes_buffer[1] = packet_counter_root.u8[1];
-	aes_buffer[2] = data_iterator; //Длина пакета
+	/*Шифрованая часть header'а*/ 
+	header_down_pack->counter.u16 = packet_counter_root.u16;	/*Счетчик пакетов*/ 
+	header_down_pack->length = data_iterator;					/*Размер пакета*/
 	
 	/*Заполняем блок для шифрования*/ 
-	for(uint8_t i = 3; i < payload_length; i++)
+	for(uint8_t i = HEADER_DOWN_LENGTH; i < crypto_length; i++)
 	{
-		if(i < (data_iterator + 3))
-			aes_buffer[i] = uart_rx_buffer[i-3];	/*Заполняем блок для шифрования данными*/ 
+		if(i < (data_iterator + HEADER_DOWN_LENGTH))
+			aes_buffer[i] = uart_rx_buffer[i-3];		/*Заполняем блок для шифрования данными*/ 
 		else
-			aes_buffer[i] = 0x00;					/*Дозаполняем блок для шифрования нулями*/ 
+			aes_buffer[i] = 0x00;						/*Дозаполняем блок для шифрования нулями*/ 
 	}
 	
-	/*Зашифровываем блок*/
-	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[UDBP_V5_HEADER_LENGTH]), payload_length);
+	/*Зашифровываем данные*/
+	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[HEADER_DOWN_OFFSET]), crypto_length);
 	
 	/*Отправляем пакет*/ 
-	simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
+	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_UP_LENGTH + crypto_length), &addr);
 	packet_counter_root.u16++;		/*Инкрементируем счетчик пакетов*/
 }
 
@@ -437,24 +439,31 @@ static void uart_to_air()
 /*Передаём данные полученные от счетчика на УСПД*/
 static void uart_from_air(const uip_ip6addr_t *addr, const uint8_t *data, const uint16_t length)
 {
+	/*Если мы не ожидаем приёма от утройства, то пакет отбрасываем*/
 	if(wait_response_slave == 0)
 		return;
 	
-	//Дешифрово4kа
-	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[UDBP_V5_HEADER_LENGTH], (uint32_t*)(aes_buffer), (length - UDBP_V5_HEADER_LENGTH));
+	/*Отражаем структуры на массивы*/ 
+	header_down_t *header_down_pack = (header_down_t*)&aes_buffer[0];
+	
+	/*Расшифровываем данные*/
+	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[HEADER_DOWN_OFFSET], (uint32_t*)(aes_buffer), (length - HEADER_UP_LENGTH));
 	
 	uint32_t serial = ( (aes_buffer[3] << 24) |
 						(aes_buffer[4] << 16) |
 						(aes_buffer[5] << 8)  |
-						(aes_buffer[6] ));
-	uint16_t counter = ((aes_buffer[1] << 8)  |
-						 aes_buffer[0]);
+						(aes_buffer[6] ));					
 	
-	if(valid_counter(serial, counter) || valid_counter(aes_buffer[3], counter))//|| valid_counter(aes_buffer[3], counter)
+	if(valid_counter(serial, header_down_pack->counter.u16) || valid_counter(aes_buffer[3], header_down_pack->counter.u16))
 	{
 		for(uint16_t i = 0; i < aes_buffer[2]; i++)
 			cc26xx_uart_write_byte(aes_buffer[i + 3]);
 	}
+	// else
+	// {
+		// cc26xx_uart_write_byte(0xFF);
+		// printf("%i %lu", header_down_pack->counter.u16, serial);
+	// }
 }
 
 /*---------------------------------------------------------------------------*/
@@ -484,7 +493,6 @@ void rpl_initialize()
 	rpl_set_prefix(dag, &prefix, 64);
 
 	printf("UDM: Created a new RPL DAG, i'm root!\n");
-	printf("UDM: Time sync needed\n");
 }
 
 /*---------------------------------------------------------------------------*/

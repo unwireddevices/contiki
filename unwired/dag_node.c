@@ -277,7 +277,7 @@ static void join_stage_1_sender(const uip_ipaddr_t *dest_addr)
 	header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
 	join_stage_1_t *join_stage_1_pack = (join_stage_1_t*)&udp_buffer[PAYLOAD_OFFSET];
 	
-	/*Заполеяем пакет*/ 
+	/*Заполняем пакет*/  
 	/*Header*/ 
 	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
 	header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
@@ -331,8 +331,7 @@ static void join_stage_3_sender(const uip_ipaddr_t *dest_addr,
 	join_stage_2_t *join_stage_2_pack = (join_stage_2_t*)&aes_buffer[0];
 	join_stage_3_t *join_stage_3_pack = (join_stage_3_t*)&udp_buffer[PAYLOAD_OFFSET];
 	
-	
-	/*Заполеяем пакет*/ 
+	/*Заполняем пакет*/  
 	/*Header*/ 
 	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
 	header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
@@ -361,7 +360,7 @@ static void join_stage_3_sender(const uip_ipaddr_t *dest_addr,
 	// hexraw_print(16, nonce_key);
 	// printf("\n");
 	
-	/*Зашифровываем блок*/
+	/*Зашифровываем данные*/
 	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&join_stage_3_pack->crypto_1_block), CRYPTO_1_BLOCK_LENGTH);		
 
 	/*Для отладки. Выводит содержимое пакета*/ 
@@ -385,9 +384,9 @@ static void join_stage_4_handler(const uip_ipaddr_t *sender_addr,
 
 	/*Отражаем структуры на массивы*/ 
 	header_t *header_pack = (header_t*)&data[HEADER_OFFSET];
-	join_stage_4_t *join_stage_4_pack = (join_stage_4_t*)&aes_buffer[0];
+	// join_stage_4_t *join_stage_4_pack = (join_stage_4_t*)&aes_buffer[0];
 	
-	/*Расшифровываем блок*/ 
+	/*Расшифровываем данные*/
 	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[PAYLOAD_OFFSET], (uint32_t*)(aes_buffer), CRYPTO_1_BLOCK_LENGTH);
 	
 	/*Проверяем массив. Если все нули, то авториция прошла успешно*/ 
@@ -426,43 +425,53 @@ static void uart_from_air ( const uip_ipaddr_t *sender_addr,
 							const uint8_t *data,
 							uint16_t datalen)
 {
-	//Дешифрово4kа
-	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[UDBP_V5_HEADER_LENGTH], (uint32_t*)(aes_buffer), (datalen - UDBP_V5_HEADER_LENGTH));
+	/*Отражаем структуры на массивы*/ 
+	header_down_t *header_down_pack = (header_down_t*)&aes_buffer[0];	
 	
+	/*Расшифровываем данные*/
+	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[HEADER_DOWN_OFFSET], (uint32_t*)(aes_buffer), (datalen - HEADER_UP_LENGTH));
 	
-	if(packet_counter_root.u16 < ((uint16_t)(aes_buffer[1] << 8) | aes_buffer[0]))
-	{		
-		packet_counter_root.u8[0] = aes_buffer[0];
-		packet_counter_root.u8[1] = aes_buffer[1];
+	/*Проверяем счетчик пакетов на валидность данного пакета*/
+	if(packet_counter_root.u16 < header_down_pack->counter.u16)
+	{	
+		/*Обновляем значение счетчика ROOT'а*/
+		packet_counter_root.u16 = header_down_pack->counter.u16;		
 		
+		/*Если интерфейс RS485, то устанавливаем DE и RE в высокий уровень*/
 		if(get_interface() == INTERFACE_RS485)
 		{
-			ti_lib_gpio_set_dio(RS485_DE);
-			ti_lib_gpio_set_dio(RS485_RE);
+			ti_lib_gpio_set_dio(RS485_DE);		/*Устанавливаем DE в высокий уровень*/	
+			ti_lib_gpio_set_dio(RS485_RE);		/*Устанавливаем RE в высокий уровень*/
 		}
 		
-		
+		/*Запрещаем прерывания*/
 		ti_lib_uart_int_disable(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
 		ti_lib_uart_int_clear(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
 		
-		for(uint16_t i = 0; i < aes_buffer[2]; i++)
+		/*Отправляем данные на счетчик через UART*/
+		for(uint16_t i = 0; i < aes_buffer[HEADER_DOWN_LENGTH_OFFSET]; i++)
 			cc26xx_uart_write_byte(aes_buffer[i + 3]);
 		
+		/*Ожидаем окончание передачи*/
 		while(ti_lib_uart_busy(UART0_BASE));
 		
+		/*Если интерфейс RS485, то устанавливаем DE и RE в низкий уровень*/
 		if(get_interface() == INTERFACE_RS485)
 		{
-			ti_lib_gpio_clear_dio(RS485_DE);
-			ti_lib_gpio_clear_dio(RS485_RE);
+			ti_lib_gpio_clear_dio(RS485_DE);	/*Устанавливаем DE в низкий уровень*/	
+			ti_lib_gpio_clear_dio(RS485_RE);	/*Устанавливаем RE в низкий уровень*/
 		}
 		
+		/*Очищаем FIFO буферы*/
 		while(ti_lib_uart_chars_avail(UART0_BASE))
 		{
 			UARTCharGetNonBlocking(UART0_BASE);
 		}
 		
+		/*Разрешаем прерывания*/
 		ti_lib_uart_int_clear(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
 		ti_lib_uart_int_enable(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
+		
 		reset_uart();
 		wait_response_slave = 1;
 		ctimer_set(&wait_response, (WAIT_RESPONSE * CLOCK_SECOND), wait_response_reset, NULL);
@@ -473,58 +482,78 @@ static void uart_from_air ( const uip_ipaddr_t *sender_addr,
 /*Передает данные полученные от счетчика ROOT'у по радио*/
 void uart_to_air(char* data)
 {
-	if (node_mode == 2) //MODE_NOTROOT_SLEEP
+	/*Если не нормальный режим работы, то перезагружаемся*/
+	if (node_mode == 2) 
 	{
 		watchdog_reboot();
 	}
 
+	/*Если нормальный режим работы, то отправляем данные УСПД*/
 	if (node_mode == MODE_NORMAL)
 	{
-		uint16_t crc_uart;
-		crc_uart = crc16_modbus((uint8_t*)&data[1], (data[0] - 2));
+		uint8_t *data_iterator;					/*Выделяем память под указатель на data_iterator*/
+		data_iterator = (uint8_t*)&data[0];		/*В data[0] хранится размер принятых данных из UART*/
 		
-		if(data[0] > 3)
+		uint16_t crc_uart;													/*Выделяем память под CRC16-MODBUS*/
+		crc_uart = crc16_modbus((uint8_t*)&data[1], (*data_iterator - 2));	/*Рассчитываем CRC16-MODBUS*/
+		
+		/*Проверяем по размеру на минимально возможный*/ 
+		if(*data_iterator > 3)
 		{
-			if(crc_uart != (uint16_t)((data[((uint8_t)(data[0]))] << 8) | data[(data[0]-1)]))
+			/*Если CRC16 не совпадает, то дальше пакет не обрабатываем*/
+			if(crc_uart != (uint16_t)((data[*data_iterator] << 8) | data[*data_iterator - 1]))
 			{
-				return; //CRC16 не совпала
+				return; /*CRC16 не совпала*/
 			}
 		}
 		else
 		{
-			return; //Слишком маленькая длина фрейма
+			return; 	/*Слишком маленькая длина фрейма*/
 		}
 		
-		uip_ipaddr_t addr;
-		uip_ip6addr_copy(&addr, &root_addr);
-
-		uint8_t payload_length = iterator_to_byte(data[0] + 3);//data[0] + 2;
-		uint8_t udp_buffer[payload_length + UDBP_V5_HEADER_LENGTH];
-		udp_buffer[0] = UDBP_PROTOCOL_VERSION_V5;
-		udp_buffer[1] = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;//packet_counter_node.u8[0];
-		udp_buffer[2] = UART_FROM_RX_TO_AIR;//packet_counter_node.u8[1];
-		udp_buffer[3] = get_parent_rssi();
-		udp_buffer[4] = get_temperature();
-		udp_buffer[5] = get_voltage();
-
-		aes_buffer[0] = packet_counter_node.u8[0];//UNWDS_6LOWPAN_SYSTEM_MODULE_ID;
-		aes_buffer[1] = packet_counter_node.u8[1];//UART_FROM_RX_TO_AIR;
-		aes_buffer[2] = data[0];
+		uip_ipaddr_t addr;						/*Выделяем память для адреса на который отправится пакет*/
+		uip_ip6addr_copy(&addr, &root_addr);	/*Копируем адрес ROOT'а*/
 		
-		for(uint8_t i = 3; i < payload_length; i++)
+		/*Выделяем память под пакет. Общий размер пакета (header + payload)*/
+		/*Нижняя часть header'а будет шифроваться. Поэтому для рассчета payload'а нужно учитывать её*/
+		uint8_t crypto_length = iterator_to_byte(*data_iterator + HEADER_DOWN_LENGTH); 
+		uint8_t udp_buffer[HEADER_UP_LENGTH + crypto_length];
+		
+		/*Отражаем структуры на массивы*/ 
+		header_up_t *header_up_pack = (header_up_t*)&udp_buffer[HEADER_OFFSET];
+		header_down_t *header_down_pack = (header_down_t*)&aes_buffer[0];	
+		
+		/*Заполняем пакет*/ 
+		/*Header*/ 
+		header_up_pack->protocol_version = UDBP_PROTOCOL_VERSION; 	/*Текущая версия протокола*/ 
+		header_up_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
+		header_up_pack->data_type = UART_FROM_RX_TO_AIR;			/*Тип пакета*/  
+		header_up_pack->rssi = get_parent_rssi();					/*RSSI*/ 
+		header_up_pack->temperature = get_temperature();			/*Температура*/ 
+		header_up_pack->voltage = get_voltage();					/*Напряжение*/ 
+
+		/*Шифрованая часть header'а*/ 
+		header_down_pack->counter.u16 = packet_counter_node.u16;	/*Счетчик пакетов*/ 
+		header_down_pack->length = *data_iterator;					/*Размер пакета*/
+		
+		/*Заполняем блок для шифрования*/ 
+		for(uint8_t i = HEADER_DOWN_LENGTH; i < crypto_length; i++)
 		{
-		if(i < (data[0] + 3))
-			aes_buffer[i] = data[i-2];
-		else
-			aes_buffer[i] = 0x00;
+			if(i < (*data_iterator + HEADER_DOWN_LENGTH))
+				aes_buffer[i] = data[i-2];		/*Заполняем блок для шифрования данными*/ 
+			else
+				aes_buffer[i] = 0x00;			/*Дозаполняем блок для шифрования нулями*/ 
 		}
 	
-		aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[UDBP_V5_HEADER_LENGTH]), payload_length);
+		/*Зашифровываем данные*/
+		aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[HEADER_DOWN_OFFSET]), crypto_length);
 
 		net_on(RADIO_ON_TIMER_OFF);
-		simple_udp_sendto(&udp_connection, udp_buffer, payload_length + UDBP_V5_HEADER_LENGTH, &addr);
-		packet_counter_node.u16++;
-		led_mode_set(LED_FLASH);
+		
+		/*Отправляем пакет*/ 
+		simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_UP_LENGTH + crypto_length), &addr);
+		packet_counter_node.u16++;		/*Инкрементируем счетчик пакетов*/
+		led_mode_set(LED_FLASH);		/*Мигаем светодиодом*/
 	}
 }
 
@@ -665,7 +694,7 @@ PROCESS_THREAD(settings_dag_init, ev, data)
 	else
 	{
 		printf("Serial number not declared\n******************************\n***PLEASE SET SERIAL NUMBER***\n******************************\n");
-		led_mode_set(LED_FAST_BLINK);
+		led_mode_set(LED_FAST_BLINK);	/*Мигаем светодиодом*/
 		
 		while(eeprom_dag.serial_configured)
 		{
@@ -687,7 +716,7 @@ PROCESS_THREAD(settings_dag_init, ev, data)
 	else
 	{
 		printf("AES-128 key not declared\n******************************\n******PLEASE SET AES KEY******\n******************************\n");
-		led_mode_set(LED_FAST_BLINK);
+		led_mode_set(LED_FAST_BLINK);	/*Мигаем светодиодом*/
 		while(eeprom_dag.aes_key_configured)
 		{
 			PROCESS_YIELD();
@@ -708,7 +737,7 @@ PROCESS_THREAD(settings_dag_init, ev, data)
 	else
 	{
 		printf("Interface not declared\n******************************\n*****PLEASE SET INTERFACE*****\n******************************\n");
-		led_mode_set(LED_FAST_BLINK);
+		led_mode_set(LED_FAST_BLINK);	/*Мигаем светодиодом*/
 		
 		while(eeprom_dag.interface_configured)
 		{
@@ -817,9 +846,13 @@ PROCESS_THREAD(dag_node_button_process, ev, data)
 		{
 			if (data == &button_e_sensor_long_click)
 			{
-				led_mode_set(LED_ON);
+				/*Включаем светодиод*/
+				led_mode_set(LED_ON);	
+				
+				/*Вывод информационного сообщения в консоль*/
 				if(uart_status() == 0)
 					printf("SYSTEM: Button E long click, reboot\n");
+				
 				watchdog_reboot();
 			}
 		}
@@ -851,13 +884,14 @@ PROCESS_THREAD(maintenance_process, ev, data)
 
 		if(node_mode == MODE_NORMAL)
 		{
-			led_mode_set(LED_OFF);
+			led_mode_set(LED_OFF);	/*Выключаем светодиод*/
 
 			if(process_is_running(&root_find_process) == 1)
 				process_exit(&root_find_process);
 
 			if(non_answered_packet > MAX_NON_ANSWERED_PINGS)
 			{
+				/*Вывод информационного сообщения в консоль*/
 				if(uart_status() == 0)
 					printf("DAG Node: Root not available, reboot\n");
 				watchdog_reboot();
@@ -870,6 +904,7 @@ PROCESS_THREAD(maintenance_process, ev, data)
 			{
 				led_mode_set(LED_OFF);
 				
+				/*Вывод информационного сообщения в консоль*/
 				if(uart_status() == 0)
 					printf("DAG Node: Root not found, sleep\n");
 				
@@ -893,9 +928,13 @@ PROCESS_THREAD(maintenance_process, ev, data)
 
 			if(CLASS == CLASS_C)
 			{
+				/*Мигаем светодиодом*/
 				led_mode_set(LED_FAST_BLINK);
+				
+				/*Вывод информационного сообщения в консоль*/
 				if(uart_status() == 0)
 					printf("DAG Node: Root not found, reboot\n"); //почему-то не перезагружается!
+				
 				watchdog_reboot();
 			}
 		}
@@ -947,7 +986,7 @@ PROCESS_THREAD(root_find_process, ev, data)
 					if(root_find_dag != NULL)
 					{
 						if(led_mode != LED_FAST_BLINK)
-						led_mode_set(LED_FAST_BLINK);
+						led_mode_set(LED_FAST_BLINK);	/*Мигаем светодиодом*/
 						join_stage_1_sender(&root_find_dag->dag_id);
 					}
 				}
@@ -955,8 +994,11 @@ PROCESS_THREAD(root_find_process, ev, data)
 			else
 			{
 				node_mode = MODE_NOTROOT;
+				
+				/*Вывод информационного сообщения в консоль*/
 				if(uart_status() == 0)
 					printf("DAG Node: mode set to MODE_NOTROOT\n");
+				
 				process_exit(&maintenance_process);
 				process_start(&maintenance_process, NULL);
 			}
