@@ -44,7 +44,6 @@
 #include "int-flash-common.h"
 #include "driverlib/flash.h"
 #include "driverlib/vims.h"
-#include "ud_binary_protocol.h"
 #include "xxf_types_helper.h"
 
 /*---------------------------------------------------------------------------*/

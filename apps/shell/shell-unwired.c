@@ -65,14 +65,10 @@
 #include "dag_node.h"
 
 #include "xxf_types_helper.h"
-#include "ud_binary_protocol.h"
 
 #include "../../unwired/int-flash-common.h"
 #include "../../unwired/crypto-common.h"
 
-/*---------------------------------------------------------------------------*/
-//extern uint32_t serial;
-//extern aes_key;
 /*---------------------------------------------------------------------------*/
 PROCESS(unwired_shell_time_process, "time");
 SHELL_COMMAND(unwired_shell_time_command, "time", "time: show the current node time in unix epoch", &unwired_shell_time_process);

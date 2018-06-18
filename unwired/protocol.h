@@ -32,6 +32,7 @@
 *         Manchenko Oleg man4enkoos@gmail.com
 */
 /*---------------------------------------------------------------------------*/
+#define UDP_DATA_PORT				4004
 
 #define UDBP_PROTOCOL_VERSION		5
 
@@ -99,8 +100,8 @@
 #define DATA_TYPE_JOIN_STAGE_2				0x11 //Координатор отправляет ecb_encrypt(nonce=rand())
 #define DATA_TYPE_JOIN_STAGE_3				0x12 //Нода удостоверяет, что она знает ключ отправляя cbc_encrypt(nonce)
 #define DATA_TYPE_JOIN_STAGE_4				0x13 //Координатор отвечает ноде что она имеет право быть в сети
-// #define UART_FROM_AIR_TO_TX					0x20 //Пакет с UART
-// #define UART_FROM_RX_TO_AIR					0x21 //Пакет с UART
+#define UART_FROM_AIR_TO_TX					0x20 //Пакет с UART
+#define UART_FROM_RX_TO_AIR					0x21 //Пакет с UART
 
 /*---------------------------------------------------------------------------*/
 

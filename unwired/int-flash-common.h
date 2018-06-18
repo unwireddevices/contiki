@@ -33,7 +33,6 @@
  */
 /*---------------------------------------------------------------------------*/
 #include "contiki.h"
-#include "ud_binary_protocol.h"
 #include "ecc.h"
 
 #define USER_FLASH_LENGTH                       100

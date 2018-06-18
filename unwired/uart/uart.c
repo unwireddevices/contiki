@@ -64,7 +64,6 @@
 
 #include "ti-lib.h"
 #include "dev/cc26xx-uart.h"
-#include "../ud_binary_protocol.h"
 #include "../dag_node.h"
 
 #include "net/rpl/rpl-private.h"

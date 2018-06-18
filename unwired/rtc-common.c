@@ -46,7 +46,6 @@
 #include "system-common.h"
 #include "dag_node.h"
 
-#include "ud_binary_protocol.h"
 #include "xxf_types_helper.h"
 
 /*---------------------------------------------------------------------------*/

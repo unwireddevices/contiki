@@ -56,7 +56,6 @@
 #include "ti-lib.h"
 #include "dev/cc26xx-uart.h"
 
-#include "../ud_binary_protocol.h"
 #include "xxf_types_helper.h"
 #include "dev/watchdog.h"
 

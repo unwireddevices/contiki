@@ -41,7 +41,6 @@
 #include <string.h>
 #include <stdio.h>
 
-#include "ud_binary_protocol.h"
 #include "xxf_types_helper.h"
 
 #include "batmon-sensor.h"

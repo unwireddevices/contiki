@@ -73,7 +73,6 @@
 #include "int-flash-common.h"
 
 #include "xxf_types_helper.h"
-#include "ud_binary_protocol.h"
 #include "protocol.h"
 
 #include "dag_node.h"
@@ -84,8 +83,6 @@
 #define LONG_STATUS_INTERVAL			(20 * 60 * CLOCK_SECOND)
 #define ROOT_FIND_INTERVAL				(2 * CLOCK_SECOND)
 #define ROOT_FIND_LIMIT_TIME			(2 * 60 * CLOCK_SECOND)
-#define FW_DELAY						(2 * CLOCK_SECOND)
-#define FW_MAX_ERROR_COUNTER			5
 
 #define FALSE							0x00
 #define TRUE							0x01
@@ -99,17 +96,15 @@
 									UART_INT_RX | UART_INT_CTS)
 
 /*---------------------------------------------------------------------------*/
+/*ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ*/
 
-/* struct for simple_udp_send */
-simple_udp_connection_t udp_connection;
-
+simple_udp_connection_t udp_connection;	/*Структура UDP подключения*/
 
 volatile uint8_t led_mode;
 
-volatile uint8_t non_answered_packet = 0;
-volatile uip_ipaddr_t root_addr;		/*Адресс root'а*/
+volatile uint8_t non_answered_packet;
 
-static struct etimer maintenance_timer;
+static struct etimer maintenance_timer;	/*Таймер*/
 
 static struct ctimer wait_response; 	/*Таймер который запускатся после выдачи сообщения счетчику, если счетчик не ответил за это время, то сообщение принятые данные не передаются root'у*/
 static bool wait_response_slave = 0; 	/*Переменная которая отражает состояние таймера*/
@@ -117,8 +112,8 @@ static bool wait_response_slave = 0; 	/*Переменная которая от
 /*Счетчик покетов*/
 static volatile union 
 { 
-	uint16_t u16; 
-	uint8_t u8[2]; 
+	uint16_t u16;
+	uint8_t u8[2];
 } packet_counter_root;					
 
 static uint8_t aes_buffer[128];			/*Буффер для шифрования*/
@@ -130,7 +125,7 @@ static uint8_t interface; 				/*Интерфейс общения с счетч�
 extern uint32_t serial;					/*Серийный номер*/
 
 /*---------------------------------------------------------------------------*/
-/*PROTOTYPES OF FUNCTIONS*/
+/*ПРОТОТИПЫ ФУНКЦИЙ*/
 
 /*Обработчик принятых пакетов*/
 static void udp_receiver(struct simple_udp_connection *c,
@@ -159,11 +154,11 @@ static void uart_from_air ( const uip_ipaddr_t *sender_addr,
 							const uint8_t *data,
 							uint16_t datalen);
 
-/**/
+/*Сбрасывает переменную которая показывает ожидаем ли мы ответ от счетчика*/
 static void wait_response_reset(void *ptr);
 
 /*---------------------------------------------------------------------------*/
-/*PROTOTYPES OF PROCESS*/
+/*ПРОТОТИПЫ ПРОЦЕССОВ*/
 
 /*Процесс инициализации настроек из EEPROM*/
 PROCESS(settings_dag_init, "Initializing settings of DAG");
@@ -390,22 +385,22 @@ static void join_stage_4_handler(const uip_ipaddr_t *sender_addr,
 	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[PAYLOAD_OFFSET], (uint32_t*)(aes_buffer), CRYPTO_1_BLOCK_LENGTH);
 	
 	/*Проверяем массив. Если все нули, то авториция прошла успешно*/ 
-	if( (aes_buffer[0] == 0x00)  &&
-		(aes_buffer[1] == 0x00)  &&
-		(aes_buffer[2] == 0x00)  &&
-		(aes_buffer[3] == 0x00)  &&
-		(aes_buffer[4] == 0x00)  &&
-		(aes_buffer[5] == 0x00)  &&
-		(aes_buffer[6] == 0x00)  &&
-		(aes_buffer[7] == 0x00)  &&
-		(aes_buffer[8] == 0x00)  &&
-		(aes_buffer[9] == 0x00)  &&
-		(aes_buffer[10] == 0x00) &&
-		(aes_buffer[11] == 0x00) &&
-		(aes_buffer[12] == 0x00) &&
-		(aes_buffer[13] == 0x00) &&
-		(aes_buffer[14] == 0x00) &&
-		(aes_buffer[15] == 0x00))
+	if((aes_buffer[0]  |
+		aes_buffer[1]  |
+		aes_buffer[2]  |
+		aes_buffer[3]  |
+		aes_buffer[4]  |
+		aes_buffer[5]  |
+		aes_buffer[6]  |
+		aes_buffer[7]  |
+		aes_buffer[8]  |
+		aes_buffer[9]  |
+		aes_buffer[10] |
+		aes_buffer[11] |
+		aes_buffer[12] |
+		aes_buffer[13] |
+		aes_buffer[14] |
+		aes_buffer[15]) == 0x00)
 	{
 		packet_counter_root.u16 = header_pack->counter.u16;				/*Сохраняем счетчик пакетов ROOT'а*/ 
 		uip_ipaddr_copy(&root_addr, sender_addr); 						/*Копируем адрес ROOT'а с которым авторизировались*/ 
@@ -650,14 +645,14 @@ void panid_update(uint16_t panid_new)
 }
 
 /*---------------------------------------------------------------------------*/
-/**/
+/*Сбрасывает переменную которая показывает ожидаем ли мы ответ от счетчика*/
 static void wait_response_reset(void *ptr)
 {
 	wait_response_slave = 0;
 }
 
 /*---------------------------------------------------------------------------*/
-/**/
+/*Показывает ожидаем ли мы ответ от счетчика*/
 bool wait_response_status(void)
 {
 	return wait_response_slave;

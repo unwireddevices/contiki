@@ -43,7 +43,6 @@
 
 #include "crypto-common.h"
 
-#include "ud_binary_protocol.h"
 #include "xxf_types_helper.h"
 
 #include <cpu/cc26xx-cc13xx/lib/cc13xxware/driverlib/rom_crypto.h>

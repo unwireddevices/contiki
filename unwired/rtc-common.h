@@ -33,7 +33,6 @@
  */
 /*---------------------------------------------------------------------------*/
 #include "contiki.h"
-#include "ud_binary_protocol.h"
 
 PROCESS_NAME(time_sync_process);
 

@@ -40,17 +40,16 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../ud_binary_protocol.h"
-
-#define INTERFACE_RS485 			0 //
-#define INTERFACE_CAN 				1 //
+#define INTERFACE_RS485 			0 
+#define INTERFACE_CAN 				1 
 
 /*---------------------------------------------------------------------------*/
 /* main UPD connection */
 struct simple_udp_connection udp_connection;
 
 /*---------------------------------------------------------------------------*/
-/*PROTOTYPES OF FUNCTIONS*/
+/*ПРОТОТИПЫ ФУНКЦИЙ*/
+
 /*Обработчик принятых пакетов*/
 void udp_data_receiver(struct simple_udp_connection *connection,
                        const uip_ipaddr_t *sender_addr,
@@ -69,12 +68,17 @@ void root_node_initialize();
 /*Обработчик прерывания UART*/
 int uart_data_receiver(unsigned char uart_char);
 
+/*Устанавливает режим работы UART. Работает в режиме UART*/
 void set_uart_r(void);
+
+/*Устанавливает режим работы UART. Работает в режиме консоли*/
 void unset_uart_r(void);
+
+/*Возвращает режим работы UART*/
 uint8_t uart_status_r(void);
 
 /*---------------------------------------------------------------------------*/
-/*DECLARE THE NAME OF A PROCESS*/
+/*ИМЕНА ПРОЦЕССОВ*/
 
 /*Процесс инициализации настроек из EEPROM*/
 PROCESS_NAME(settings_root_init);
