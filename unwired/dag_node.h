@@ -59,7 +59,7 @@ simple_udp_connection_t udp_connection;		/*Структура UDP подключ
 volatile uip_ipaddr_t root_addr;			/*Адресс root'а*/
 volatile uint8_t node_mode;					/*Режим работы ноды*/
 
-/*Счетчик покетов*/
+/*Счетчик пакетов*/
 volatile union 
 { 
 	uint16_t u16;
@@ -104,6 +104,9 @@ bool wait_response_status(void);
 
 /*---------------------------------------------------------------------------*/
 /*ИМЕНА ПРОЦЕССОВ*/
+
+/*Процесс опроса ROOT'а на достижимость*/
+PROCESS_NAME(ping_process);
 
 /*Процесс инициализации настроек из EEPROM*/
 PROCESS_NAME(settings_dag_init);

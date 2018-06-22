@@ -87,8 +87,6 @@
 #define FALSE							0x00
 #define TRUE							0x01
 
-#define MAX_NON_ANSWERED_PINGS			3
-
 #define WAIT_RESPONSE					0.150 	//Максимальное время ожидания ответа от счетчика в секундах
 
 #define CC26XX_UART_INTERRUPT_ALL ( UART_INT_OE | UART_INT_BE | UART_INT_PE | \
@@ -102,14 +100,14 @@ simple_udp_connection_t udp_connection;	/*Структура UDP подключ�
 
 volatile uint8_t led_mode;
 
-volatile uint8_t non_answered_packet;
+volatile uint8_t non_answered_ping = 0;	/*Количество неотвеченых пингов*/
 
 static struct etimer maintenance_timer;	/*Таймер*/
 
 static struct ctimer wait_response; 	/*Таймер который запускатся после выдачи сообщения счетчику, если счетчик не ответил за это время, то сообщение принятые данные не передаются root'у*/
 static bool wait_response_slave = 0; 	/*Переменная которая отражает состояние таймера*/
 
-/*Счетчик покетов*/
+/*Счетчик пакетов*/
 static volatile union 
 { 
 	uint16_t u16;
@@ -149,6 +147,14 @@ static void join_stage_4_handler(const uip_ipaddr_t *sender_addr,
 								const uint8_t *data,
 								uint16_t datalen);
 
+/*Ping*/
+static void ping_sender(void);
+
+/*Pong*/
+static void pong_handler(const uip_ipaddr_t *sender_addr,
+						const uint8_t *data,
+						uint16_t datalen);
+								
 /*Передает данные полученные из радио от ROOT'а на счетчик через UART*/
 static void uart_from_air ( const uip_ipaddr_t *sender_addr,
 							const uint8_t *data,
@@ -159,6 +165,9 @@ static void wait_response_reset(void *ptr);
 
 /*---------------------------------------------------------------------------*/
 /*ПРОТОТИПЫ ПРОЦЕССОВ*/
+
+/*Процесс опроса ROOT'а на достижимость*/
+PROCESS(ping_process, "Ping process");
 
 /*Процесс инициализации настроек из EEPROM*/
 PROCESS(settings_dag_init, "Initializing settings of DAG");
@@ -192,13 +201,13 @@ static void udp_receiver(struct simple_udp_connection *c,
 	header_t *header_pack = (header_t*)&data[HEADER_OFFSET];
 
 	/*Вывод информационного сообщения в консоль*/
-	if(uart_status() == 0)
-	{
-		printf("DAG Node: UDP packet received(%"PRIu8"): ", datalen);
-		for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
-			printf("%"PRIXX8, data[i]);
-		printf("\n");
-	}
+	// if(uart_status() == 0)
+	// {
+		// printf("DAG Node: UDP packet received(%"PRIu8"): ", datalen);
+		// for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
+			// printf("%"PRIXX8, data[i]);
+		// printf("\n");
+	// }
 	
 	/*Проверяем версию протокола*/ 
 	if(header_pack->protocol_version == UDBP_PROTOCOL_VERSION)
@@ -217,6 +226,12 @@ static void udp_receiver(struct simple_udp_connection *c,
 			{
 				/*Обработчик четвертой стадии авторизации*/
 				join_stage_4_handler(sender_addr, data, datalen);
+			}
+			
+			else if (header_pack->data_type == PONG)
+			{
+				/*Pong*/
+				pong_handler(sender_addr, data, datalen);
 			}
 			
 			else if (header_pack->data_type == UART_FROM_AIR_TO_TX)
@@ -400,18 +415,117 @@ static void join_stage_4_handler(const uip_ipaddr_t *sender_addr,
 		aes_buffer[12] |
 		aes_buffer[13] |
 		aes_buffer[14] |
-		aes_buffer[15]) == 0x00)
+		aes_buffer[15]) == 0)
 	{
 		packet_counter_root.u16 = header_pack->counter.u16;				/*Сохраняем счетчик пакетов ROOT'а*/ 
 		uip_ipaddr_copy(&root_addr, sender_addr); 						/*Копируем адрес ROOT'а с которым авторизировались*/ 
 		packet_counter_node.u16 = 1;									/*Инициализируем счетчик пакетов*/
 		etimer_set(&maintenance_timer, 0);								/*Устанавливаем таймер*/ 
 		process_post(&dag_node_process, PROCESS_EVENT_CONTINUE, NULL);	/*Передаем управление dag_node_process*/ 
+		process_start(&ping_process, NULL);
 		return;
 	}
 	
 	/*Выводим: Ошибка авторизации*/
 	printf("Authorisation Error\n"); 
+}
+
+/*---------------------------------------------------------------------------*/
+/*Ping*/
+static void ping_sender(void)
+{
+	uip_ipaddr_t addr;						/*Выделяем память для адреса на который отправится пакет*/
+	uip_ip6addr_copy(&addr, &root_addr);	/*Копируем адрес ROOT'а*/
+	
+	/*Выделяем память под пакет. Общий размер пакета (header + payload)*/
+	uint8_t udp_buffer[HEADER_LENGTH + PING_PAYLOAD_LENGTH];	
+	
+	/*Отражаем структуры на массивы*/ 
+	header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
+	ping_t *ping_pack = (ping_t*)&aes_buffer[0];
+	
+	/*Заполняем пакет*/  
+	/*Header*/ 
+	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
+	header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
+	header_pack->data_type = PING;								/*Тип пакета*/  
+	header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
+	header_pack->temperature = get_temperature();				/*Температура*/ 
+	header_pack->voltage = get_voltage();						/*Напряжение*/ 
+	header_pack->counter.u16 = packet_counter_node.u16;			/*Счетчик пакетов*/ 
+	header_pack->length = PING_LENGTH;							/*Размер пакета*/
+
+	/*Payload*/ 
+	/*Заполняем пакет нулями, зашифровываем и отправляем его ROOT'у. */ 
+	for(uint8_t i = 0; i < 16; i++)
+		ping_pack->array_of_zeros[i] = 0x00;
+	
+	/*Зашифровываем данные*/
+	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[PAYLOAD_OFFSET]), CRYPTO_1_BLOCK_LENGTH);
+	
+	/*Для отладки. Выводит содержимое пакета*/ 
+	// printf("Ping_sender pack:\n");
+	// hexraw_print((HEADER_LENGTH + PING_PAYLOAD_LENGTH), udp_buffer);
+	// printf("\n");
+	
+	/*Отправляем пакет*/ 
+	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_LENGTH + PING_PAYLOAD_LENGTH), &addr);
+}
+
+/*---------------------------------------------------------------------------*/
+/*Pong*/
+static void pong_handler(const uip_ipaddr_t *sender_addr,
+						const uint8_t *data,
+						uint16_t datalen)
+{
+	/*Проверка на то что передан существующий адрес*/
+	if (sender_addr == NULL)
+		return;
+
+	/*Отражаем структуры на массивы*/ 
+	pong_t *pong_pack = (pong_t*)&data[PAYLOAD_OFFSET];
+	
+	if(pong_pack->status_code != STATUS_OK)
+	{
+		watchdog_reboot();
+		
+		// node_mode = MODE_JOIN_PROGRESS; 	/*Установка режима работы устройства*/
+		// process_exit(&maintenance_process);
+		// process_start(&maintenance_process, NULL);
+	}
+	
+	/*Расшифровываем данные*/
+	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[PAYLOAD_OFFSET + STATUS_CODE_LENGTH], (uint32_t*)(aes_buffer), CRYPTO_1_BLOCK_LENGTH);
+	
+	/*Проверяем массив. Если все нули, то авториция прошла успешно*/ 
+	if((aes_buffer[0]  |
+		aes_buffer[1]  |
+		aes_buffer[2]  |
+		aes_buffer[3]  |
+		aes_buffer[4]  |
+		aes_buffer[5]  |
+		aes_buffer[6]  |
+		aes_buffer[7]  |
+		aes_buffer[8]  |
+		aes_buffer[9]  |
+		aes_buffer[10] |
+		aes_buffer[11] |
+		aes_buffer[12] |
+		aes_buffer[13] |
+		aes_buffer[14] |
+		aes_buffer[15]) == 0)
+	{
+		non_answered_ping = 0;
+		return;
+	}
+	
+	/*Выводим: Ошибка авторизации*/
+	printf("Crypto Error. Reboot\n");
+	watchdog_reboot();
+	
+	// node_mode = MODE_JOIN_PROGRESS; 	/*Установка режима работы устройства*/
+	// process_exit(&maintenance_process);
+	// process_start(&maintenance_process, NULL);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -659,10 +773,38 @@ bool wait_response_status(void)
 }
 
 /*---------------------------------------------------------------------------*/
+/*Процесс опроса ROOT'а на достижимость*/
+PROCESS_THREAD(ping_process, ev, data)
+{
+	PROCESS_BEGIN();
+	
+	if(ev == PROCESS_EVENT_EXIT)
+		return 1;
+	
+	static struct etimer ping_timer;							/*Создаём таймер для по истечении которого будет ROOT будет пинговаться*/
+	
+	while (1)
+	{
+		etimer_set(&ping_timer, (CLOCK_SECOND * 60 * 10));		/*Устанавливаем таймер на 10 минут*/
+		
+		if(non_answered_ping > 3)								/*Перезагрузить если больше трех неотвеченных пингов*/
+			watchdog_reboot();
+		
+		PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&ping_timer));	/*Засыпаем до срабатывания таймера*/
+		
+		non_answered_ping++;									/*Увеличиваем на еденицу. При ответе в pong_handler() должно обнулиться*/		
+		ping_sender();											/*Отправляем ping*/
+	}
+	
+	PROCESS_END();
+}
+
+/*---------------------------------------------------------------------------*/
 /*Процесс инициализации настроек из EEPROM*/
 PROCESS_THREAD(settings_dag_init, ev, data)
 {
 	PROCESS_BEGIN();
+	
 	if (ev == PROCESS_EVENT_EXIT)
 		return 1;
 
@@ -688,7 +830,7 @@ PROCESS_THREAD(settings_dag_init, ev, data)
 	}
 	else
 	{
-		printf("Serial number not declared\n******************************\n***PLEASE SET SERIAL NUMBER***\n******************************\n");
+		printf("Serial number not declared\n***PLEASE SET SERIAL NUMBER***\n");
 		led_mode_set(LED_FAST_BLINK);	/*Мигаем светодиодом*/
 		
 		while(eeprom_dag.serial_configured)
@@ -710,7 +852,7 @@ PROCESS_THREAD(settings_dag_init, ev, data)
 	}
 	else
 	{
-		printf("AES-128 key not declared\n******************************\n******PLEASE SET AES KEY******\n******************************\n");
+		printf("AES-128 key not declared\n***PLEASE SET AES KEY***\n");
 		led_mode_set(LED_FAST_BLINK);	/*Мигаем светодиодом*/
 		while(eeprom_dag.aes_key_configured)
 		{
@@ -731,7 +873,7 @@ PROCESS_THREAD(settings_dag_init, ev, data)
 	}
 	else
 	{
-		printf("Interface not declared\n******************************\n*****PLEASE SET INTERFACE*****\n******************************\n");
+		printf("Interface not declared\n***PLEASE SET INTERFACE***\n");
 		led_mode_set(LED_FAST_BLINK);	/*Мигаем светодиодом*/
 		
 		while(eeprom_dag.interface_configured)
@@ -872,7 +1014,7 @@ PROCESS_THREAD(maintenance_process, ev, data)
 		if(node_mode == MODE_NEED_REBOOT)
 		{
 			static struct etimer maintenance_reboot_timer;
-			etimer_set(&maintenance_reboot_timer, (5*CLOCK_SECOND));
+			etimer_set(&maintenance_reboot_timer, (5 * CLOCK_SECOND));
 			PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&maintenance_reboot_timer) );
 			watchdog_reboot();
 		}
@@ -883,14 +1025,6 @@ PROCESS_THREAD(maintenance_process, ev, data)
 
 			if(process_is_running(&root_find_process) == 1)
 				process_exit(&root_find_process);
-
-			if(non_answered_packet > MAX_NON_ANSWERED_PINGS)
-			{
-				/*Вывод информационного сообщения в консоль*/
-				if(uart_status() == 0)
-					printf("DAG Node: Root not available, reboot\n");
-				watchdog_reboot();
-			}
 		}
 
 		if(node_mode == MODE_NOTROOT)

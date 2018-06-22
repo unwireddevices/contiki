@@ -97,7 +97,7 @@ static bool wait_response_slave = 0;	/*Отражает ожидаем ли мы
 
 static uip_ipaddr_t null_addr;			/*Сравниваем с этим адресом (аналог nullptr)*/
 
-/*Счетчик покетов*/
+/*Счетчик пакетов*/
 static volatile union 
 { 
 	uint16_t u16; 
@@ -112,6 +112,9 @@ static void join_stage_2_sender(const uip_ip6addr_t *dest_addr, const uint8_t *d
 
 /*Четвертая стадия авторизации*/
 static void join_stage_4_sender(const uip_ip6addr_t *dest_addr, const uint8_t *data, const uint16_t length);
+
+/*Pong*/
+static void pong_sender(const uip_ip6addr_t *dest_addr, const uint8_t *data, const uint16_t length);
 
 /*Передает данные полученные от УСПД, счетчику по радио*/
 static void uart_to_air();
@@ -149,6 +152,9 @@ void udp_data_receiver(struct simple_udp_connection *connection,
 	/*Отражаем структуру на массив*/ 
 	header_t *header_pack = (header_t*)&data[HEADER_OFFSET];
 
+	/*Для отладки. Выводит тип принятого сообщения*/ 
+	// printf("Recive pack: %x\n", header_pack->data_type);
+	
 	/*Проверяем версию протокола*/ 
 	if(header_pack->protocol_version == UDBP_PROTOCOL_VERSION)
 	{
@@ -163,6 +169,7 @@ void udp_data_receiver(struct simple_udp_connection *connection,
 				led_off(LED_A);		/*Выключаем светодиод*/
 				return;
 			}
+			
 			else if(header_pack->data_type == DATA_TYPE_JOIN_STAGE_3)
 			{
 				/*Четвертая стадия авторизации*/
@@ -170,6 +177,15 @@ void udp_data_receiver(struct simple_udp_connection *connection,
 				led_off(LED_A);		/*Выключаем светодиод*/
 				return;
 			}
+			
+			else if(header_pack->data_type == PING)
+			{
+				/*Pong*/
+				pong_sender(&node_addr, data, datalen);
+				led_off(LED_A);		/*Выключаем светодиод*/
+				return;
+			}
+			
 			else if(header_pack->data_type == UART_FROM_RX_TO_AIR)
 			{
 				/*Передаём данные полученные от счетчика на УСПД*/
@@ -320,6 +336,109 @@ static void join_stage_4_sender(const uip_ip6addr_t *dest_addr, const uint8_t *d
 	
 	/*Отправляем пакет*/ 
 	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_LENGTH + JOIN_STAGE_4_PAYLOAD_LENGTH), &addr);
+	packet_counter_root.u16++;		/*Инкрементируем счетчик пакетов*/
+}
+
+/*---------------------------------------------------------------------------*/
+/*Pong*/
+static void pong_sender(const uip_ip6addr_t *dest_addr, const uint8_t *data, const uint16_t length)
+{
+	/*Проверка на то что передан существующий адрес*/
+	if (dest_addr == NULL)
+		return;
+	
+	uip_ipaddr_t addr;						/*Выделяем память для адреса на который отправится пакет*/
+	uip_ip6addr_copy(&addr, dest_addr);		/*Копируем адрес*/
+	
+	/*Выделяем память под пакет. Общий размер пакета (header + payload)*/
+	uint8_t udp_buffer[HEADER_LENGTH + PONG_PAYLOAD_LENGTH];	
+	
+	/*Отражаем структуры на массивы*/ 
+	ping_t *ping_pack = (ping_t*)&data[PAYLOAD_OFFSET];
+	header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
+	pong_t *pong_pack = (pong_t*)&udp_buffer[PAYLOAD_OFFSET];
+	
+	/*Получение nonce*/	
+	uip_ds6_route_t *r;						/*Создаем указатель на элемент списка в котором мы ищем nonce*/
+	r = uip_ds6_route_lookup(&addr);		/*Ищем nonce по IPv6 в RPL таблице*/
+	
+	/*Проверка на то что мы нашли данный IP адрес*/
+	if(r == NULL) 
+	{
+		return;
+	}
+	
+	u8_u16_t nonce; 						/*Выделяем память под nonce*/
+	nonce.u16 = r->nonce;					/*Получаем nonce*/
+	
+	uint8_t status_code = STATUS_OK;		/*Выделяем память под статус код. В нем передаем номер ошибки*/
+	
+	/*Копируем полученный nonce и используем его в качестве сессионного ключа (AES128-CBC)*/
+	for(int i = 0; i < 16; i += 2)
+	{
+		nonce_key[i] = nonce.u8[1];	
+		nonce_key[i+1] = nonce.u8[0];	
+	}
+	
+	/*Расшифровываем данные*/
+	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&ping_pack->array_of_zeros[0], (uint32_t*)(aes_buffer), CRYPTO_1_BLOCK_LENGTH);
+	
+	/*Для отладки. Выводит содержимое пакета*/ 
+	// printf("Pong_sender decrypt pack:\n");
+	// hexraw_print(CRYPTO_1_BLOCK_LENGTH, aes_buffer);
+	// printf("\n");
+	
+	/*Проверяем массив. Если все нули, то настройки шифрования верны*/ 
+	if((aes_buffer[0]  |
+		aes_buffer[1]  |
+		aes_buffer[2]  |
+		aes_buffer[3]  |
+		aes_buffer[4]  |
+		aes_buffer[5]  |
+		aes_buffer[6]  |
+		aes_buffer[7]  |
+		aes_buffer[8]  |
+		aes_buffer[9]  |
+		aes_buffer[10] |
+		aes_buffer[11] |
+		aes_buffer[12] |
+		aes_buffer[13] |
+		aes_buffer[14] |
+		aes_buffer[15]) != 0)
+	{
+		status_code = STATUS_ERROR;
+	}
+	
+	/*Заполняем пакет*/  
+	/*Header*/ 
+	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
+	header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
+	header_pack->data_type = PONG;								/*Тип пакета*/  
+	header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
+	header_pack->temperature = get_temperature();				/*Температура*/ 
+	header_pack->voltage = get_voltage();						/*Напряжение*/ 
+	header_pack->counter.u16 = packet_counter_root.u16;			/*Счетчик пакетов*/ 
+	header_pack->length = PONG_LENGTH;							/*Размер пакета*/
+	
+	/*Payload*/ 
+	pong_pack->status_code = status_code;						/*Статус код*/	
+	
+	/*Отражаем структуру на массив*/ 
+	pong_pack = (pong_t*)&aes_buffer[0];
+	
+	for(uint8_t i = 0; i < 16; i++)
+		pong_pack->array_of_zeros[i] = 0x00;
+	
+	/*Зашифровываем данные*/
+	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&pong_pack->array_of_zeros[0], (uint32_t*)(&udp_buffer[PAYLOAD_OFFSET + STATUS_CODE_LENGTH]), CRYPTO_1_BLOCK_LENGTH);
+	
+	/*Для отладки. Выводит содержимое пакета*/ 
+	// printf("Pong_sender pack:\n");
+	// hexraw_print((HEADER_LENGTH + PONG_PAYLOAD_LENGTH), udp_buffer);
+	// printf("\n");
+	
+	/*Отправляем пакет*/ 
+	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_LENGTH + PONG_PAYLOAD_LENGTH), &addr);
 	packet_counter_root.u16++;		/*Инкрементируем счетчик пакетов*/
 }
 

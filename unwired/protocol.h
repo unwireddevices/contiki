@@ -34,7 +34,7 @@
 /*---------------------------------------------------------------------------*/
 #define UDP_DATA_PORT				4004
 
-#define UDBP_PROTOCOL_VERSION		5
+#define UDBP_PROTOCOL_VERSION		1
 
 #define HEADER_OFFSET 				0
 #define HEADER_DOWN_OFFSET 			6
@@ -43,6 +43,7 @@
 
 #define SERIAL_LENGTH 				4
 #define NONCE_LENGTH				2
+#define STATUS_CODE_LENGTH			1
 #define ARRAY_OF_ZEROS_LENGTH		16
 #define HEADER_UP_LENGTH			6
 #define HEADER_DOWN_LENGTH			3
@@ -57,14 +58,18 @@
 
 #define JOIN_STAGE_1_PAYLOAD_LENGTH SERIAL_LENGTH
 #define JOIN_STAGE_2_PAYLOAD_LENGTH CRYPTO_1_BLOCK_LENGTH
-#define JOIN_STAGE_3_PAYLOAD_LENGTH CRYPTO_1_BLOCK_LENGTH + SERIAL_LENGTH
+#define JOIN_STAGE_3_PAYLOAD_LENGTH SERIAL_LENGTH + CRYPTO_1_BLOCK_LENGTH
 #define JOIN_STAGE_4_PAYLOAD_LENGTH CRYPTO_1_BLOCK_LENGTH
+#define PING_PAYLOAD_LENGTH 		CRYPTO_1_BLOCK_LENGTH
+#define PONG_PAYLOAD_LENGTH 		STATUS_CODE_LENGTH + CRYPTO_1_BLOCK_LENGTH
 
 #define HEADER_LENGTH 				9
 #define JOIN_STAGE_1_LENGTH 		SERIAL_LENGTH
 #define JOIN_STAGE_2_LENGTH 		NONCE_LENGTH
 #define JOIN_STAGE_3_LENGTH 		SERIAL_LENGTH + NONCE_LENGTH
 #define JOIN_STAGE_4_LENGTH 		ARRAY_OF_ZEROS_LENGTH
+#define PING_LENGTH 				ARRAY_OF_ZEROS_LENGTH
+#define PONG_LENGTH 				STATUS_CODE_LENGTH + ARRAY_OF_ZEROS_LENGTH
 
 #define OFFSET_0_BYTE 				0
 #define OFFSET_1_BYTE 				1
@@ -77,7 +82,8 @@
 #define OFFSET_8_BYTE 				8
 #define OFFSET_9_BYTE 				9
 
-
+#define STATUS_OK	 				0x00
+#define STATUS_ERROR	 			0x01
 
 /*---------------------------------------------------------------------------*/
 /* Data types */
@@ -100,6 +106,8 @@
 #define DATA_TYPE_JOIN_STAGE_2				0x11 //Координатор отправляет ecb_encrypt(nonce=rand())
 #define DATA_TYPE_JOIN_STAGE_3				0x12 //Нода удостоверяет, что она знает ключ отправляя cbc_encrypt(nonce)
 #define DATA_TYPE_JOIN_STAGE_4				0x13 //Координатор отвечает ноде что она имеет право быть в сети
+#define PING								0x14 //Ping
+#define PONG								0x15 //Pong
 #define UART_FROM_AIR_TO_TX					0x20 //Пакет с UART
 #define UART_FROM_RX_TO_AIR					0x21 //Пакет с UART
 
@@ -191,7 +199,14 @@ typedef struct {
 	uint8_t array_of_zeros[16];
 } join_stage_4_t;
 
+typedef struct {		
+	uint8_t array_of_zeros[16];
+} ping_t;
 
+typedef struct {		
+	uint8_t status_code;
+	uint8_t array_of_zeros[16];
+} pong_t;
 
 /*---------------------------------------------------------------------------*/
 
