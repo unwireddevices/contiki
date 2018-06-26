@@ -389,28 +389,13 @@ static void pong_sender(const uip_ip6addr_t *dest_addr, const uint8_t *data, con
 	// printf("\n");
 	
 	/*Проверяем массив. Если все нули, то настройки шифрования верны*/ 
-	if((aes_buffer[0]  |
-		aes_buffer[1]  |
-		aes_buffer[2]  |
-		aes_buffer[3]  |
-		aes_buffer[4]  |
-		aes_buffer[5]  |
-		aes_buffer[6]  |
-		aes_buffer[7]  |
-		aes_buffer[8]  |
-		aes_buffer[9]  |
-		aes_buffer[10] |
-		aes_buffer[11] |
-		aes_buffer[12] |
-		aes_buffer[13] |
-		aes_buffer[14] |
-		aes_buffer[15]) != 0)
+	if(!is_array_zero(aes_buffer))
 	{
 		status_code = STATUS_ERROR;
 	}
 	
 	/*Заполняем пакет*/  
-	/*Header*/ 
+	/*Header*/
 	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
 	header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
 	header_pack->data_type = PONG;								/*Тип пакета*/  

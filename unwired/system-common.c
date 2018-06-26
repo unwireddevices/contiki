@@ -256,6 +256,23 @@ uint8_t get_parent_rssi()
 }
 
 /*---------------------------------------------------------------------------*/
+/*Возвращает 1 если масив из 16 элементов полностью состоит из нулей*/
+bool is_array_zero(uint8_t *array_of_zeros)
+{
+	uint8_t sum = 0;
+
+	for (uint8_t i = 0; i < 16; i++)
+	{
+		sum |= array_of_zeros[i]; //*array_of_zeros++;
+	}
+	
+	if(sum == 0)
+		return true;
+	else
+		return false;
+}
+
+/*---------------------------------------------------------------------------*/
 /**/
 str2int_errno_t hex_str2uint16(uint16_t *out, char *s) 
 {

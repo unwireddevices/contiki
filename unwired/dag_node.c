@@ -398,24 +398,9 @@ static void join_stage_4_handler(const uip_ipaddr_t *sender_addr,
 	
 	/*Расшифровываем данные*/
 	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[PAYLOAD_OFFSET], (uint32_t*)(aes_buffer), CRYPTO_1_BLOCK_LENGTH);
-	
-	/*Проверяем массив. Если все нули, то авториция прошла успешно*/ 
-	if((aes_buffer[0]  |
-		aes_buffer[1]  |
-		aes_buffer[2]  |
-		aes_buffer[3]  |
-		aes_buffer[4]  |
-		aes_buffer[5]  |
-		aes_buffer[6]  |
-		aes_buffer[7]  |
-		aes_buffer[8]  |
-		aes_buffer[9]  |
-		aes_buffer[10] |
-		aes_buffer[11] |
-		aes_buffer[12] |
-		aes_buffer[13] |
-		aes_buffer[14] |
-		aes_buffer[15]) == 0)
+		
+	/*Проверяем массив. Если все нули, то авториция прошла успешно*/
+	if(is_array_zero(aes_buffer))
 	{
 		packet_counter_root.u16 = header_pack->counter.u16;				/*Сохраняем счетчик пакетов ROOT'а*/ 
 		uip_ipaddr_copy(&root_addr, sender_addr); 						/*Копируем адрес ROOT'а с которым авторизировались*/ 
@@ -496,24 +481,9 @@ static void pong_handler(const uip_ipaddr_t *sender_addr,
 	
 	/*Расшифровываем данные*/
 	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[PAYLOAD_OFFSET + STATUS_CODE_LENGTH], (uint32_t*)(aes_buffer), CRYPTO_1_BLOCK_LENGTH);
-	
-	/*Проверяем массив. Если все нули, то авториция прошла успешно*/ 
-	if((aes_buffer[0]  |
-		aes_buffer[1]  |
-		aes_buffer[2]  |
-		aes_buffer[3]  |
-		aes_buffer[4]  |
-		aes_buffer[5]  |
-		aes_buffer[6]  |
-		aes_buffer[7]  |
-		aes_buffer[8]  |
-		aes_buffer[9]  |
-		aes_buffer[10] |
-		aes_buffer[11] |
-		aes_buffer[12] |
-		aes_buffer[13] |
-		aes_buffer[14] |
-		aes_buffer[15]) == 0)
+		
+	/*Проверяем массив. Если все нули, то авториция прошла успешно*/ 	
+	if(is_array_zero(aes_buffer))
 	{
 		non_answered_ping = 0;
 		return;

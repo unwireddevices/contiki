@@ -121,6 +121,7 @@ void hexview_print(uint32_t flash_length, uint8_t *flash_read_data_buffer, uint3
 void flash_damp_hex(uint8_t mode);
 uint16_t crc16_arc(uint8_t *data, uint16_t len);
 uint16_t crc16_modbus(uint8_t *data, uint16_t len);
+bool is_array_zero(uint8_t *array_of_zeros);
 uint8_t get_voltage();
 uint8_t get_parent_rssi();
 uint8_t get_temperature();
