@@ -39,19 +39,22 @@
 
 /*---------------------------------------------------------------------------*/
 
-#define MODE_NORMAL							0x01
-#define MODE_NOTROOT						0x02
-#define MODE_JOIN_PROGRESS					0x03
-#define MODE_NEED_REBOOT					0x04
+#define MODE_NORMAL				0x01
+#define MODE_NOTROOT			0x02
+#define MODE_JOIN_PROGRESS		0x03
+#define MODE_NEED_REBOOT		0x04
 
-#define LED_OFF								0x00
-#define LED_ON								0x01
-#define LED_FLASH							0x02
-#define LED_SLOW_BLINK						0x03
-#define LED_FAST_BLINK						0x04
+#define LED_OFF					0x00
+#define LED_ON					0x01
+#define LED_FLASH				0x02
+#define LED_SLOW_BLINK			0x03
+#define LED_FAST_BLINK			0x04
 
-#define INTERFACE_RS485						0x00 
-#define INTERFACE_CAN						0x01 
+#define INTERFACE_RS485			0x00 
+#define INTERFACE_CAN			0x01 
+
+#define CLICK					0x80
+#define LONG_CLICK				0xC0
 
 /*---------------------------------------------------------------------------*/
 
@@ -69,8 +72,12 @@ volatile union
 /*---------------------------------------------------------------------------*/
 /*ПРОТОТИПЫ ФУНКЦИЙ*/
 
-/*Передает данные полученные от счетчика ROOT'у по радио*/
-void uart_to_air(char* data);
+/*Функция отправки состояния кнопок*/
+void button_status_sender ( uint8_t button_number,
+							uint8_t click_type);
+
+// /*Передает данные полученные от счетчика ROOT'у по радио*/
+// void uart_to_air(char* data);
 
 /*Функция управления светодиодами*/
 void led_mode_set(uint8_t mode);
@@ -99,8 +106,8 @@ void channel_update(uint8_t channel_new);
 /*Обновляет PANID в EEPROM*/
 void panid_update(uint16_t panid_new);
 
-/*Показывает ожидаем ли мы ответ от счетчика*/
-bool wait_response_status(void);
+// /*Показывает ожидаем ли мы ответ от счетчика*/
+// bool wait_response_status(void);
 
 /*---------------------------------------------------------------------------*/
 /*ИМЕНА ПРОЦЕССОВ*/

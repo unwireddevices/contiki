@@ -32,58 +32,60 @@
 *         Manchenko Oleg man4enkoos@gmail.com
 */
 /*---------------------------------------------------------------------------*/
-#define UDP_DATA_PORT				4004
+#define UDP_DATA_PORT					4004
 
-#define UDBP_PROTOCOL_VERSION		1
+#define UDBP_PROTOCOL_VERSION			1
 
-#define HEADER_OFFSET 				0
-#define HEADER_DOWN_OFFSET 			6
-#define PAYLOAD_OFFSET 				9
-#define HEADER_DOWN_LENGTH_OFFSET 	2
+#define HEADER_OFFSET 					0
+#define HEADER_DOWN_OFFSET 				6
+#define PAYLOAD_OFFSET 					9
+#define HEADER_DOWN_LENGTH_OFFSET 		2
 
-#define SERIAL_LENGTH 				4
-#define NONCE_LENGTH				2
-#define STATUS_CODE_LENGTH			1
-#define ARRAY_OF_ZEROS_LENGTH		16
-#define HEADER_UP_LENGTH			6
-#define HEADER_DOWN_LENGTH			3
+#define SERIAL_LENGTH 					4
+#define NONCE_LENGTH					2
+#define STATUS_CODE_LENGTH				1
+#define ARRAY_OF_ZEROS_LENGTH			16
+#define HEADER_UP_LENGTH				6
+#define HEADER_DOWN_LENGTH				3
 
-#define CRYPTO_1_BLOCK_LENGTH 		16	
-#define CRYPTO_2_BLOCK_LENGTH 		32
-#define CRYPTO_3_BLOCK_LENGTH 		48
-#define CRYPTO_4_BLOCK_LENGTH 		64
-#define CRYPTO_5_BLOCK_LENGTH 		80
-#define CRYPTO_6_BLOCK_LENGTH 		96
-#define CRYPTO_7_BLOCK_LENGTH 		112
+#define CRYPTO_1_BLOCK_LENGTH 			16	
+#define CRYPTO_2_BLOCK_LENGTH 			32
+#define CRYPTO_3_BLOCK_LENGTH 			48
+#define CRYPTO_4_BLOCK_LENGTH 			64
+#define CRYPTO_5_BLOCK_LENGTH 			80
+#define CRYPTO_6_BLOCK_LENGTH 			96
+#define CRYPTO_7_BLOCK_LENGTH 			112
 
-#define JOIN_STAGE_1_PAYLOAD_LENGTH SERIAL_LENGTH
-#define JOIN_STAGE_2_PAYLOAD_LENGTH CRYPTO_1_BLOCK_LENGTH
-#define JOIN_STAGE_3_PAYLOAD_LENGTH SERIAL_LENGTH + CRYPTO_1_BLOCK_LENGTH
-#define JOIN_STAGE_4_PAYLOAD_LENGTH CRYPTO_1_BLOCK_LENGTH
-#define PING_PAYLOAD_LENGTH 		CRYPTO_1_BLOCK_LENGTH
-#define PONG_PAYLOAD_LENGTH 		STATUS_CODE_LENGTH + CRYPTO_1_BLOCK_LENGTH
+#define JOIN_STAGE_1_PAYLOAD_LENGTH 	SERIAL_LENGTH
+#define JOIN_STAGE_2_PAYLOAD_LENGTH 	CRYPTO_1_BLOCK_LENGTH
+#define JOIN_STAGE_3_PAYLOAD_LENGTH 	SERIAL_LENGTH + CRYPTO_1_BLOCK_LENGTH
+#define JOIN_STAGE_4_PAYLOAD_LENGTH 	CRYPTO_1_BLOCK_LENGTH
+#define PING_PAYLOAD_LENGTH 			CRYPTO_1_BLOCK_LENGTH
+#define PONG_PAYLOAD_LENGTH 			STATUS_CODE_LENGTH + CRYPTO_1_BLOCK_LENGTH
+#define BUTTON_STATUS_PAYLOAD_LENGTH	1
 
-#define HEADER_LENGTH 				9
-#define JOIN_STAGE_1_LENGTH 		SERIAL_LENGTH
-#define JOIN_STAGE_2_LENGTH 		NONCE_LENGTH
-#define JOIN_STAGE_3_LENGTH 		SERIAL_LENGTH + NONCE_LENGTH
-#define JOIN_STAGE_4_LENGTH 		ARRAY_OF_ZEROS_LENGTH
-#define PING_LENGTH 				ARRAY_OF_ZEROS_LENGTH
-#define PONG_LENGTH 				STATUS_CODE_LENGTH + ARRAY_OF_ZEROS_LENGTH
+#define HEADER_LENGTH 					9
+#define JOIN_STAGE_1_LENGTH 			SERIAL_LENGTH
+#define JOIN_STAGE_2_LENGTH 			NONCE_LENGTH
+#define JOIN_STAGE_3_LENGTH 			SERIAL_LENGTH + NONCE_LENGTH
+#define JOIN_STAGE_4_LENGTH 			ARRAY_OF_ZEROS_LENGTH
+#define PING_LENGTH 					ARRAY_OF_ZEROS_LENGTH
+#define PONG_LENGTH 					STATUS_CODE_LENGTH + ARRAY_OF_ZEROS_LENGTH
+#define BUTTON_STATUS_LENGTH 			1
 
-#define OFFSET_0_BYTE 				0
-#define OFFSET_1_BYTE 				1
-#define OFFSET_2_BYTE 				2
-#define OFFSET_3_BYTE 				3
-#define OFFSET_4_BYTE 				4
-#define OFFSET_5_BYTE 				5
-#define OFFSET_6_BYTE 				6
-#define OFFSET_7_BYTE 				7
-#define OFFSET_8_BYTE 				8
-#define OFFSET_9_BYTE 				9
+#define OFFSET_0_BYTE 					0
+#define OFFSET_1_BYTE 					1
+#define OFFSET_2_BYTE 					2
+#define OFFSET_3_BYTE 					3
+#define OFFSET_4_BYTE 					4
+#define OFFSET_5_BYTE 					5
+#define OFFSET_6_BYTE 					6
+#define OFFSET_7_BYTE 					7
+#define OFFSET_8_BYTE 					8
+#define OFFSET_9_BYTE 					9
 
-#define STATUS_OK	 				0x00
-#define STATUS_ERROR	 			0x01
+#define STATUS_OK	 					0x00
+#define STATUS_ERROR	 				0x01
 
 /*---------------------------------------------------------------------------*/
 /* Data types */
@@ -110,6 +112,7 @@
 #define PONG								0x15 //Pong
 #define UART_FROM_AIR_TO_TX					0x20 //Пакет с UART
 #define UART_FROM_RX_TO_AIR					0x21 //Пакет с UART
+#define BUTTON_STATUS						0x23 //Пакет статусом нажатой кнопки
 
 /*---------------------------------------------------------------------------*/
 
@@ -207,6 +210,10 @@ typedef struct {
 	uint8_t status_code;
 	uint8_t array_of_zeros[16];
 } pong_t;
+
+typedef struct {		
+	uint8_t button_status;
+} button_status_t;
 
 /*---------------------------------------------------------------------------*/
 

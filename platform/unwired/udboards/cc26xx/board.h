@@ -75,7 +75,7 @@
  */
 #define BOARD_IOID_LED_A          IOID_22 //led on radio-board
 #define BOARD_IOID_LED_B          IOID_21 //on UMDK-BUTTON
-//#define BOARD_IOID_LED_B          IOID_25 //on UMDK-BUTTON
+// #define BOARD_IOID_LED_B          IOID_25 //on UMDK-BUTTON
 #define BOARD_IOID_LED_C          IOID_26 //on UMDK-BUTTON
 #define BOARD_IOID_LED_D          IOID_28 //on UMDK-BUTTON
 #define BOARD_IOID_LED_E          IOID_28 //on UMDK-BUTTON

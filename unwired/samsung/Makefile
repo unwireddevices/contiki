@@ -1,0 +1,18 @@
+.PHONY: all clean root pwm button root-CLEAN pwm-CLEAN button-CLEAN
+
+all: root-CLEAN button-CLEAN
+
+ifndef CPU
+  CPU = cc26xx
+  ${info Not CPU define, use: "CPU=cc26xx" or "CPU=cc13xx". Set default: $(CPU)}
+endif
+
+include ../Makefile_global_unwired
+
+$(eval $(call generate-targets,root,0x00FF0001,0x01))
+$(eval $(call generate-targets,pwm,0x00A10001,0x01))
+$(eval $(call generate-targets,button,0x00A20001,0x01))
+
+# 0x00FF0001 — unwired smarthome(00), root(FF), version 0001
+# 0x00A10001 — unwired smarthome(00), pwm(A1), version 0001
+# 0x00A20001 — unwired smarthome(00), button(A2), version 0001

@@ -78,6 +78,8 @@
 #include "dag_node.h"
 #include "uart/uart.h"
 
+#include "../cpu/cc26xx-cc13xx/dev/pwm.h" /*PWM*/
+
 #define MAINTENANCE_INTERVAL			(10 * 60 * CLOCK_SECOND)
 #define SHORT_STATUS_INTERVAL			(10 * 60 * CLOCK_SECOND)
 #define LONG_STATUS_INTERVAL			(20 * 60 * CLOCK_SECOND)
@@ -87,7 +89,8 @@
 #define FALSE							0x00
 #define TRUE							0x01
 
-#define WAIT_RESPONSE					0.150 	//Максимальное время ожидания ответа от счетчика в секундах
+
+// #define WAIT_RESPONSE					0.150 	//Максимальное время ожидания ответа от счетчика в секундах
 
 #define CC26XX_UART_INTERRUPT_ALL ( UART_INT_OE | UART_INT_BE | UART_INT_PE | \
 									UART_INT_FE | UART_INT_RT | UART_INT_TX | \
@@ -104,8 +107,8 @@ volatile uint8_t non_answered_ping = 0;	/*Количество неотвече�
 
 static struct etimer maintenance_timer;	/*Таймер*/
 
-static struct ctimer wait_response; 	/*Таймер который запускатся после выдачи сообщения счетчику, если счетчик не ответил за это время, то сообщение принятые данные не передаются root'у*/
-static bool wait_response_slave = 0; 	/*Переменная которая отражает состояние таймера*/
+// static struct ctimer wait_response; 	/*Таймер который запускатся после выдачи сообщения счетчику, если счетчик не ответил за это время, то сообщение принятые данные не передаются root'у*/
+// static bool wait_response_slave = 0; 	/*Переменная которая отражает состояние таймера*/
 
 /*Счетчик пакетов*/
 static volatile union 
@@ -155,13 +158,13 @@ static void pong_handler(const uip_ipaddr_t *sender_addr,
 						const uint8_t *data,
 						uint16_t datalen);
 								
-/*Передает данные полученные из радио от ROOT'а на счетчик через UART*/
-static void uart_from_air ( const uip_ipaddr_t *sender_addr,
-							const uint8_t *data,
-							uint16_t datalen);
+// /*Передает данные полученные из радио от ROOT'а на счетчик через UART*/
+// static void uart_from_air ( const uip_ipaddr_t *sender_addr,
+							// const uint8_t *data,
+							// uint16_t datalen);
 
-/*Сбрасывает переменную которая показывает ожидаем ли мы ответ от счетчика*/
-static void wait_response_reset(void *ptr);
+// /*Сбрасывает переменную которая показывает ожидаем ли мы ответ от счетчика*/
+// static void wait_response_reset(void *ptr);
 
 /*---------------------------------------------------------------------------*/
 /*ПРОТОТИПЫ ПРОЦЕССОВ*/
@@ -234,11 +237,11 @@ static void udp_receiver(struct simple_udp_connection *c,
 				pong_handler(sender_addr, data, datalen);
 			}
 			
-			else if (header_pack->data_type == UART_FROM_AIR_TO_TX)
-			{
-				/*Передает данные полученные из радио от root'а на счетчик через UART*/
-				uart_from_air(sender_addr, data, datalen);
-			}
+			// else if (header_pack->data_type == UART_FROM_AIR_TO_TX)
+			// {
+				// /*Передает данные полученные из радио от root'а на счетчик через UART*/
+				// uart_from_air(sender_addr, data, datalen);
+			// }
 			
 			else
 			{
@@ -499,142 +502,196 @@ static void pong_handler(const uip_ipaddr_t *sender_addr,
 }
 
 /*---------------------------------------------------------------------------*/
-/*Передает данные полученные из радио от ROOT'а на счетчик через UART*/
-static void uart_from_air ( const uip_ipaddr_t *sender_addr,
-							const uint8_t *data,
-							uint16_t datalen)
+// /*Передает данные полученные из радио от ROOT'а на счетчик через UART*/
+// static void uart_from_air ( const uip_ipaddr_t *sender_addr,
+							// const uint8_t *data,
+							// uint16_t datalen)
+// {
+	// /*Отражаем структуры на массивы*/ 
+	// header_down_t *header_down_pack = (header_down_t*)&aes_buffer[0];	
+	
+	// /*Расшифровываем данные*/
+	// aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[HEADER_DOWN_OFFSET], (uint32_t*)(aes_buffer), (datalen - HEADER_UP_LENGTH));
+	
+	// /*Проверяем счетчик пакетов на валидность данного пакета*/
+	// if(packet_counter_root.u16 < header_down_pack->counter.u16)
+	// {	
+		// /*Обновляем значение счетчика ROOT'а*/
+		// packet_counter_root.u16 = header_down_pack->counter.u16;		
+		
+		// /*Если интерфейс RS485, то устанавливаем DE и RE в высокий уровень*/
+		// if(get_interface() == INTERFACE_RS485)
+		// {
+			// ti_lib_gpio_set_dio(RS485_DE);		/*Устанавливаем DE в высокий уровень*/	
+			// ti_lib_gpio_set_dio(RS485_RE);		/*Устанавливаем RE в высокий уровень*/
+		// }
+		
+		// /*Запрещаем прерывания*/
+		// ti_lib_uart_int_disable(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
+		// ti_lib_uart_int_clear(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
+		
+		// /*Отправляем данные на счетчик через UART*/
+		// for(uint16_t i = 0; i < aes_buffer[HEADER_DOWN_LENGTH_OFFSET]; i++)
+			// cc26xx_uart_write_byte(aes_buffer[i + 3]);
+		
+		// /*Ожидаем окончание передачи*/
+		// while(ti_lib_uart_busy(UART0_BASE));
+		
+		// /*Если интерфейс RS485, то устанавливаем DE и RE в низкий уровень*/
+		// if(get_interface() == INTERFACE_RS485)
+		// {
+			// ti_lib_gpio_clear_dio(RS485_DE);	/*Устанавливаем DE в низкий уровень*/	
+			// ti_lib_gpio_clear_dio(RS485_RE);	/*Устанавливаем RE в низкий уровень*/
+		// }
+		
+		// /*Очищаем FIFO буферы*/
+		// while(ti_lib_uart_chars_avail(UART0_BASE))
+		// {
+			// UARTCharGetNonBlocking(UART0_BASE);
+		// }
+		
+		// /*Разрешаем прерывания*/
+		// ti_lib_uart_int_clear(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
+		// ti_lib_uart_int_enable(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
+		
+		// reset_uart();
+		// wait_response_slave = 1;
+		// ctimer_set(&wait_response, (WAIT_RESPONSE * CLOCK_SECOND), wait_response_reset, NULL);
+	// }
+// }
+/*---------------------------------------------------------------------------*/
+/*Функция отправки состояния кнопок*/
+void button_status_sender ( uint8_t button_number,
+							uint8_t click_type)
 {
+	uip_ipaddr_t addr;						/*Выделяем память для адреса на который отправится пакет*/
+	uip_ip6addr_copy(&addr, &root_addr);	/*Копируем адрес ROOT'а*/
+	
+	/*Выделяем память под пакет. Общий размер пакета (header + payload)*/
+	uint8_t udp_buffer[HEADER_LENGTH + BUTTON_STATUS_PAYLOAD_LENGTH];	
+	
 	/*Отражаем структуры на массивы*/ 
-	header_down_t *header_down_pack = (header_down_t*)&aes_buffer[0];	
+	header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
+	button_status_t *button_status_pack = (button_status_t*)&udp_buffer[PAYLOAD_OFFSET];
 	
-	/*Расшифровываем данные*/
-	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[HEADER_DOWN_OFFSET], (uint32_t*)(aes_buffer), (datalen - HEADER_UP_LENGTH));
+	/*Заполняем пакет*/  
+	/*Header*/ 
+	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
+	header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
+	header_pack->data_type = BUTTON_STATUS;						/*Тип пакета*/  
+	header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
+	header_pack->temperature = get_temperature();				/*Температура*/ 
+	header_pack->voltage = get_voltage();						/*Напряжение*/ 
+	header_pack->counter.u16 = packet_counter_node.u16;			/*Счетчик пакетов*/ 
+	header_pack->length = BUTTON_STATUS_LENGTH;					/*Размер пакета*/
+
+	/*Payload*/ 
+	printf("DAG Node: Send button packet to DAG-root node\n");
 	
-	/*Проверяем счетчик пакетов на валидность данного пакета*/
-	if(packet_counter_root.u16 < header_down_pack->counter.u16)
-	{	
-		/*Обновляем значение счетчика ROOT'а*/
-		packet_counter_root.u16 = header_down_pack->counter.u16;		
-		
-		/*Если интерфейс RS485, то устанавливаем DE и RE в высокий уровень*/
-		if(get_interface() == INTERFACE_RS485)
-		{
-			ti_lib_gpio_set_dio(RS485_DE);		/*Устанавливаем DE в высокий уровень*/	
-			ti_lib_gpio_set_dio(RS485_RE);		/*Устанавливаем RE в высокий уровень*/
-		}
-		
-		/*Запрещаем прерывания*/
-		ti_lib_uart_int_disable(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
-		ti_lib_uart_int_clear(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
-		
-		/*Отправляем данные на счетчик через UART*/
-		for(uint16_t i = 0; i < aes_buffer[HEADER_DOWN_LENGTH_OFFSET]; i++)
-			cc26xx_uart_write_byte(aes_buffer[i + 3]);
-		
-		/*Ожидаем окончание передачи*/
-		while(ti_lib_uart_busy(UART0_BASE));
-		
-		/*Если интерфейс RS485, то устанавливаем DE и RE в низкий уровень*/
-		if(get_interface() == INTERFACE_RS485)
-		{
-			ti_lib_gpio_clear_dio(RS485_DE);	/*Устанавливаем DE в низкий уровень*/	
-			ti_lib_gpio_clear_dio(RS485_RE);	/*Устанавливаем RE в низкий уровень*/
-		}
-		
-		/*Очищаем FIFO буферы*/
-		while(ti_lib_uart_chars_avail(UART0_BASE))
-		{
-			UARTCharGetNonBlocking(UART0_BASE);
-		}
-		
-		/*Разрешаем прерывания*/
-		ti_lib_uart_int_clear(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
-		ti_lib_uart_int_enable(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
-		
-		reset_uart();
-		wait_response_slave = 1;
-		ctimer_set(&wait_response, (WAIT_RESPONSE * CLOCK_SECOND), wait_response_reset, NULL);
-	}
+	button_status_pack->button_status = button_number;
+
+	if(click_type == CLICK)
+		button_status_pack->button_status |= CLICK;
+
+	else if (click_type == LONG_CLICK)
+		button_status_pack->button_status |= LONG_CLICK;
+	
+	/*Заполняем пакет нулями, зашифровываем и отправляем его ROOT'у. */ 
+	// for(uint8_t i = 0; i < 16; i++)
+		// ping_pack->array_of_zeros[i] = 0x00;
+	
+	// /*Зашифровываем данные*/
+	// aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[PAYLOAD_OFFSET]), CRYPTO_1_BLOCK_LENGTH);
+	
+	/*Для отладки. Выводит содержимое пакета*/ 
+	// printf("Ping_sender pack:\n");
+	// hexraw_print((HEADER_LENGTH + PING_PAYLOAD_LENGTH), udp_buffer);
+	// printf("\n");
+	
+	/*Отправляем пакет*/ 
+	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_LENGTH + BUTTON_STATUS_PAYLOAD_LENGTH), &addr);
+	packet_counter_node.u16++;		/*Инкрементируем счетчик пакетов*/
+	led_mode_set(LED_FLASH);		/*Мигаем светодиодом*/
 }
 
 /*---------------------------------------------------------------------------*/
 /*Передает данные полученные от счетчика ROOT'у по радио*/
-void uart_to_air(char* data)
-{
-	/*Если не нормальный режим работы, то перезагружаемся*/
-	if (node_mode == 2) 
-	{
-		watchdog_reboot();
-	}
+// void uart_to_air(char* data)
+// {
+	// /*Если не нормальный режим работы, то перезагружаемся*/
+	// if (node_mode == 2) 
+	// {
+		// watchdog_reboot();
+	// }
 
-	/*Если нормальный режим работы, то отправляем данные УСПД*/
-	if (node_mode == MODE_NORMAL)
-	{
-		uint8_t *data_iterator;					/*Выделяем память под указатель на data_iterator*/
-		data_iterator = (uint8_t*)&data[0];		/*В data[0] хранится размер принятых данных из UART*/
+	// /*Если нормальный режим работы, то отправляем данные УСПД*/
+	// if (node_mode == MODE_NORMAL)
+	// {
+		// uint8_t *data_iterator;					/*Выделяем память под указатель на data_iterator*/
+		// data_iterator = (uint8_t*)&data[0];		/*В data[0] хранится размер принятых данных из UART*/
 		
-		uint16_t crc_uart;													/*Выделяем память под CRC16-MODBUS*/
-		crc_uart = crc16_modbus((uint8_t*)&data[1], (*data_iterator - 2));	/*Рассчитываем CRC16-MODBUS*/
+		// uint16_t crc_uart;													/*Выделяем память под CRC16-MODBUS*/
+		// crc_uart = crc16_modbus((uint8_t*)&data[1], (*data_iterator - 2));	/*Рассчитываем CRC16-MODBUS*/
 		
-		/*Проверяем по размеру на минимально возможный*/ 
-		if(*data_iterator > 3)
-		{
-			/*Если CRC16 не совпадает, то дальше пакет не обрабатываем*/
-			if(crc_uart != (uint16_t)((data[*data_iterator] << 8) | data[*data_iterator - 1]))
-			{
-				return; /*CRC16 не совпала*/
-			}
-		}
-		else
-		{
-			return; 	/*Слишком маленькая длина фрейма*/
-		}
+		// /*Проверяем по размеру на минимально возможный*/ 
+		// if(*data_iterator > 3)
+		// {
+			// /*Если CRC16 не совпадает, то дальше пакет не обрабатываем*/
+			// if(crc_uart != (uint16_t)((data[*data_iterator] << 8) | data[*data_iterator - 1]))
+			// {
+				// return; /*CRC16 не совпала*/
+			// }
+		// }
+		// else
+		// {
+			// return; 	/*Слишком маленькая длина фрейма*/
+		// }
 		
-		uip_ipaddr_t addr;						/*Выделяем память для адреса на который отправится пакет*/
-		uip_ip6addr_copy(&addr, &root_addr);	/*Копируем адрес ROOT'а*/
+		// uip_ipaddr_t addr;						/*Выделяем память для адреса на который отправится пакет*/
+		// uip_ip6addr_copy(&addr, &root_addr);	/*Копируем адрес ROOT'а*/
 		
-		/*Выделяем память под пакет. Общий размер пакета (header + payload)*/
-		/*Нижняя часть header'а будет шифроваться. Поэтому для рассчета payload'а нужно учитывать её*/
-		uint8_t crypto_length = iterator_to_byte(*data_iterator + HEADER_DOWN_LENGTH); 
-		uint8_t udp_buffer[HEADER_UP_LENGTH + crypto_length];
+		// /*Выделяем память под пакет. Общий размер пакета (header + payload)*/
+		// /*Нижняя часть header'а будет шифроваться. Поэтому для рассчета payload'а нужно учитывать её*/
+		// uint8_t crypto_length = iterator_to_byte(*data_iterator + HEADER_DOWN_LENGTH); 
+		// uint8_t udp_buffer[HEADER_UP_LENGTH + crypto_length];
 		
-		/*Отражаем структуры на массивы*/ 
-		header_up_t *header_up_pack = (header_up_t*)&udp_buffer[HEADER_OFFSET];
-		header_down_t *header_down_pack = (header_down_t*)&aes_buffer[0];	
+		// /*Отражаем структуры на массивы*/ 
+		// header_up_t *header_up_pack = (header_up_t*)&udp_buffer[HEADER_OFFSET];
+		// header_down_t *header_down_pack = (header_down_t*)&aes_buffer[0];	
 		
-		/*Заполняем пакет*/ 
-		/*Header*/ 
-		header_up_pack->protocol_version = UDBP_PROTOCOL_VERSION; 	/*Текущая версия протокола*/ 
-		header_up_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
-		header_up_pack->data_type = UART_FROM_RX_TO_AIR;			/*Тип пакета*/  
-		header_up_pack->rssi = get_parent_rssi();					/*RSSI*/ 
-		header_up_pack->temperature = get_temperature();			/*Температура*/ 
-		header_up_pack->voltage = get_voltage();					/*Напряжение*/ 
+		// /*Заполняем пакет*/ 
+		// /*Header*/ 
+		// header_up_pack->protocol_version = UDBP_PROTOCOL_VERSION; 	/*Текущая версия протокола*/ 
+		// header_up_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
+		// header_up_pack->data_type = UART_FROM_RX_TO_AIR;			/*Тип пакета*/  
+		// header_up_pack->rssi = get_parent_rssi();					/*RSSI*/ 
+		// header_up_pack->temperature = get_temperature();			/*Температура*/ 
+		// header_up_pack->voltage = get_voltage();					/*Напряжение*/ 
 
-		/*Шифрованая часть header'а*/ 
-		header_down_pack->counter.u16 = packet_counter_node.u16;	/*Счетчик пакетов*/ 
-		header_down_pack->length = *data_iterator;					/*Размер пакета*/
+		// /*Шифрованая часть header'а*/ 
+		// header_down_pack->counter.u16 = packet_counter_node.u16;	/*Счетчик пакетов*/ 
+		// header_down_pack->length = *data_iterator;					/*Размер пакета*/
 		
-		/*Заполняем блок для шифрования*/ 
-		for(uint8_t i = HEADER_DOWN_LENGTH; i < crypto_length; i++)
-		{
-			if(i < (*data_iterator + HEADER_DOWN_LENGTH))
-				aes_buffer[i] = data[i-2];		/*Заполняем блок для шифрования данными*/ 
-			else
-				aes_buffer[i] = 0x00;			/*Дозаполняем блок для шифрования нулями*/ 
-		}
+		// /*Заполняем блок для шифрования*/ 
+		// for(uint8_t i = HEADER_DOWN_LENGTH; i < crypto_length; i++)
+		// {
+			// if(i < (*data_iterator + HEADER_DOWN_LENGTH))
+				// aes_buffer[i] = data[i-2];		/*Заполняем блок для шифрования данными*/ 
+			// else
+				// aes_buffer[i] = 0x00;			/*Дозаполняем блок для шифрования нулями*/ 
+		// }
 	
-		/*Зашифровываем данные*/
-		aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[HEADER_DOWN_OFFSET]), crypto_length);
+		// /*Зашифровываем данные*/
+		// aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[HEADER_DOWN_OFFSET]), crypto_length);
 
-		net_on(RADIO_ON_TIMER_OFF);
+		// net_on(RADIO_ON_TIMER_OFF);
 		
-		/*Отправляем пакет*/ 
-		simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_UP_LENGTH + crypto_length), &addr);
-		packet_counter_node.u16++;		/*Инкрементируем счетчик пакетов*/
-		led_mode_set(LED_FLASH);		/*Мигаем светодиодом*/
-	}
-}
+		// /*Отправляем пакет*/ 
+		// simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_UP_LENGTH + crypto_length), &addr);
+		// packet_counter_node.u16++;		/*Инкрементируем счетчик пакетов*/
+		// led_mode_set(LED_FLASH);		/*Мигаем светодиодом*/
+	// }
+// }
 
 /*---------------------------------------------------------------------------*/
 /*Функция управления светодиодами*/
@@ -729,18 +786,18 @@ void panid_update(uint16_t panid_new)
 }
 
 /*---------------------------------------------------------------------------*/
-/*Сбрасывает переменную которая показывает ожидаем ли мы ответ от счетчика*/
-static void wait_response_reset(void *ptr)
-{
-	wait_response_slave = 0;
-}
+// /*Сбрасывает переменную которая показывает ожидаем ли мы ответ от счетчика*/
+// static void wait_response_reset(void *ptr)
+// {
+	// wait_response_slave = 0;
+// }
 
 /*---------------------------------------------------------------------------*/
 /*Показывает ожидаем ли мы ответ от счетчика*/
-bool wait_response_status(void)
-{
-	return wait_response_slave;
-}
+// bool wait_response_status(void)
+// {
+	// return wait_response_slave;
+// }
 
 /*---------------------------------------------------------------------------*/
 /*Процесс опроса ROOT'а на достижимость*/
@@ -777,6 +834,11 @@ PROCESS_THREAD(settings_dag_init, ev, data)
 	
 	if (ev == PROCESS_EVENT_EXIT)
 		return 1;
+	
+	pwm_config(IOID_24, 48000);
+	pwm_set_duty(50);
+	pwm_start();
+	
 
 	read_eeprom((uint8_t*)&eeprom_dag, sizeof(eeprom_dag));
 	
@@ -830,27 +892,27 @@ PROCESS_THREAD(settings_dag_init, ev, data)
 		}		
 	}
 	
-	if(!eeprom_dag.interface_configured) 
-	{
-		interface = eeprom_dag.interface;
+	// if(!eeprom_dag.interface_configured) 
+	// {
+		// interface = eeprom_dag.interface;
 	
-		if(interface == INTERFACE_RS485)
-			printf("Installed interface RS485\n");
-		else if(interface == INTERFACE_CAN)
-			printf("Installed interface CAN\n");
-		else
-			printf("Unknown interface\n");
-	}
-	else
-	{
-		printf("Interface not declared\n***PLEASE SET INTERFACE***\n");
-		led_mode_set(LED_FAST_BLINK);	/*Мигаем светодиодом*/
+		// if(interface == INTERFACE_RS485)
+			// printf("Installed interface RS485\n");
+		// else if(interface == INTERFACE_CAN)
+			// printf("Installed interface CAN\n");
+		// else
+			// printf("Unknown interface\n");
+	// }
+	// else
+	// {
+		// printf("Interface not declared\n***PLEASE SET INTERFACE***\n");
+		// led_mode_set(LED_FAST_BLINK);	/*Мигаем светодиодом*/
 		
-		while(eeprom_dag.interface_configured)
-		{
-			PROCESS_YIELD();
-		}	
-	}
+		// while(eeprom_dag.interface_configured)
+		// {
+			// PROCESS_YIELD();
+		// }	
+	// }
 	
 	radio_value_t channel = 0;
 	NETSTACK_RADIO.get_value(RADIO_PARAM_CHANNEL, &channel);
