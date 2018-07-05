@@ -834,11 +834,6 @@ PROCESS_THREAD(settings_dag_init, ev, data)
 	
 	if (ev == PROCESS_EVENT_EXIT)
 		return 1;
-	
-	pwm_config(IOID_24, 48000);
-	pwm_set_duty(50);
-	pwm_start();
-	
 
 	read_eeprom((uint8_t*)&eeprom_dag, sizeof(eeprom_dag));
 	

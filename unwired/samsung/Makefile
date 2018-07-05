@@ -1,4 +1,4 @@
-.PHONY: all clean root pwm button root-CLEAN pwm-CLEAN button-CLEAN
+.PHONY: all clean root pwm_fet button root-CLEAN pwm_fet-CLEAN button-CLEAN
 
 all: root-CLEAN button-CLEAN
 
@@ -10,9 +10,9 @@ endif
 include ../Makefile_global_unwired
 
 $(eval $(call generate-targets,root,0x00FF0001,0x01))
-$(eval $(call generate-targets,pwm,0x00A10001,0x01))
+$(eval $(call generate-targets,pwm_fet,0x00A10001,0x01))
 $(eval $(call generate-targets,button,0x00A20001,0x01))
 
 # 0x00FF0001 — unwired smarthome(00), root(FF), version 0001
-# 0x00A10001 — unwired smarthome(00), pwm(A1), version 0001
+# 0x00A10001 — unwired smarthome(00), pwm_fet(A1), version 0001
 # 0x00A20001 — unwired smarthome(00), button(A2), version 0001

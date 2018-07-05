@@ -66,15 +66,13 @@
 #include "dev/cc26xx-uart.h"
 #include "../dag_node.h"
 
+#include "../../cpu/cc26xx-cc13xx/dev/pwm.h" /*PWM*/
+
 #include "net/rpl/rpl-private.h"
 
 /*---------------------------------------------------------------------------*/
 /* Register button sensors */
-SENSORS(&button_a_sensor_click, &button_a_sensor_long_click,
-        &button_b_sensor_click, &button_b_sensor_long_click,
-        &button_c_sensor_click, &button_c_sensor_long_click,
-        &button_d_sensor_click, &button_d_sensor_long_click,
-        &button_e_sensor_click, &button_e_sensor_long_click);
+SENSORS(&button_e_sensor_click, &button_e_sensor_long_click);
 
 /* register main button process */
 PROCESS(main_process, "Button process");
@@ -142,65 +140,27 @@ PROCESS_THREAD(main_process, ev, data)
 	
 	// set_uart();							/*Запрещает выводить данные консоли в UART*/
 	
+	pwm_settings_t ch0;
+	ch0.ch = 1;
+	ch0.pin = IOID_24;
+	ch0.frequency = 48000;
+	ch0.duty = 25;
+	ch0.state = 1;
+	
+	pwm_config(&ch0);
+	pwm_start(&ch0);
+	
 	while (1)
 	{
 		PROCESS_YIELD();
+		
 		if (ev == sensors_event)
 		{
-			if (data == &button_a_sensor_click)
+			if (data == &button_e_sensor_long_click)
 			{
-				printf("BCP: Button A click\n");
-				button_status_sender(BOARD_IOID_KEY_A, CLICK);
+				printf("BCP: Button e long click\nReboot...");
+				button_status_sender(BOARD_IOID_KEY_E, LONG_CLICK);
 			}
-			
-			if (data == &button_a_sensor_long_click)
-			{
-				printf("BCP: Button A long click\n");
-				button_status_sender(BOARD_IOID_KEY_A, LONG_CLICK);
-			}
-			
-			if (data == &button_b_sensor_click)
-			{
-				printf("BCP: Button B click\n");
-				button_status_sender(BOARD_IOID_KEY_B, CLICK);
-			}
-			
-			if (data == &button_b_sensor_long_click)
-			{
-				printf("BCP: Button B long click\n");
-				button_status_sender(BOARD_IOID_KEY_B, LONG_CLICK);
-			}
-			
-			if (data == &button_c_sensor_click)
-			{
-				printf("BCP: Button C click\n");
-				button_status_sender(BOARD_IOID_KEY_C, CLICK);
-			}
-			
-			if (data == &button_c_sensor_long_click)
-			{
-				printf("BCP: Button C long click\n");
-				button_status_sender(BOARD_IOID_KEY_C, LONG_CLICK);
-			}
-			
-			if (data == &button_d_sensor_click)
-			{
-				printf("BCP: Button D click\n");
-				button_status_sender(BOARD_IOID_KEY_D, CLICK);
-			}
-			
-			if (data == &button_d_sensor_long_click)
-			{
-				printf("BCP: Button D long click\n");
-				button_status_sender(BOARD_IOID_KEY_D, LONG_CLICK);
-			}
-			
-			if (data == &button_e_sensor_click)
-			{
-				printf("BCP: Button e click\n");
-				button_status_sender(BOARD_IOID_KEY_E, CLICK);
-			}
-
 		}
 	}
 

@@ -90,10 +90,20 @@
                                          IOC_INT_DISABLE    | IOC_IOMODE_INV   | \
                                          IOC_NO_WAKE_UP     | IOC_INPUT_DISABLE )
 
-void pwm_config(uint32_t port, uint32_t freq);
-void pwm_stop();
-void pwm_start();
-void pwm_set_duty(uint8_t full_percent);
+/**/										 
+typedef struct {		
+	uint32_t pin;
+	uint32_t frequency;
+    uint8_t ch;
+	uint8_t duty;
+	uint8_t state;
+} pwm_settings_t;
+
+
+
+void pwm_config(pwm_settings_t *pwm_settings); //(uint32_t port, uint32_t freq);
+void pwm_stop(pwm_settings_t *pwm_settings);
+void pwm_start(pwm_settings_t *pwm_settings);
 
 
 #endif /* PWM_H_ */

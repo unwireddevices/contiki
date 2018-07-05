@@ -1,4 +1,4 @@
-all: pwm
+all: pwm_fet
 
 PROJECTDIRS += ..
 APPS = serial-shell
