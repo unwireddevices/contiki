@@ -1,0 +1,133 @@
+UMDK-LIT
+	DIO29 SCL
+	DIO30 SDA
+
+UMDK-6FET
+	DIO5
+	DIO6
+	DIO7
+	DIO24 
+	DIO25
+	DIO26
+
+UMDK-4BTN
+	DIO4 KEY_A
+	DIO5 KEY_B
+	DIO6 KEY_C
+	DIO7 KEY_D
+
+Отслеживает нажатия кнопок, подключённых к DIO4, DIO5, DIO6 и DIO7. При замыкании входа на «землю» отправляет сообщение на базовую станцию.
+В модуле по умолчанию включено подавление дребезга контактов кнопок, в связи с чем минимальный период между двумя последовательно регистрируемыми срабатываниями должен превышать 100 мс.
+
+
+
+
+
+
+
+/*Initialization and Configuration*/
+/*1. To use a GPT module, enable the peripheral domain and the appropriate GPT module in the PRCM by
+writing to the PRCM:GPTCLKGR, the PRCM:GPTCLKGS, and the PRCM:GPTCLKGDS registers, or
+by using the following driver library functions:
+PRCMPeripheralRunEnable(uint32_t, ui32Peripheral)
+PRCMPeripheralSleepEnable(uint32_t, ui32Peripheral)
+PRCMPeripheralDeepSLeepEnable(uint32_t, ui32Peripheral)*/
+		/*Timer 1*/
+		ti_lib_prcm_peripheral_run_enable(PRCM_PERIPH_TIMER1);
+		ti_lib_prcm_peripheral_sleep_enable(PRCM_PERIPH_TIMER1);
+		ti_lib_prcm_peripheral_deep_sleep_enable(PRCM_PERIPH_TIMER1);
+		
+		/*Timer 2*/
+		ti_lib_prcm_peripheral_run_enable(PRCM_PERIPH_TIMER2);
+		ti_lib_prcm_peripheral_sleep_enable(PRCM_PERIPH_TIMER2);
+		ti_lib_prcm_peripheral_deep_sleep_enable(PRCM_PERIPH_TIMER2);
+
+		/*Timer 3*/
+		ti_lib_prcm_peripheral_run_enable(PRCM_PERIPH_TIMER3);
+		ti_lib_prcm_peripheral_sleep_enable(PRCM_PERIPH_TIMER3);
+		ti_lib_prcm_peripheral_deep_sleep_enable(PRCM_PERIPH_TIMER3);
+/*2. Next, load the setting to the clock controller by writing to the PRCM:CLKLOADCTL register.*/
+/*3. Configure the IOC module to route the output from the GPT module to the IOs.*/
+/*4. The IOC module must then be configured to output the timer signal on the wanted I/O pin. For this,
+IOCFGn.PORTID must be written to the correct PORTIDs (see Chapter 11, I/O Control, for more
+details).*/
+/*The following sections show module initialization and configuration examples for each of the supported
+timer modes.*/
+
+/*PWM Mode*/
+/*A timer is configured to PWM mode using the following sequence:*/
+/*1. Ensure the timer is disabled (clear the TnEN bit) before making any changes.*/
+	/*Timer A*/
+	HWREG(ui32Base + GPT_O_CTL) &= ~(GPT_CTL_TAEN_EN);
+	
+	/*Timer B*/
+	HWREG(ui32Base + GPT_O_CTL) &= ~(GPT_CTL_TBEN_EN);
+	
+/*2. Write the GPTM Configuration Register (GPT:CFG) with a value of 0x0000 0004.*/
+	HWREG(ui32Base + GPT_O_CFG) = GPT_CFG_CFG_16BIT_TIMER;
+	
+/*3. In the GPTM Timer Mode Register (GPT:TnMR), write the TnCMR field to 0x1 and write the TnMR
+field to 0x2.*/
+	/*Timer A*/
+	HWREG(ui32Base + GPT_O_TAMR) &= ~(GPT_TAMR_TACM);
+	HWREG(ui32Base + GPT_O_TAMR) |= (GPT_TAMR_TAAMS_PWM | GPT_TAMR_TAMR_PERIODIC);
+	
+	/*Timer B*/
+	HWREG(ui32Base + GPT_O_TBMR) &= ~(GPT_TBMR_TBCM);
+	HWREG(ui32Base + GPT_O_TBMR) |= (GPT_TBMR_TBAMS_PWM | GPT_TBMR_TBMR_PERIODIC);
+	
+/*4. Configure the output state of the PWM signal (whether or not it is inverted) in the GPTM Control
+Register (GPT:CTL) TnPWML field.*/
+	/*Timer A*/
+	/*Inverted*/
+	HWREG(ui32Base + GPT_O_CTL) |= GPT_CTL_TAPWML_INVERTED;
+	/*Not inverted*/
+	HWREG(ui32Base + GPT_O_CTL) &= ~(GPT_CTL_TAPWML_INVERTED);
+	
+	/*Timer B*/
+	/*Inverted*/
+	HWREG(ui32Base + GPT_O_CTL) |= GPT_CTL_TBPWML_INVERTED;
+	/*Not inverted*/
+	HWREG(ui32Base + GPT_O_CTL) &= ~(GPT_CTL_TBPWML_INVERTED);
+	
+/*5. If a prescaler is to be used, write the prescale value to the GPTM Timer n Prescale Register
+(GPT:TnPR).*/
+	/*Timer A*/
+	HWREG(ui32Base + GPT_O_TAPR) = 0xFF;
+	
+	/*Timer B*/
+	HWREG(ui32Base + GPT_O_TBPR) = 0xFF;
+
+/*6. If PWM interrupts are used, configure the interrupt condition in the GPT:CTL TnEVENT register field,
+and enable the interrupts by setting the GPT:TnMR TnPWMIE register bit.*/
+	/*Timer A*/
+	HWREG(ui32Base + GPT_O_TAMR) &= ~(GPT_TAMR_TAPWMIE_EN);
+	
+	/*Timer B*/
+	HWREG(ui32Base + GPT_O_TBMR) &= ~(GPT_TBMR_TBPWMIE_EN);
+
+/*7. Load the timer start value into the GPTM Timer n Interval Load Register (GPT:TnILR).*/
+	/*Timer A*/
+	HWREG(ui32Base + GPT_O_TAILR) = 0xFFFFFFFF;
+	
+	/*Timer B*/
+	HWREG(ui32Base + GPT_O_TBILR) = 0xFFFFFFFF;
+	
+/*8. Load the GPTM Timer n Match Register (GPT:TnMATCHR) with the match value.*/
+	/*Timer A*/
+	HWREG(ui32Base + GPT_O_TAMATCHR) = 0xFFFFFFFF;
+	
+	/*Timer B*/
+	HWREG(ui32Base + GPT_O_TBMATCHR) = 0xFFFFFFFF;
+
+/*9. Set the GPTM Control Register (GPT:CTL) TnEN bit to enable the timer and begin generation of the
+output PWM signal.*/
+	/*Timer A*/
+	HWREG(ui32Base + GPT_O_CTL) |= GPT_CTL_TAEN_EN;
+	
+	/*Timer B*/
+	HWREG(ui32Base + GPT_O_CTL) |= GPT_CTL_TBEN_EN;
+
+/*In PWM timing mode, the timer continues to run after the PWM signal is generated. The PWM period can
+be adjusted at any time by writing the GPT:TnILR register, and the change takes effect at the next cycle
+after the write.*/

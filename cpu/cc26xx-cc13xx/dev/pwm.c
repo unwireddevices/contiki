@@ -62,155 +62,197 @@ void pwm_config(pwm_settings_t *pwm_settings)
 		ti_lib_prcm_power_domain_on(PRCM_DOMAIN_PERIPH);
 		while(ti_lib_prcm_power_domain_status(PRCM_DOMAIN_PERIPH) != PRCM_DOMAIN_POWER_ON);
 	}
+	
+	/*Timer 1*/
+	ti_lib_prcm_peripheral_run_enable(PRCM_PERIPH_TIMER1);
+	ti_lib_prcm_peripheral_sleep_enable(PRCM_PERIPH_TIMER1);
+	ti_lib_prcm_peripheral_deep_sleep_enable(PRCM_PERIPH_TIMER1);
+	
+	/*Timer B*/
+	HWREG(GPT1_BASE + GPT_O_CTL) &= ~(GPT_CTL_TBEN_EN);
+	
+	HWREG(GPT1_BASE + GPT_O_CFG) = GPT_CFG_CFG_16BIT_TIMER;
+	
+	/*Timer B*/
+	HWREG(GPT1_BASE + GPT_O_TBMR) &= ~(GPT_TBMR_TBCM);
+	HWREG(GPT1_BASE + GPT_O_TBMR) |= (GPT_TBMR_TBAMS_PWM | GPT_TBMR_TBMR_PERIODIC);
+	
+	/*Not inverted*/
+	HWREG(GPT1_BASE + GPT_O_CTL) &= ~(GPT_CTL_TBPWML_INVERTED);
+	
+	/*Timer B*/
+	HWREG(GPT1_BASE + GPT_O_TBPR) = 0xFF;
+	
+	/*Timer B*/
+	HWREG(GPT1_BASE + GPT_O_TBMR) &= ~(GPT_TBMR_TBPWMIE_EN);
+	
+	/*Timer B*/
+	HWREG(GPT1_BASE + GPT_O_TBILR) = 0xFFFFFFFF;
+	
+	/*Timer B*/
+	HWREG(GPT1_BASE + GPT_O_TBMATCHR) = 0x7FFFFFFF;
+	
+	ti_lib_ioc_port_configure_set(IOID_24, IOC_PORT_MCU_PORT_EVENT3, IOC_OUTPUT);
+	lpm_register_module(&pwm_module);
+}
 
-	if(pwm_settings->ch == 0 || pwm_settings->ch == 1)
-		ti_lib_prcm_peripheral_run_enable(PRCM_PERIPH_TIMER1);
+/*---------------------------------------------------------------------------*/
+// void pwm_config_h(pwm_settings_t *pwm_settings)
+// {
+	// if(ti_lib_prcm_power_domain_status(PRCM_DOMAIN_PERIPH) != PRCM_DOMAIN_POWER_ON) 
+	// {
+		// ti_lib_prcm_power_domain_on(PRCM_DOMAIN_PERIPH);
+		// while(ti_lib_prcm_power_domain_status(PRCM_DOMAIN_PERIPH) != PRCM_DOMAIN_POWER_ON);
+	// }
+
+	// if(pwm_settings->ch == 0 || pwm_settings->ch == 1)
+		// ti_lib_prcm_peripheral_run_enable(PRCM_PERIPH_TIMER1);
 	
-	else if(pwm_settings->ch == 2 || pwm_settings->ch == 3)
-		ti_lib_prcm_peripheral_run_enable(PRCM_PERIPH_TIMER2);
+	// else if(pwm_settings->ch == 2 || pwm_settings->ch == 3)
+		// ti_lib_prcm_peripheral_run_enable(PRCM_PERIPH_TIMER2);
 	
-	else if(pwm_settings->ch == 4 || pwm_settings->ch == 5)
-		ti_lib_prcm_peripheral_run_enable(PRCM_PERIPH_TIMER3);
-	
-	
-	ti_lib_prcm_load_set();
-	while(!ti_lib_prcm_load_get());
+	// else if(pwm_settings->ch == 4 || pwm_settings->ch == 5)
+		// ti_lib_prcm_peripheral_run_enable(PRCM_PERIPH_TIMER3);
 	
 	
-	if(pwm_settings->ch == 0 || pwm_settings->ch == 1)
-	{
-		HWREG(GPT1_BASE + GPT_O_CTL) &= ~(GPT_CTL_TAEN | GPT_CTL_TBEN);
-		HWREG(GPT1_BASE + GPT_O_CFG) = TIMER_CFG_SPLIT_PAIR >> 24;
+	// ti_lib_prcm_load_set();
+	// while(!ti_lib_prcm_load_get());
+	
+	
+	// if(pwm_settings->ch == 0 || pwm_settings->ch == 1)
+	// {
+		// HWREG(GPT1_BASE + GPT_O_CTL) &= ~(GPT_CTL_TAEN | GPT_CTL_TBEN);
+		// HWREG(GPT1_BASE + GPT_O_CFG) = TIMER_CFG_SPLIT_PAIR >> 24;
 		// HWREG(GPT1_BASE + GPT_O_TBMR) = ((TIMER_CFG_B_ONE_SHOT >> 8) & 0xFF) | GPT_TBMR_TBPWMIE;
-		/* Enable GPT0 clocks under active, sleep, deep sleep */
-		ti_lib_prcm_peripheral_run_enable(PRCM_PERIPH_TIMER1);
-		ti_lib_prcm_peripheral_sleep_enable(PRCM_PERIPH_TIMER1);
-		ti_lib_prcm_peripheral_deep_sleep_enable(PRCM_PERIPH_TIMER1);
-	}
+		// /* Enable GPT0 clocks under active, sleep, deep sleep */
+		// ti_lib_prcm_peripheral_run_enable(PRCM_PERIPH_TIMER1);
+		// ti_lib_prcm_peripheral_sleep_enable(PRCM_PERIPH_TIMER1);
+		// ti_lib_prcm_peripheral_deep_sleep_enable(PRCM_PERIPH_TIMER1);
+	// }
 	
-	else if(pwm_settings->ch == 2 || pwm_settings->ch == 3)
-	{
-		HWREG(GPT2_BASE + GPT_O_CTL) &= ~(GPT_CTL_TAEN | GPT_CTL_TBEN);
-		HWREG(GPT2_BASE + GPT_O_CFG) = TIMER_CFG_SPLIT_PAIR >> 24;
+	// else if(pwm_settings->ch == 2 || pwm_settings->ch == 3)
+	// {
+		// HWREG(GPT2_BASE + GPT_O_CTL) &= ~(GPT_CTL_TAEN | GPT_CTL_TBEN);
+		// HWREG(GPT2_BASE + GPT_O_CFG) = TIMER_CFG_SPLIT_PAIR >> 24;
 		// HWREG(GPT1_BASE + GPT_O_TBMR) = ((TIMER_CFG_B_ONE_SHOT >> 8) & 0xFF) | GPT_TBMR_TBPWMIE;
-		ti_lib_prcm_peripheral_run_enable(PRCM_PERIPH_TIMER2);
-		ti_lib_prcm_peripheral_sleep_enable(PRCM_PERIPH_TIMER2);
-		ti_lib_prcm_peripheral_deep_sleep_enable(PRCM_PERIPH_TIMER2);
-	}
+		// ti_lib_prcm_peripheral_run_enable(PRCM_PERIPH_TIMER2);
+		// ti_lib_prcm_peripheral_sleep_enable(PRCM_PERIPH_TIMER2);
+		// ti_lib_prcm_peripheral_deep_sleep_enable(PRCM_PERIPH_TIMER2);
+	// }
 	
-	else if(pwm_settings->ch == 4 || pwm_settings->ch == 5)
-	{
-		HWREG(GPT3_BASE + GPT_O_CTL) &= ~(GPT_CTL_TAEN | GPT_CTL_TBEN);
-		HWREG(GPT3_BASE + GPT_O_CFG) = TIMER_CFG_SPLIT_PAIR >> 24;
+	// else if(pwm_settings->ch == 4 || pwm_settings->ch == 5)
+	// {
+		// HWREG(GPT3_BASE + GPT_O_CTL) &= ~(GPT_CTL_TAEN | GPT_CTL_TBEN);
+		// HWREG(GPT3_BASE + GPT_O_CFG) = TIMER_CFG_SPLIT_PAIR >> 24;
 		// HWREG(GPT1_BASE + GPT_O_TBMR) = ((TIMER_CFG_B_ONE_SHOT >> 8) & 0xFF) | GPT_TBMR_TBPWMIE;
-		ti_lib_prcm_peripheral_run_enable(PRCM_PERIPH_TIMER3);
-		ti_lib_prcm_peripheral_sleep_enable(PRCM_PERIPH_TIMER3);
-		ti_lib_prcm_peripheral_deep_sleep_enable(PRCM_PERIPH_TIMER3);
-	}
+		// ti_lib_prcm_peripheral_run_enable(PRCM_PERIPH_TIMER3);
+		// ti_lib_prcm_peripheral_sleep_enable(PRCM_PERIPH_TIMER3);
+		// ti_lib_prcm_peripheral_deep_sleep_enable(PRCM_PERIPH_TIMER3);
+	// }
 	
-	frequency = pwm_settings->frequency;
-    ti_lib_prcm_load_set();
-    while(!ti_lib_prcm_load_get());
+	// frequency = pwm_settings->frequency;
+    // ti_lib_prcm_load_set();
+    // while(!ti_lib_prcm_load_get());
 	
 
-    /* Drive the I/O ID with GPT0 / Timer A */
-	if(pwm_settings->ch == 0)
-	{
-		ti_lib_ioc_port_configure_set(pwm_settings->pin, IOC_PORT_MCU_PORT_EVENT2, IOC_OUTPUT);
-		/* GPT0 / Timer A: PWM, Interrupt Enable */
-		HWREG(GPT1_BASE + GPT_O_TAMR) = (TIMER_CFG_A_PWM & 0xFF) | GPT_TAMR_TAPWMIE;
-		ti_lib_timer_disable(GPT1_BASE, TIMER_A);
-	}
-	
-	else if(pwm_settings->ch == 1)
-	{
-		ti_lib_ioc_port_configure_set(pwm_settings->pin, IOC_PORT_MCU_PORT_EVENT3, IOC_OUTPUT);
-		// /* GPT0 / Timer A: PWM, Interrupt Enable */
-		HWREG(GPT1_BASE + GPT_O_TBMR) = (TIMER_CFG_B_PWM & 0xFF) | GPT_TBMR_TBPWMIE;
-		ti_lib_timer_disable(GPT1_BASE, TIMER_B);
-	}
-	
-	else if(pwm_settings->ch == 2)
-	{
-		ti_lib_ioc_port_configure_set(pwm_settings->pin, IOC_PORT_MCU_PORT_EVENT4, IOC_OUTPUT);
-		/* GPT0 / Timer A: PWM, Interrupt Enable */
-		HWREG(GPT2_BASE + GPT_O_TAMR) = (TIMER_CFG_A_PWM & 0xFF) | GPT_TAMR_TAPWMIE;
-		ti_lib_timer_disable(GPT2_BASE, TIMER_A);
-	}
-	
-	else if(pwm_settings->ch == 3)
-	{
-		// ti_lib_ioc_port_configure_set(pwm_settings->pin, IOC_PORT_MCU_PORT_EVENT5, IOC_OUTPUT);
-		// /* GPT0 / Timer A: PWM, Interrupt Enable */
-		HWREG(GPT2_BASE + GPT_O_TBMR) = (TIMER_CFG_B_PWM & 0xFF) | GPT_TBMR_TBPWMIE;
-		ti_lib_timer_disable(GPT2_BASE, TIMER_B);
-	}
-	
-	else if(pwm_settings->ch == 4)
-	{
-		ti_lib_ioc_port_configure_set(pwm_settings->pin, IOC_PORT_MCU_PORT_EVENT6, IOC_OUTPUT);
-		/* GPT0 / Timer A: PWM, Interrupt Enable */
-		HWREG(GPT3_BASE + GPT_O_TAMR) = (TIMER_CFG_A_PWM & 0xFF) | GPT_TAMR_TAPWMIE;
-		ti_lib_timer_disable(GPT3_BASE, TIMER_A);
-	}
-	
-	else if(pwm_settings->ch == 5)
-	{
-		// ti_lib_ioc_port_configure_set(pwm_settings->pin, IOC_PORT_MCU_PORT_EVENT7, IOC_OUTPUT);
+    // /* Drive the I/O ID with GPT0 / Timer A */
+	// if(pwm_settings->ch == 0)
+	// {
+		// ti_lib_ioc_port_configure_set(pwm_settings->pin, IOC_PORT_MCU_PORT_EVENT2, IOC_OUTPUT);
 		// /* GPT0 / Timer A: PWM, Interrupt Enable */
 		// HWREG(GPT1_BASE + GPT_O_TAMR) = (TIMER_CFG_A_PWM & 0xFF) | GPT_TAMR_TAPWMIE;
 		// ti_lib_timer_disable(GPT1_BASE, TIMER_A);
-	}
+	// }
 	
-	uint32_t load = (GET_MCU_CLOCK / frequency);
-    uint32_t match;
+	// else if(pwm_settings->ch == 1)
+	// {
+		// ti_lib_ioc_port_configure_set(pwm_settings->pin, IOC_PORT_MCU_PORT_EVENT3, IOC_OUTPUT);
+		/* GPT0 / Timer A: PWM, Interrupt Enable */
+		// HWREG(GPT1_BASE + GPT_O_TBMR) = (TIMER_CFG_B_PWM & 0xFF) | GPT_TBMR_TBPWMIE;
+		// ti_lib_timer_disable(GPT1_BASE, TIMER_B);
+	// }
+	
+	// else if(pwm_settings->ch == 2)
+	// {
+		// ti_lib_ioc_port_configure_set(pwm_settings->pin, IOC_PORT_MCU_PORT_EVENT4, IOC_OUTPUT);
+		// /* GPT0 / Timer A: PWM, Interrupt Enable */
+		// HWREG(GPT2_BASE + GPT_O_TAMR) = (TIMER_CFG_A_PWM & 0xFF) | GPT_TAMR_TAPWMIE;
+		// ti_lib_timer_disable(GPT2_BASE, TIMER_A);
+	// }
+	
+	// else if(pwm_settings->ch == 3)
+	// {
+		// ti_lib_ioc_port_configure_set(pwm_settings->pin, IOC_PORT_MCU_PORT_EVENT5, IOC_OUTPUT);
+		/* GPT0 / Timer A: PWM, Interrupt Enable */
+		// HWREG(GPT2_BASE + GPT_O_TBMR) = (TIMER_CFG_B_PWM & 0xFF) | GPT_TBMR_TBPWMIE;
+		// ti_lib_timer_disable(GPT2_BASE, TIMER_B);
+	// }
+	
+	// else if(pwm_settings->ch == 4)
+	// {
+		// ti_lib_ioc_port_configure_set(pwm_settings->pin, IOC_PORT_MCU_PORT_EVENT6, IOC_OUTPUT);
+		// /* GPT0 / Timer A: PWM, Interrupt Enable */
+		// HWREG(GPT3_BASE + GPT_O_TAMR) = (TIMER_CFG_A_PWM & 0xFF) | GPT_TAMR_TAPWMIE;
+		// ti_lib_timer_disable(GPT3_BASE, TIMER_A);
+	// }
+	
+	// else if(pwm_settings->ch == 5)
+	// {
+		// ti_lib_ioc_port_configure_set(pwm_settings->pin, IOC_PORT_MCU_PORT_EVENT7, IOC_OUTPUT);
+		/* GPT0 / Timer A: PWM, Interrupt Enable */
+		// HWREG(GPT1_BASE + GPT_O_TAMR) = (TIMER_CFG_A_PWM & 0xFF) | GPT_TAMR_TAPWMIE;
+		// ti_lib_timer_disable(GPT1_BASE, TIMER_A);
+	// }
+	
+	// uint32_t load = (GET_MCU_CLOCK / frequency);
+    // uint32_t match;
 
-    if (pwm_settings->duty > 100)
-        return;
+    // if (pwm_settings->duty > 100)
+        // return;
 
-    if (pwm_settings->duty == 100)
-        match = load - 1;
-    else
-        match = (load / 100) * pwm_settings->duty;
+    // if (pwm_settings->duty == 100)
+        // match = load - 1;
+    // else
+        // match = (load / 100) * pwm_settings->duty;
 
 	
 	
-	if(pwm_settings->ch == 0)
-	{
-		ti_lib_timer_load_set(GPT1_BASE, TIMER_A, load);
-		ti_lib_timer_match_set(GPT1_BASE, TIMER_A, match);
-	}
+	// if(pwm_settings->ch == 0)
+	// {
+		// ti_lib_timer_load_set(GPT1_BASE, TIMER_A, load);
+		// ti_lib_timer_match_set(GPT1_BASE, TIMER_A, match);
+	// }
 	
-	else if(pwm_settings->ch == 1)
-	{
-		ti_lib_timer_load_set(GPT1_BASE, TIMER_B, load);
-		ti_lib_timer_match_set(GPT1_BASE, TIMER_B, match);
-	}
+	// else if(pwm_settings->ch == 1)
+	// {
+		// ti_lib_timer_load_set(GPT1_BASE, TIMER_B, load);
+		// ti_lib_timer_match_set(GPT1_BASE, TIMER_B, match);
+	// }
 	
-	else if(pwm_settings->ch == 2)
-	{
-		ti_lib_timer_load_set(GPT2_BASE, TIMER_A, load);
-		ti_lib_timer_match_set(GPT2_BASE, TIMER_A, match);
-	}
+	// else if(pwm_settings->ch == 2)
+	// {
+		// ti_lib_timer_load_set(GPT2_BASE, TIMER_A, load);
+		// ti_lib_timer_match_set(GPT2_BASE, TIMER_A, match);
+	// }
 	
-	else if(pwm_settings->ch == 3)
-	{
-		ti_lib_timer_load_set(GPT2_BASE, TIMER_B, load);
-		ti_lib_timer_match_set(GPT2_BASE, TIMER_B, match);
-	}
+	// else if(pwm_settings->ch == 3)
+	// {
+		// ti_lib_timer_load_set(GPT2_BASE, TIMER_B, load);
+		// ti_lib_timer_match_set(GPT2_BASE, TIMER_B, match);
+	// }
 	
-	else if(pwm_settings->ch == 4)
-	{
-		ti_lib_timer_load_set(GPT3_BASE, TIMER_A, load);
-		ti_lib_timer_match_set(GPT3_BASE, TIMER_A, match);
-	}
+	// else if(pwm_settings->ch == 4)
+	// {
+		// ti_lib_timer_load_set(GPT3_BASE, TIMER_A, load);
+		// ti_lib_timer_match_set(GPT3_BASE, TIMER_A, match);
+	// }
 	
-	else if(pwm_settings->ch == 5)
-	{
-		ti_lib_timer_load_set(GPT3_BASE, TIMER_B, load);
-		ti_lib_timer_match_set(GPT3_BASE, TIMER_B, match);
-	}	
-}
+	// else if(pwm_settings->ch == 5)
+	// {
+		// ti_lib_timer_load_set(GPT3_BASE, TIMER_B, load);
+		// ti_lib_timer_match_set(GPT3_BASE, TIMER_B, match);
+	// }	
+// }
 /*---------------------------------------------------------------------------*/
 /**/
 void pwm_stop(pwm_settings_t *pwm_settings)

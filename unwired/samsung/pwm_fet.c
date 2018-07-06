@@ -148,7 +148,7 @@ PROCESS_THREAD(main_process, ev, data)
 	ch0.state = 1;
 	
 	pwm_config(&ch0);
-	pwm_start(&ch0);
+	// pwm_start(&ch0);
 	
 	while (1)
 	{
