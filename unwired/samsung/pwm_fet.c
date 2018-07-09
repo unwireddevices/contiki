@@ -140,15 +140,26 @@ PROCESS_THREAD(main_process, ev, data)
 	
 	// set_uart();							/*Запрещает выводить данные консоли в UART*/
 	
-	pwm_settings_t ch0;
-	ch0.ch = 1;
-	ch0.pin = IOID_24;
-	ch0.frequency = 48000;
-	ch0.duty = 25;
-	ch0.state = 1;
+	// pwm_settings_t ch0;
+	// ch0.ch = 1;
+	// ch0.pin = IOID_24;
+	// ch0.frequency = 48000;
+	// ch0.duty = 25;
+	// ch0.state = 1;
 	
-	pwm_config(&ch0);
-	// pwm_start(&ch0);
+	pwm_config(0, 100, 20); //channel, frequency, duty, pin
+	pwm_config(1, 100, 30); //channel, frequency, duty, pin
+	pwm_config(2, 1000, 40); //channel, frequency, duty, pin
+	pwm_config(3, 1000, 50); //channel, frequency, duty, pin
+	pwm_config(4, 10000, 60); //channel, frequency, duty, pin
+	pwm_config(5, 100000, 70); //channel, frequency, duty, pin
+	
+	pwm_start(0);
+	pwm_start(1);
+	pwm_start(2);
+	pwm_start(3);
+	pwm_start(4);
+	pwm_start(5);
 	
 	while (1)
 	{
