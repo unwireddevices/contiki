@@ -88,9 +88,6 @@ PROCESS_THREAD(main_process, ev, data)
 	printf("Start Unwired Button device.\n");
 	PROCESS_PAUSE();
 	
-	// ti_lib_ioc_pin_type_gpio_output(RS485_DE); 				/*Настройка ноги RS485_DE на выход*/
-	// ti_lib_ioc_pin_type_gpio_output(RS485_RE); 				/*Настройка ноги RS485_RE на выход*/
-	
 	if (BOARD_IOID_UART_RX == IOID_UNUSED)
 	{
 		printf("DAG Node: Shell not active, uart RX set to IOID_UNUSED\n");
@@ -111,48 +108,12 @@ PROCESS_THREAD(main_process, ev, data)
 	
 	process_start(&dag_node_process, NULL);					/*Запуск ноды*/
 	
-	// static struct etimer shell_off;							/*Создание таймера по истечению которого выключается шелл*/
-	// etimer_set(&shell_off, CLOCK_SECOND * 5);				/*Заводится таймер на 5 секунд*/
-	
-	// PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&shell_off));	/*Ожидание пока сработает таймер*/
-		
-	// /*Инициализируем UART в нужном режиме*/
-	// if(get_interface() == INTERFACE_RS485) 					/*Инициализация в режиме интерфейса: RS485*/
-	// {
-		// if (BOARD_IOID_UART_TX != BOARD_IOID_ALT_UART_TX || BOARD_IOID_UART_RX != BOARD_IOID_ALT_UART_RX)
-		// {
-			// printf("UDM: UART change to alt(RX: 26, TX: 25)\n");
-			// off_uart(BOARD_IOID_UART_RX, BOARD_IOID_UART_TX);
-			// on_uart(BOARD_IOID_ALT_UART_RX, BOARD_IOID_ALT_UART_TX, 9600);
-			// ti_lib_gpio_clear_dio(RS485_DE);				/*Устанавливаем RS485_DE в низкий уровень. Интерфейс работает на приём*/
-			// ti_lib_gpio_clear_dio(RS485_RE);				/*Устанавливаем RS485_RE в низкий уровень. Интерфейс работает на приём*/
-		// }
-	// }
-	// else if(get_interface() == INTERFACE_CAN)				/*Инициализация в режиме интерфейса: CAN*/
-	// {
-		// if (BOARD_IOID_UART_TX != BOARD_IOID_CAN_UART_TX || BOARD_IOID_UART_RX != BOARD_IOID_ALT_UART_RX)
-		// {
-			// printf("UDM: UART change to alt(RX: 30, TX: 29)\n");
-			// off_uart(BOARD_IOID_UART_RX, BOARD_IOID_UART_TX);
-			// on_uart(BOARD_IOID_CAN_UART_RX, BOARD_IOID_CAN_UART_TX, 9600);
-		// }
-	// }
-	
-	// set_uart();							/*Запрещает выводить данные консоли в UART*/
-	
-	// pwm_settings_t ch0;
-	// ch0.ch = 1;
-	// ch0.pin = IOID_24;
-	// ch0.frequency = 48000;
-	// ch0.duty = 25;
-	// ch0.state = 1;
-	
-	pwm_config(0, 100, 20); //channel, frequency, duty, pin
-	pwm_config(1, 100, 30); //channel, frequency, duty, pin
-	pwm_config(2, 1000, 40); //channel, frequency, duty, pin
-	pwm_config(3, 1000, 50); //channel, frequency, duty, pin
-	pwm_config(4, 10000, 60); //channel, frequency, duty, pin
-	pwm_config(5, 100000, 70); //channel, frequency, duty, pin
+	pwm_config(0, 100, 20, IOID_5); //channel, frequency, duty, pin
+	pwm_config(1, 100, 30, IOID_6); //channel, frequency, duty, pin
+	pwm_config(2, 1000, 40, IOID_7); //channel, frequency, duty, pin
+	pwm_config(3, 1000, 50, IOID_24); //channel, frequency, duty, pin
+	pwm_config(4, 10000, 60, IOID_25); //channel, frequency, duty, pin
+	pwm_config(5, 100000, 70, IOID_26); //channel, frequency, duty, pin
 	
 	pwm_start(0);
 	pwm_start(1);
