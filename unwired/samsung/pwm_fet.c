@@ -126,7 +126,17 @@ PROCESS_THREAD(main_process, ev, data)
 	// pwm_start(4);
 	// pwm_start(5);
 	
-	while (1)
+	// while(1)
+	// {
+		// PROCESS_YIELD();
+		
+		// uint8_t duty = 100 - (opt3001_measure() / 10);
+		// pwm_config(0, 100, duty, IOID_5); //channel, frequency, duty, pin
+		// pwm_start(0);
+		// printf("[UMDK-LIT] Luminocity: %lu lux\n", opt3001_measure());
+	// }
+	
+	while(1)
 	{
 		PROCESS_YIELD();
 		
@@ -140,7 +150,7 @@ PROCESS_THREAD(main_process, ev, data)
 			
 			if (data == &button_e_sensor_click)
 			{
-				printf("[UMDK-LIT] Lum: %lu\n", opt3001_measure());
+				printf("[UMDK-LIT] Luminocity: %lu lux\n", opt3001_measure());
 			}
 		}
 	}

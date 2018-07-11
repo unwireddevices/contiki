@@ -69,19 +69,19 @@ void pwm_config(uint8_t channel, uint32_t frequency, uint8_t duty, uint32_t pin)
 {
 	if(channel > 5)
 	{
-		printf("Invalid channel number\n");
+		printf("[PWM] Invalid channel number\n");
 		return;
 	}
 	
 	if((frequency < 100) || (frequency > 100000))
 	{
-		printf("The frequency should be in the range from 100 Hz to 100 kHz\n");
+		printf("[PWM] The frequency should be in the range from 100 Hz to 100 kHz\n");
 		return;
 	}
 	
 	if(duty > 100)
 	{
-		printf("Duty cycle cannot be more than 100 percent\n");
+		printf("[PWM] Duty cycle cannot be more than 100 percent\n");
 		return;		
 	}
 	
@@ -174,7 +174,7 @@ void pwm_config(uint8_t channel, uint32_t frequency, uint8_t duty, uint32_t pin)
 	
 	settings_pwm |= (1 << channel);
 	
-	printf("PWM channel %i is configured\n", channel);
+	printf("[PWM] Channel %i is configured\n", channel);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -183,13 +183,13 @@ void pwm_start(uint8_t channel)
 {
 	if(channel > 5)
 	{
-		printf("Invalid channel number\n");
+		printf("[PWM] Invalid channel number\n");
 		return;
 	}
 	
 	if(((settings_pwm >> channel) & 0x01) != 0x01)
 	{
-		printf("The channel is not configured.\n");
+		printf("[PWM] The channel is not configured.\n");
 		return;	
 	}
 	
@@ -211,7 +211,7 @@ void pwm_start(uint8_t channel)
 	else if(channel == 5)
 		ti_lib_timer_enable(GPT3_BASE, TIMER_B);
 	
-	printf("PWM channel %i is running\n", channel);
+	printf("[PWM] Channel %i is running\n", channel);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -220,13 +220,13 @@ void pwm_stop(uint8_t channel)
 {
 	if(channel > 5)
 	{
-		printf("Invalid channel number\n");
+		printf("[PWM] Invalid channel number\n");
 		return;
 	}
 	
 	if(((settings_pwm >> channel) & 0x01) != 0x01)
 	{
-		printf("The channel is not configured.\n");
+		printf("[PWM] The channel is not configured.\n");
 		return;	
 	}
 	
@@ -248,7 +248,7 @@ void pwm_stop(uint8_t channel)
 	if(power_pwm == 0)
 		lpm_unregister_module(&pwm_module);
 	
-	printf("PWM channel %i is stopped\n", channel);
+	printf("[PWM] Channel %i is stopped\n", channel);
 }
 
 /*---------------------------------------------------------------------------*/
