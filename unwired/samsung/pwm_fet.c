@@ -67,6 +67,7 @@
 #include "../dag_node.h"
 
 #include "../../cpu/cc26xx-cc13xx/dev/pwm.h" /*PWM*/
+#include "../../platform/unwired/udboards/opt3001.h" /*PWM*/
 
 #include "net/rpl/rpl-private.h"
 
@@ -108,19 +109,22 @@ PROCESS_THREAD(main_process, ev, data)
 	
 	process_start(&dag_node_process, NULL);					/*Запуск ноды*/
 	
-	pwm_config(0, 100, 20, IOID_5); //channel, frequency, duty, pin
-	pwm_config(1, 100, 30, IOID_6); //channel, frequency, duty, pin
-	pwm_config(2, 1000, 40, IOID_7); //channel, frequency, duty, pin
-	pwm_config(3, 1000, 50, IOID_24); //channel, frequency, duty, pin
-	pwm_config(4, 10000, 60, IOID_25); //channel, frequency, duty, pin
-	pwm_config(5, 100000, 70, IOID_26); //channel, frequency, duty, pin
+	opt3001_init();
+	// opt3001_measure();
 	
-	pwm_start(0);
-	pwm_start(1);
-	pwm_start(2);
-	pwm_start(3);
-	pwm_start(4);
-	pwm_start(5);
+	// pwm_config(0, 100, 20, IOID_5); //channel, frequency, duty, pin
+	// pwm_config(1, 100, 30, IOID_6); //channel, frequency, duty, pin
+	// pwm_config(2, 1000, 40, IOID_7); //channel, frequency, duty, pin
+	// pwm_config(3, 1000, 50, IOID_24); //channel, frequency, duty, pin
+	// pwm_config(4, 10000, 60, IOID_25); //channel, frequency, duty, pin
+	// pwm_config(5, 100000, 70, IOID_26); //channel, frequency, duty, pin
+	
+	// pwm_start(0);
+	// pwm_start(1);
+	// pwm_start(2);
+	// pwm_start(3);
+	// pwm_start(4);
+	// pwm_start(5);
 	
 	while (1)
 	{
@@ -131,7 +135,12 @@ PROCESS_THREAD(main_process, ev, data)
 			if (data == &button_e_sensor_long_click)
 			{
 				printf("BCP: Button e long click\nReboot...");
-				button_status_sender(BOARD_IOID_KEY_E, LONG_CLICK);
+				watchdog_reboot();
+			}
+			
+			if (data == &button_e_sensor_click)
+			{
+				printf("[UMDK-LIT] Lum: %lu\n", opt3001_measure());
 			}
 		}
 	}

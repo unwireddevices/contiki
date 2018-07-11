@@ -102,6 +102,7 @@ bool board_i2c_write_single(uint8_t data);
 bool board_i2c_write_read(uint8_t *wdata, uint8_t wlen, uint8_t *rdata,
                           uint8_t rlen);
 
+/*---------------------------------------------------------------------------*/
 /**
  * \brief Enables the I2C peripheral with defaults
  *
@@ -115,6 +116,7 @@ bool board_i2c_write_read(uint8_t *wdata, uint8_t wlen, uint8_t *rdata,
  */
 void board_i2c_wakeup(void);
 
+/*---------------------------------------------------------------------------*/
 /**
  * \brief Stops the I2C peripheral and restores pins to s/w control
  *
@@ -122,6 +124,26 @@ void board_i2c_wakeup(void);
  * can also be called explicitly.
  */
 void board_i2c_shutdown(void);
+
+/*---------------------------------------------------------------------------*/
+/**
+ * \brief Write I2C Register
+ *
+ * This function write I2C Register
+ */
+bool board_i2c_write_regs ( uint8_t addr,
+							uint8_t *data, 
+							uint8_t len);
+
+/*---------------------------------------------------------------------------*/
+/**
+ * \brief Read I2C Register
+ *
+ * This function read I2C Register
+ */
+bool board_i2c_read_regs  ( uint8_t addr, 
+							uint8_t *data,
+							uint8_t len);
 /*---------------------------------------------------------------------------*/
 #endif /* BOARD_I2C_H_ */
 /*---------------------------------------------------------------------------*/

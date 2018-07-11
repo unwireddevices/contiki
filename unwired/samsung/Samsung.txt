@@ -22,7 +22,9 @@ UMDK-4BTN
 
 
 
-
+		static struct etimer delay_10ms;
+		etimer_set(&delay_10ms, / 100);
+		PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&delay_10ms));
 
 
 /*Initialization and Configuration*/

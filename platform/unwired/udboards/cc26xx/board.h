@@ -174,10 +174,10 @@
  * \brief I2C IOID mappings
  *
  */
-#define BOARD_IOID_SDA            IOID_29 /**< Interface 0 SDA: All sensors bar MPU */
-#define BOARD_IOID_SCL            IOID_30 /**< Interface 0 SCL: All sensors bar MPU */
-#define BOARD_IOID_SDA_HP         IOID_29 /**< Interface 1 SDA: MPU */
-#define BOARD_IOID_SCL_HP         IOID_30 /**< Interface 1 SCL: MPU */
+#define BOARD_IOID_SDA            IOID_30 /**< Interface 0 SDA: All sensors bar MPU */
+#define BOARD_IOID_SCL            IOID_29 /**< Interface 0 SCL: All sensors bar MPU */
+#define BOARD_IOID_SDA_HP         IOID_30 /**< Interface 1 SDA: MPU */
+#define BOARD_IOID_SCL_HP         IOID_29 /**< Interface 1 SCL: MPU */
 /** @} */
 /*---------------------------------------------------------------------------*/
 /**

@@ -44,7 +44,7 @@
 #include <string.h>
 #include <stdbool.h>
 
-#define DEBUG 1
+#define DEBUG 0
 #include "net/ip/uip-debug.h"
 /*---------------------------------------------------------------------------*/
 #define NO_INTERFACE 0xFF
@@ -346,6 +346,115 @@ board_i2c_select(uint8_t new_interface, uint8_t address)
     ti_lib_i2c_master_init_exp_clk(I2C0_BASE, ti_lib_sys_ctrl_clock_get(),
                                    true);
   }
+}
+
+/*---------------------------------------------------------------------------*/
+bool board_i2c_write_regs ( uint8_t addr,
+							uint8_t *data, 
+							uint8_t len)
+{
+	uint32_t i;
+	bool success;
+
+	/* Write slave address */
+	ti_lib_i2c_master_slave_addr_set(I2C0_BASE, slave_addr, false);
+  
+	/* Write first byte */
+	ti_lib_i2c_master_data_put(I2C0_BASE, addr);
+
+	/* Check if another master has access */
+	while(ti_lib_i2c_master_bus_busy(I2C0_BASE));
+
+	/* Assert RUN + START */
+	ti_lib_i2c_master_control(I2C0_BASE, I2C_MASTER_CMD_BURST_SEND_START);
+	while(ti_lib_i2c_master_busy(I2C0_BASE));
+	success = i2c_status();
+
+	for(i = 0; i < len && success; i++) 
+	{
+		/* Write next byte */
+		ti_lib_i2c_master_data_put(I2C0_BASE, data[i]);
+		if(i < len - 1) 
+		{
+			/* Clear START */
+			ti_lib_i2c_master_control(I2C0_BASE, I2C_MASTER_CMD_BURST_SEND_CONT);
+			while(ti_lib_i2c_master_busy(I2C0_BASE));
+			success = i2c_status();
+		}
+	}
+  
+	/* Assert stop */
+	if(success) 
+	{
+		/* Assert STOP */
+		ti_lib_i2c_master_control(I2C0_BASE, I2C_MASTER_CMD_BURST_SEND_FINISH);
+		while(ti_lib_i2c_master_busy(I2C0_BASE));
+		success = i2c_status();
+		while(ti_lib_i2c_master_bus_busy(I2C0_BASE));
+	}
+
+  return success;
+}
+
+/*---------------------------------------------------------------------------*/
+bool board_i2c_read_regs  ( uint8_t addr, 
+							uint8_t *data,
+							uint8_t len)
+{
+	uint32_t i;
+	bool success;
+
+	/* Set slave address for write */
+	ti_lib_i2c_master_slave_addr_set(I2C0_BASE, slave_addr, false);
+
+	/* Write first byte */
+	ti_lib_i2c_master_data_put(I2C0_BASE, addr);
+
+	/* Check if another master has access */
+	while(ti_lib_i2c_master_bus_busy(I2C0_BASE));
+
+	/* Assert RUN + START */
+	ti_lib_i2c_master_control(I2C0_BASE, I2C_MASTER_CMD_BURST_SEND_START);
+	while(ti_lib_i2c_master_busy(I2C0_BASE));
+	success = i2c_status();
+
+	if(!success) 
+	{
+		return false;
+	}
+
+	/* Set slave address for read */
+	ti_lib_i2c_master_slave_addr_set(I2C0_BASE, slave_addr, true);
+
+	/* Assert ACK */
+	ti_lib_i2c_master_control(I2C0_BASE, I2C_MASTER_CMD_BURST_RECEIVE_START);
+
+	i = 0;
+	while(i < (len - 1) && success) 
+	{
+		while(ti_lib_i2c_master_busy(I2C0_BASE));
+		success = i2c_status();
+		if(success) 
+		{
+			data[i] = ti_lib_i2c_master_data_get(I2C0_BASE);
+			ti_lib_i2c_master_control(I2C0_BASE, I2C_MASTER_CMD_BURST_RECEIVE_CONT);
+			i++;
+		}
+	}
+
+	if(success) 
+	{
+		while(ti_lib_i2c_master_busy(I2C0_BASE));
+		success = i2c_status();
+		if(success) 
+		{
+			data[len - 1] = ti_lib_i2c_master_data_get(I2C0_BASE);
+			ti_lib_i2c_master_control(I2C0_BASE, I2C_MASTER_CMD_BURST_RECEIVE_FINISH);
+			while(ti_lib_i2c_master_bus_busy(I2C0_BASE));
+		}
+	}
+
+  return success;
 }
 /*---------------------------------------------------------------------------*/
 /** @} */
