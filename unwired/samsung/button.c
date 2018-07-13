@@ -46,7 +46,7 @@
 #include "dev/leds.h"
 #include "../../apps/shell/shell.h"
 #include "../../apps/serial-shell/serial-shell.h"
-#include "dev/serial-line.h" //
+#include "dev/serial-line.h" 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -90,12 +90,9 @@ PROCESS_THREAD(main_process, ev, data)
 	printf("Start Unwired Button device.\n");
 	PROCESS_PAUSE();
 	
-	// ti_lib_ioc_pin_type_gpio_output(RS485_DE); 				/*Настройка ноги RS485_DE на выход*/
-	// ti_lib_ioc_pin_type_gpio_output(RS485_RE); 				/*Настройка ноги RS485_RE на выход*/
-	
 	if (BOARD_IOID_UART_RX == IOID_UNUSED)
 	{
-		printf("DAG Node: Shell not active, uart RX set to IOID_UNUSED\n");
+		printf("[DAG Node] Shell not active, uart RX set to IOID_UNUSED\n");
 		cc26xx_uart_set_input(NULL);
 	}
 	else
@@ -104,7 +101,7 @@ PROCESS_THREAD(main_process, ev, data)
 		shell_reboot_init();
 		shell_time_init();
 		unwired_shell_init();
-		printf("DAG Node: Shell activated, type \"help\" for command list\n");
+		printf("[DAG Node] Shell activated, type \"help\" for command list\n");
 	}
 	
 	process_start(&settings_dag_init, NULL); 				/*Запуск процесса инициализации настроек из EEPROM*/
@@ -113,35 +110,6 @@ PROCESS_THREAD(main_process, ev, data)
 	
 	process_start(&dag_node_process, NULL);					/*Запуск ноды*/
 	
-	// static struct etimer shell_off;							/*Создание таймера по истечению которого выключается шелл*/
-	// etimer_set(&shell_off, CLOCK_SECOND * 5);				/*Заводится таймер на 5 секунд*/
-	
-	// PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&shell_off));	/*Ожидание пока сработает таймер*/
-		
-	// /*Инициализируем UART в нужном режиме*/
-	// if(get_interface() == INTERFACE_RS485) 					/*Инициализация в режиме интерфейса: RS485*/
-	// {
-		// if (BOARD_IOID_UART_TX != BOARD_IOID_ALT_UART_TX || BOARD_IOID_UART_RX != BOARD_IOID_ALT_UART_RX)
-		// {
-			// printf("UDM: UART change to alt(RX: 26, TX: 25)\n");
-			// off_uart(BOARD_IOID_UART_RX, BOARD_IOID_UART_TX);
-			// on_uart(BOARD_IOID_ALT_UART_RX, BOARD_IOID_ALT_UART_TX, 9600);
-			// ti_lib_gpio_clear_dio(RS485_DE);				/*Устанавливаем RS485_DE в низкий уровень. Интерфейс работает на приём*/
-			// ti_lib_gpio_clear_dio(RS485_RE);				/*Устанавливаем RS485_RE в низкий уровень. Интерфейс работает на приём*/
-		// }
-	// }
-	// else if(get_interface() == INTERFACE_CAN)				/*Инициализация в режиме интерфейса: CAN*/
-	// {
-		// if (BOARD_IOID_UART_TX != BOARD_IOID_CAN_UART_TX || BOARD_IOID_UART_RX != BOARD_IOID_ALT_UART_RX)
-		// {
-			// printf("UDM: UART change to alt(RX: 30, TX: 29)\n");
-			// off_uart(BOARD_IOID_UART_RX, BOARD_IOID_UART_TX);
-			// on_uart(BOARD_IOID_CAN_UART_RX, BOARD_IOID_CAN_UART_TX, 9600);
-		// }
-	// }
-	
-	// set_uart();							/*Запрещает выводить данные консоли в UART*/
-	
 	while (1)
 	{
 		PROCESS_YIELD();
@@ -149,55 +117,55 @@ PROCESS_THREAD(main_process, ev, data)
 		{
 			if (data == &button_a_sensor_click)
 			{
-				printf("BCP: Button A click\n");
+				printf("[BTN] Button A click\n");
 				button_status_sender(BOARD_IOID_KEY_A, CLICK);
 			}
 			
 			if (data == &button_a_sensor_long_click)
 			{
-				printf("BCP: Button A long click\n");
+				printf("[BTN] Button A long click\n");
 				button_status_sender(BOARD_IOID_KEY_A, LONG_CLICK);
 			}
 			
 			if (data == &button_b_sensor_click)
 			{
-				printf("BCP: Button B click\n");
+				printf("[BTN] Button B click\n");
 				button_status_sender(BOARD_IOID_KEY_B, CLICK);
 			}
 			
 			if (data == &button_b_sensor_long_click)
 			{
-				printf("BCP: Button B long click\n");
+				printf("[BTN] Button B long click\n");
 				button_status_sender(BOARD_IOID_KEY_B, LONG_CLICK);
 			}
 			
 			if (data == &button_c_sensor_click)
 			{
-				printf("BCP: Button C click\n");
+				printf("[BTN] Button C click\n");
 				button_status_sender(BOARD_IOID_KEY_C, CLICK);
 			}
 			
 			if (data == &button_c_sensor_long_click)
 			{
-				printf("BCP: Button C long click\n");
+				printf("[BTN] Button C long click\n");
 				button_status_sender(BOARD_IOID_KEY_C, LONG_CLICK);
 			}
 			
 			if (data == &button_d_sensor_click)
 			{
-				printf("BCP: Button D click\n");
+				printf("[BTN] Button D click\n");
 				button_status_sender(BOARD_IOID_KEY_D, CLICK);
 			}
 			
 			if (data == &button_d_sensor_long_click)
 			{
-				printf("BCP: Button D long click\n");
+				printf("[BTN] Button D long click\n");
 				button_status_sender(BOARD_IOID_KEY_D, LONG_CLICK);
 			}
 			
 			if (data == &button_e_sensor_click)
 			{
-				printf("BCP: Button e click\n");
+				printf("[BTN] Button E click\n");
 				button_status_sender(BOARD_IOID_KEY_E, CLICK);
 			}
 

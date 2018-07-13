@@ -44,9 +44,7 @@ int
 puts(const char *str)
 {
   int i;
-  if(str == NULL) {
-    return 0;
-  }
+
   for(i = 0; i < strlen(str); i++) {
     cc26xx_uart_write_byte(str[i]);
   }

@@ -162,10 +162,10 @@ ifeq ($(V),1)
   TRACE_AS =
   Q=
 else
-  TRACE_CC = @echo "  CC       " $<
-  TRACE_LD = @echo "  LD       " $@
-  TRACE_AR = @echo "  AR       " $@
-  TRACE_AS = @echo "  AS       " $<
+  TRACE_CC = @echo "  CC	" $<
+  TRACE_LD = @echo "  LD	" $@
+  TRACE_AR = @echo "  AR	" $@
+  TRACE_AS = @echo "  AS	" $<
   Q=@
 endif
 
@@ -209,10 +209,10 @@ endif
 ### See http://make.paulandlesley.org/autodep.html#advanced
 
 define FINALIZE_DEPENDENCY
-cp $(@:.o=.d) $(@:.o=.$$$$); \
-sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
-    -e '/^$$/ d' -e 's/$$/ :/' < $(@:.o=.$$$$) >> $(@:.o=.d); \
-rm -f $(@:.o=.$$$$)
+# cp $(@:.o=.d) $(@:.o=.$$$$); \
+# sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
+   # -e '/^$$/ d' -e 's/$$/ :/' < $(@:.o=.$$$$) >> $(@:.o=.d); \
+# rm -f $(@:.o=.$$$$)
 endef
 
 clean:

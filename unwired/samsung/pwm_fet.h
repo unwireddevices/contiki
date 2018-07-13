@@ -32,16 +32,14 @@
 *         Manchenko Oleg man4enkoos@gmail.com
 */
 /*---------------------------------------------------------------------------*/
-#ifndef UDP_UART_H_
-#define UDP_UART_H_
+#ifndef UDP_PWM_FET_H_
+#define UDP_PWM_FET_H_
 /*---------------------------------------------------------------------------*/
 #include "contiki.h"
 #include "net/ip/uip.h"
 /*---------------------------------------------------------------------------*/
 
-// uint32_t serial; //Серийник счетчика
-
 PROCESS_NAME(main_process);
 
 /*---------------------------------------------------------------------------*/
-#endif /* UDP_UART_H_ */
+#endif /* UDP_PWM_FET_H_ */

@@ -76,9 +76,6 @@ volatile union
 void button_status_sender ( uint8_t button_number,
 							uint8_t click_type);
 
-// /*Передает данные полученные от счетчика ROOT'у по радио*/
-// void uart_to_air(char* data);
-
 /*Функция управления светодиодами*/
 void led_mode_set(uint8_t mode);
 
@@ -105,9 +102,6 @@ void channel_update(uint8_t channel_new);
 
 /*Обновляет PANID в EEPROM*/
 void panid_update(uint16_t panid_new);
-
-// /*Показывает ожидаем ли мы ответ от счетчика*/
-// bool wait_response_status(void);
 
 /*---------------------------------------------------------------------------*/
 /*ИМЕНА ПРОЦЕССОВ*/

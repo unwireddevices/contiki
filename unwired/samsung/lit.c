@@ -76,7 +76,7 @@
 SENSORS(&button_e_sensor_click, &button_e_sensor_long_click);
 
 /* register main button process */
-PROCESS(main_process, "PWM process");
+PROCESS(main_process, "LIT process");
 
 /* set autostart processes */
 AUTOSTART_PROCESSES(&main_process);
@@ -86,7 +86,7 @@ AUTOSTART_PROCESSES(&main_process);
 PROCESS_THREAD(main_process, ev, data)
 {
 	PROCESS_BEGIN();
-	printf("Start Unwired Button device.\n");
+	printf("Start Unwired LIT device.\n");
 	PROCESS_PAUSE();
 	
 	if (BOARD_IOID_UART_RX == IOID_UNUSED)
@@ -111,30 +111,7 @@ PROCESS_THREAD(main_process, ev, data)
 	
 	opt3001_init();
 	// opt3001_measure();
-	
-	// pwm_config(0, 100, 20, IOID_5); //channel, frequency, duty, pin
-	// pwm_config(1, 100, 30, IOID_6); //channel, frequency, duty, pin
-	// pwm_config(2, 1000, 40, IOID_7); //channel, frequency, duty, pin
-	// pwm_config(3, 1000, 50, IOID_24); //channel, frequency, duty, pin
-	// pwm_config(4, 10000, 60, IOID_25); //channel, frequency, duty, pin
-	// pwm_config(5, 100000, 70, IOID_26); //channel, frequency, duty, pin
-	
-	// pwm_start(0);
-	// pwm_start(1);
-	// pwm_start(2);
-	// pwm_start(3);
-	// pwm_start(4);
-	// pwm_start(5);
-	
-	// while(1)
-	// {
-		// PROCESS_YIELD();
-		
-		// uint8_t duty = 100 - (opt3001_measure() / 10);
-		// pwm_config(0, 100, duty, IOID_5); //channel, frequency, duty, pin
-		// pwm_start(0);
-		// printf("[UMDK-LIT] Luminocity: %lu lux\n", opt3001_measure());
-	// }
+
 	
 	while(1)
 	{

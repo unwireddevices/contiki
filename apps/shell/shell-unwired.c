@@ -94,17 +94,8 @@ SHELL_COMMAND(unwired_shell_bootloader_command, "bootloader", "bootloader: bootl
 PROCESS(unwired_shell_address_process, "address");
 SHELL_COMMAND(unwired_shell_address_command, "address", "address: show net address", &unwired_shell_address_process);
 
-PROCESS(unwired_shell_test_process, "test");
-SHELL_COMMAND(unwired_shell_test_command, "test", "test: test func", &unwired_shell_test_process);
-
-PROCESS(unwired_shell_serial_process, "serial");
-SHELL_COMMAND(unwired_shell_serial_command, "serial", "serial <set/get> <serial number>: set/get serial number", &unwired_shell_serial_process);
-
 PROCESS(unwired_shell_cryptokey_process, "cryptokey");
 SHELL_COMMAND(unwired_shell_cryptokey_command, "cryptokey", "cryptokey <set/get> <AES-128 Key(xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx)>: set/get AES-128 Key", &unwired_shell_cryptokey_process);
-
-PROCESS(unwired_shell_interface_process, "interface");
-SHELL_COMMAND(unwired_shell_interface_command, "interface", "interface <set/get> <can/rs485>: set/get interface", &unwired_shell_interface_process);
 
 /*---------------------------------------------------------------------------*/
 
@@ -393,85 +384,6 @@ PROCESS_THREAD(unwired_shell_panid_process, ev, data)
 }
 
 /*---------------------------------------------------------------------------*/
-
-PROCESS_THREAD(unwired_shell_test_process, ev, data)
-{
-/*
-	uint8_t max_args = 1;
-	uint8_t argc;
-	char *args[max_args+1];
-*/
-	PROCESS_BEGIN();
-	printf("Test: ");
-/*
-	argc = parse_args(data, args, max_args);
-	uint16_t value = 0;
-	str2int_errno_t status = hex_str2uint16(&value, args[0]);
-	printf("Hex convert: %"PRIu16"(%"PRIXX16"), %"PRIint"\n", value, value, (int)status);
-
-	printf("\n");
-*/
-	PROCESS_END();
-}
-
-/*---------------------------------------------------------------------------*/
-
-PROCESS_THREAD(unwired_shell_serial_process, ev, data)
-{
-	uint8_t max_args = 2;
-	char *args[max_args+1]; //necessary to allocate on one pointer more
-	uint8_t argc = 0;
-
-	PROCESS_BEGIN();
-
-	argc = parse_args(data, args, max_args);
-	if (argc < 1)
-	{
-		printf("Serial: No args! Use \"serial <set/get> <serial number>\"\n");
-		PROCESS_EXIT();
-	}
-
-	if(!strncmp(args[0], "get", 3))
-	{
-		printf("Serial: %lu\n", get_serial());
-		//printf("Serial number is not still installed\n");
-		PROCESS_EXIT();
-	}
-
-	if(!strncmp(args[0], "set", 3))
-	{
-		uint32_t serial_set = 0;
-		str2int_errno_t status = dec_str2uint32(&serial_set, args[1]);
-
-		uint32_t serial_min = 0;
-		uint32_t serial_max = 999999;
-
-		if (status != STR2INT_SUCCESS)
-		{
-			printf("Serial set error: Incorrect serial number arg\n");
-			PROCESS_EXIT();
-		}
-		else
-		{
-			if (serial_set > serial_max || serial_set < serial_min)
-			{
-				printf("Serial set error: Select a serial in the range %"PRIu32"-%"PRIu32"\n", serial_min, serial_max);
-				PROCESS_EXIT();
-			}
-			else
-			{
-				printf("Serial set: %lu\n", serial_set);
-				serial_update(serial_set);
-				PROCESS_EXIT();
-			}
-		}
-	}
-   
-	printf("\n");
-	PROCESS_END();
-}
-
-/*---------------------------------------------------------------------------*/
 PROCESS_THREAD(unwired_shell_cryptokey_process, ev, data)
 {
 	uint8_t max_args = 17;
@@ -537,84 +449,17 @@ PROCESS_THREAD(unwired_shell_cryptokey_process, ev, data)
 
 /*---------------------------------------------------------------------------*/
 
-PROCESS_THREAD(unwired_shell_interface_process, ev, data)
-{
-	uint8_t max_args = 2;
-	char *args[max_args+1]; //necessary to allocate on one pointer more
-	uint8_t argc = 0;
-
-	PROCESS_BEGIN();
-	
-	argc = parse_args(data, args, max_args);
-	if(argc == 0)
-	{
-		printf("Interface: No args! Use \"interface <set/get> <rs485/can>\"\n");
-		PROCESS_EXIT();
-	}
-
-	if(argc == 1)
-	{
-		if(!strncmp(args[0], "get", 3))
-		{
-			printf("Interface: ");
-			
-			if(get_interface() == INTERFACE_RS485)
-				printf("RS485\n");
-			else if(get_interface() == INTERFACE_CAN)
-				printf("CAN\n");
-			else 
-				printf("unknown interface\n");
-
-			PROCESS_EXIT();
-		}
-	}
-
-	if(argc == 2)
-	{
-		if(!strncmp(args[0], "set", 3))
-		{
-			if(!strncmp(args[1], "rs485", 5))
-			{
-				printf("Installed interface RS485\n");
-				interface_update(INTERFACE_RS485);
-				
-			}
-			else if(!strncmp(args[1], "can", 3))
-			{
-				printf("Installed interface CAN\n");
-				interface_update(INTERFACE_CAN);
-			}
-			else
-			{
-				printf("Unknown interface\n");
-			}
-
-			PROCESS_EXIT();
-		}
-	}
-	
-	printf("Interface set error: Incorrect interface\n");
-	printf("Use \"interface <set/get> <rs485/can>\"\n");
-	printf("\n");
-	PROCESS_END();
-}
-
-/*---------------------------------------------------------------------------*/
-
 void unwired_shell_init(void)
 {
 	shell_register_command(&unwired_shell_time_command);
 	shell_register_command(&unwired_shell_uptime_command);
 	shell_register_command(&unwired_shell_timesync_command);
 	shell_register_command(&unwired_shell_status_command);
-	shell_register_command(&unwired_shell_test_command);
 	shell_register_command(&unwired_shell_channel_command);
 	shell_register_command(&unwired_shell_panid_command);
 	shell_register_command(&unwired_shell_bootloader_command);
 	shell_register_command(&unwired_shell_address_command);
-	shell_register_command(&unwired_shell_serial_command);
 	shell_register_command(&unwired_shell_cryptokey_command);
-	shell_register_command(&unwired_shell_interface_command);
 }
 
 /*---------------------------------------------------------------------------*/

@@ -247,7 +247,7 @@ static void udp_receiver(struct simple_udp_connection *c,
 			{
 				/*Вывод информационного сообщения в консоль*/
 				if(uart_status() == 0)
-					printf("DAG Node: Incompatible packet type(endpoint UNWDS_6LOWPAN_SYSTEM_MODULE_ID): %"PRIXX8"\n", header_pack->data_type);
+					printf("[DAG Node] Incompatible packet type(endpoint UNWDS_6LOWPAN_SYSTEM_MODULE_ID): %"PRIXX8"\n", header_pack->data_type);
 			}
 		}
 	}
@@ -256,7 +256,7 @@ static void udp_receiver(struct simple_udp_connection *c,
 	{
 		/*Вывод информационного сообщения в консоль*/
 		if(uart_status() == 0)
-			printf("DAG Node: Incompatible protocol version: %"PRIXX8"\n", header_pack->protocol_version);
+			printf("[DAG Node] Incompatible protocol version: %"PRIXX8"\n", header_pack->protocol_version);
 	}
 
 	/*Мигаем светодиодом*/
@@ -278,7 +278,7 @@ static void join_stage_1_sender(const uip_ipaddr_t *dest_addr)
 	/*Вывод информационного сообщения в консоль*/
 	if(uart_status() == 0)
 	{
-		printf("DAG Node: Send join packet to DAG-root node: ");
+		printf("[DAG Node] Send join packet to DAG-root node: ");
 		uip_debug_ipaddr_print(&addr);
 		printf("\n");
 	}
@@ -331,7 +331,7 @@ static void join_stage_3_sender(const uip_ipaddr_t *dest_addr,
 	/*Вывод информационного сообщения в консоль*/
 	if(uart_status() == 0)
 	{
-		printf("DAG Node: Send join packet stage 3 to DAG-root node:");
+		printf("[DAG Node] Send join packet stage 3 to DAG-root node:");
 		uip_debug_ipaddr_print(&addr);
 		printf("\n");
 	}
@@ -415,7 +415,7 @@ static void join_stage_4_handler(const uip_ipaddr_t *sender_addr,
 	}
 	
 	/*Выводим: Ошибка авторизации*/
-	printf("Authorisation Error\n"); 
+	printf("[DAG Node] Authorisation Error\n"); 
 }
 
 /*---------------------------------------------------------------------------*/
@@ -493,7 +493,7 @@ static void pong_handler(const uip_ipaddr_t *sender_addr,
 	}
 	
 	/*Выводим: Ошибка авторизации*/
-	printf("Crypto Error. Reboot\n");
+	printf("[DAG Node] Crypto Error. Reboot\n");
 	watchdog_reboot();
 	
 	// node_mode = MODE_JOIN_PROGRESS; 	/*Установка режима работы устройства*/
@@ -501,64 +501,6 @@ static void pong_handler(const uip_ipaddr_t *sender_addr,
 	// process_start(&maintenance_process, NULL);
 }
 
-/*---------------------------------------------------------------------------*/
-// /*Передает данные полученные из радио от ROOT'а на счетчик через UART*/
-// static void uart_from_air ( const uip_ipaddr_t *sender_addr,
-							// const uint8_t *data,
-							// uint16_t datalen)
-// {
-	// /*Отражаем структуры на массивы*/ 
-	// header_down_t *header_down_pack = (header_down_t*)&aes_buffer[0];	
-	
-	// /*Расшифровываем данные*/
-	// aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[HEADER_DOWN_OFFSET], (uint32_t*)(aes_buffer), (datalen - HEADER_UP_LENGTH));
-	
-	// /*Проверяем счетчик пакетов на валидность данного пакета*/
-	// if(packet_counter_root.u16 < header_down_pack->counter.u16)
-	// {	
-		// /*Обновляем значение счетчика ROOT'а*/
-		// packet_counter_root.u16 = header_down_pack->counter.u16;		
-		
-		// /*Если интерфейс RS485, то устанавливаем DE и RE в высокий уровень*/
-		// if(get_interface() == INTERFACE_RS485)
-		// {
-			// ti_lib_gpio_set_dio(RS485_DE);		/*Устанавливаем DE в высокий уровень*/	
-			// ti_lib_gpio_set_dio(RS485_RE);		/*Устанавливаем RE в высокий уровень*/
-		// }
-		
-		// /*Запрещаем прерывания*/
-		// ti_lib_uart_int_disable(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
-		// ti_lib_uart_int_clear(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
-		
-		// /*Отправляем данные на счетчик через UART*/
-		// for(uint16_t i = 0; i < aes_buffer[HEADER_DOWN_LENGTH_OFFSET]; i++)
-			// cc26xx_uart_write_byte(aes_buffer[i + 3]);
-		
-		// /*Ожидаем окончание передачи*/
-		// while(ti_lib_uart_busy(UART0_BASE));
-		
-		// /*Если интерфейс RS485, то устанавливаем DE и RE в низкий уровень*/
-		// if(get_interface() == INTERFACE_RS485)
-		// {
-			// ti_lib_gpio_clear_dio(RS485_DE);	/*Устанавливаем DE в низкий уровень*/	
-			// ti_lib_gpio_clear_dio(RS485_RE);	/*Устанавливаем RE в низкий уровень*/
-		// }
-		
-		// /*Очищаем FIFO буферы*/
-		// while(ti_lib_uart_chars_avail(UART0_BASE))
-		// {
-			// UARTCharGetNonBlocking(UART0_BASE);
-		// }
-		
-		// /*Разрешаем прерывания*/
-		// ti_lib_uart_int_clear(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
-		// ti_lib_uart_int_enable(UART0_BASE, CC26XX_UART_INTERRUPT_ALL);
-		
-		// reset_uart();
-		// wait_response_slave = 1;
-		// ctimer_set(&wait_response, (WAIT_RESPONSE * CLOCK_SECOND), wait_response_reset, NULL);
-	// }
-// }
 /*---------------------------------------------------------------------------*/
 /*Функция отправки состояния кнопок*/
 void button_status_sender ( uint8_t button_number,
@@ -586,7 +528,7 @@ void button_status_sender ( uint8_t button_number,
 	header_pack->length = BUTTON_STATUS_LENGTH;					/*Размер пакета*/
 
 	/*Payload*/ 
-	printf("DAG Node: Send button packet to DAG-root node\n");
+	printf("[DAG Node] Send button packet to DAG-root node\n");
 	
 	button_status_pack->button_status = button_number;
 
@@ -613,85 +555,6 @@ void button_status_sender ( uint8_t button_number,
 	packet_counter_node.u16++;		/*Инкрементируем счетчик пакетов*/
 	led_mode_set(LED_FLASH);		/*Мигаем светодиодом*/
 }
-
-/*---------------------------------------------------------------------------*/
-/*Передает данные полученные от счетчика ROOT'у по радио*/
-// void uart_to_air(char* data)
-// {
-	// /*Если не нормальный режим работы, то перезагружаемся*/
-	// if (node_mode == 2) 
-	// {
-		// watchdog_reboot();
-	// }
-
-	// /*Если нормальный режим работы, то отправляем данные УСПД*/
-	// if (node_mode == MODE_NORMAL)
-	// {
-		// uint8_t *data_iterator;					/*Выделяем память под указатель на data_iterator*/
-		// data_iterator = (uint8_t*)&data[0];		/*В data[0] хранится размер принятых данных из UART*/
-		
-		// uint16_t crc_uart;													/*Выделяем память под CRC16-MODBUS*/
-		// crc_uart = crc16_modbus((uint8_t*)&data[1], (*data_iterator - 2));	/*Рассчитываем CRC16-MODBUS*/
-		
-		// /*Проверяем по размеру на минимально возможный*/ 
-		// if(*data_iterator > 3)
-		// {
-			// /*Если CRC16 не совпадает, то дальше пакет не обрабатываем*/
-			// if(crc_uart != (uint16_t)((data[*data_iterator] << 8) | data[*data_iterator - 1]))
-			// {
-				// return; /*CRC16 не совпала*/
-			// }
-		// }
-		// else
-		// {
-			// return; 	/*Слишком маленькая длина фрейма*/
-		// }
-		
-		// uip_ipaddr_t addr;						/*Выделяем память для адреса на который отправится пакет*/
-		// uip_ip6addr_copy(&addr, &root_addr);	/*Копируем адрес ROOT'а*/
-		
-		// /*Выделяем память под пакет. Общий размер пакета (header + payload)*/
-		// /*Нижняя часть header'а будет шифроваться. Поэтому для рассчета payload'а нужно учитывать её*/
-		// uint8_t crypto_length = iterator_to_byte(*data_iterator + HEADER_DOWN_LENGTH); 
-		// uint8_t udp_buffer[HEADER_UP_LENGTH + crypto_length];
-		
-		// /*Отражаем структуры на массивы*/ 
-		// header_up_t *header_up_pack = (header_up_t*)&udp_buffer[HEADER_OFFSET];
-		// header_down_t *header_down_pack = (header_down_t*)&aes_buffer[0];	
-		
-		// /*Заполняем пакет*/ 
-		// /*Header*/ 
-		// header_up_pack->protocol_version = UDBP_PROTOCOL_VERSION; 	/*Текущая версия протокола*/ 
-		// header_up_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
-		// header_up_pack->data_type = UART_FROM_RX_TO_AIR;			/*Тип пакета*/  
-		// header_up_pack->rssi = get_parent_rssi();					/*RSSI*/ 
-		// header_up_pack->temperature = get_temperature();			/*Температура*/ 
-		// header_up_pack->voltage = get_voltage();					/*Напряжение*/ 
-
-		// /*Шифрованая часть header'а*/ 
-		// header_down_pack->counter.u16 = packet_counter_node.u16;	/*Счетчик пакетов*/ 
-		// header_down_pack->length = *data_iterator;					/*Размер пакета*/
-		
-		// /*Заполняем блок для шифрования*/ 
-		// for(uint8_t i = HEADER_DOWN_LENGTH; i < crypto_length; i++)
-		// {
-			// if(i < (*data_iterator + HEADER_DOWN_LENGTH))
-				// aes_buffer[i] = data[i-2];		/*Заполняем блок для шифрования данными*/ 
-			// else
-				// aes_buffer[i] = 0x00;			/*Дозаполняем блок для шифрования нулями*/ 
-		// }
-	
-		// /*Зашифровываем данные*/
-		// aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[HEADER_DOWN_OFFSET]), crypto_length);
-
-		// net_on(RADIO_ON_TIMER_OFF);
-		
-		// /*Отправляем пакет*/ 
-		// simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_UP_LENGTH + crypto_length), &addr);
-		// packet_counter_node.u16++;		/*Инкрементируем счетчик пакетов*/
-		// led_mode_set(LED_FLASH);		/*Мигаем светодиодом*/
-	// }
-// }
 
 /*---------------------------------------------------------------------------*/
 /*Функция управления светодиодами*/
@@ -784,20 +647,6 @@ void panid_update(uint16_t panid_new)
 	eeprom_dag.panid = panid_new;
 	write_eeprom(((uint8_t*)&eeprom_dag), sizeof(eeprom_dag));
 }
-
-/*---------------------------------------------------------------------------*/
-// /*Сбрасывает переменную которая показывает ожидаем ли мы ответ от счетчика*/
-// static void wait_response_reset(void *ptr)
-// {
-	// wait_response_slave = 0;
-// }
-
-/*---------------------------------------------------------------------------*/
-/*Показывает ожидаем ли мы ответ от счетчика*/
-// bool wait_response_status(void)
-// {
-	// return wait_response_slave;
-// }
 
 /*---------------------------------------------------------------------------*/
 /*Процесс опроса ROOT'а на достижимость*/
@@ -1015,7 +864,7 @@ PROCESS_THREAD(dag_node_button_process, ev, data)
 				
 				/*Вывод информационного сообщения в консоль*/
 				if(uart_status() == 0)
-					printf("SYSTEM: Button E long click, reboot\n");
+					printf("[SYSTEM] Button E long click, reboot\n");
 				
 				watchdog_reboot();
 			}
@@ -1062,7 +911,7 @@ PROCESS_THREAD(maintenance_process, ev, data)
 				
 				/*Вывод информационного сообщения в консоль*/
 				if(uart_status() == 0)
-					printf("DAG Node: Root not found, sleep\n");
+					printf("[DAG Node] Root not found, sleep\n");
 				
 				if(process_is_running(&dag_node_button_process) == 1)
 					process_exit(&dag_node_button_process);
@@ -1089,7 +938,7 @@ PROCESS_THREAD(maintenance_process, ev, data)
 				
 				/*Вывод информационного сообщения в консоль*/
 				if(uart_status() == 0)
-					printf("DAG Node: Root not found, reboot\n"); //почему-то не перезагружается!
+					printf("[DAG Node] Root not found, reboot\n"); //почему-то не перезагружается!
 				
 				watchdog_reboot();
 			}
@@ -1127,7 +976,7 @@ PROCESS_THREAD(root_find_process, ev, data)
 	static uip_ds6_addr_t *ds6_addr = NULL;
 	PROCESS_PAUSE();
 
-	etimer_set( &find_root_limit_timer, ROOT_FIND_LIMIT_TIME);
+	etimer_set(&find_root_limit_timer, ROOT_FIND_LIMIT_TIME);
 
 	while (1)
 	{
@@ -1153,7 +1002,7 @@ PROCESS_THREAD(root_find_process, ev, data)
 				
 				/*Вывод информационного сообщения в консоль*/
 				if(uart_status() == 0)
-					printf("DAG Node: mode set to MODE_NOTROOT\n");
+					printf("[DAG Node] mode set to MODE_NOTROOT\n");
 				
 				process_exit(&maintenance_process);
 				process_start(&maintenance_process, NULL);
@@ -1203,7 +1052,7 @@ PROCESS_THREAD(dag_node_process, ev, data)
 
 	/*Вывод информационного сообщения в консоль*/
 	if(uart_status() == 0)
-		printf("DAG Node: DAG active, join stage 4 packet received, mode set to MODE_NORMAL\n");
+		printf("[DAG Node] DAG active, join stage 4 packet received, mode set to MODE_NORMAL\n");
 	
 	led_mode_set(LED_SLOW_BLINK);	/*Включаем медленное мигание светодиодами*/
 	node_mode = MODE_NORMAL;		/*Изменение режима работы ноды. Нода работает в нормальном режиме*/

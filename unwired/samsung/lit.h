@@ -32,8 +32,8 @@
 *         Manchenko Oleg man4enkoos@gmail.com
 */
 /*---------------------------------------------------------------------------*/
-#ifndef UDP_BUTTON_H_
-#define UDP_BUTTON_H_
+#ifndef UDP_LIT_H_
+#define UDP_LIT_H_
 /*---------------------------------------------------------------------------*/
 #include "contiki.h"
 #include "net/ip/uip.h"
