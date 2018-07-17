@@ -161,15 +161,15 @@ void udp_data_receiver(struct simple_udp_connection *connection,
 	header_t *header_pack = (header_t*)&data[HEADER_OFFSET];
 
 	/*Для отладки. Выводит тип принятого сообщения*/ 
-	printf("Recive pack: %x\n", header_pack->data_type);
+	// printf("Recive pack: %x\n", header_pack->data_type);
 	
 	/*Вывод информационного сообщения в консоль*/
-	{
-		printf("Packet received(%"PRIu8"): ", datalen);
-		for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
-			printf("%"PRIXX8, data[i]);
-		printf("\n");
-	}
+	// {
+		// printf("Packet received(%"PRIu8"): ", datalen);
+		// for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
+			// printf("%"PRIXX8, data[i]);
+		// printf("\n");
+	// }
 	
 	/*Проверяем версию протокола*/ 
 	if(header_pack->protocol_version == UDBP_PROTOCOL_VERSION)
@@ -451,169 +451,172 @@ static void button_status_handler(const uip_ip6addr_t *dest_addr, const uint8_t 
 	if (dest_addr == NULL)
 		return;
 	
-	/*Отражаем структуры на массивы*/ 
-	button_status_t *button_status_pack = (button_status_t*)&data[PAYLOAD_OFFSET];
+	uip_ipaddr_t addr;						/*Выделяем память для адреса на который отправится пакет*/
+	uip_ip6addr_copy(&addr, dest_addr);		/*Копируем адрес*/
 	
+	/*Отражаем структуры на массивы*/ 
+	button_status_t *button_status_pack = (button_status_t*)&aes_buffer[0];
+	
+	/*Получаем nonce*/
+	u8_u16_t nonce;
+	nonce.u16 = get_nonce(&addr);	
+	
+	/*Копируем полученный nonce и используем его в качестве сессионного ключа (AES128-CBC)*/
+	for(int i = 0; i < 16; i += 2)
+	{
+		nonce_key[i] = nonce.u8[1];	
+		nonce_key[i+1] = nonce.u8[0];	
+	}
+	
+	/*Расшифровываем данные*/
+	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[PAYLOAD_OFFSET], (uint32_t*)(aes_buffer), CRYPTO_1_BLOCK_LENGTH);
+		
 	uint8_t status = button_status_pack->button_status & STATUS_MASK;
 	uint8_t dio = button_status_pack->button_status & DIO_MASK;
 
-	if(dio == BOARD_IOID_KEY_A)
-		printf("Button A ");
-	else if(dio == BOARD_IOID_KEY_B)
-		printf("Button B ");
-	else if(dio == BOARD_IOID_KEY_C)
-		printf("Button C ");
-	else if(dio == BOARD_IOID_KEY_D)
-		printf("Button D ");
-	else if(dio == BOARD_IOID_KEY_E)
-		printf("Button E ");
-	else
-		printf("Button huy_znaet ");
+	if((dio == BOARD_IOID_KEY_A) && (status == CLICK))
+		printf("Button A click\n");
+	else if((dio == BOARD_IOID_KEY_A) && (status == LONG_CLICK))
+		printf("Button A long click\n");
 	
-	if(status == CLICK)
-		printf("click\n");
-	else if (status == LONG_CLICK)
-		printf("long click\n");
+	else if((dio == BOARD_IOID_KEY_B) && (status == CLICK))
+		printf("Button B click\n");
+	else if((dio == BOARD_IOID_KEY_B) && (status == LONG_CLICK))
+		printf("Button B long click\n");
+	
+	else if((dio == BOARD_IOID_KEY_C) && (status == CLICK))
+		printf("Button C click\n");
+	else if((dio == BOARD_IOID_KEY_C) && (status == LONG_CLICK))
+		printf("Button C long click\n");
+	
+	else if((dio == BOARD_IOID_KEY_D) && (status == CLICK))
+		printf("Button D click\n");
+	else if((dio == BOARD_IOID_KEY_D) && (status == LONG_CLICK))
+		printf("Button D long click\n");
+	
+	else if((dio == BOARD_IOID_KEY_E) && (status == CLICK))
+		printf("Button E click\n");
+	else if((dio == BOARD_IOID_KEY_E) && (status == LONG_CLICK))
+		printf("Button E long click\n");
+	
 	else
-		printf("kak_dolgo_click\n");
+		printf("Button error");
 }
 
 /*---------------------------------------------------------------------------*/
-
-
-// /*---------------------------------------------------------------------------*/
-// /*Передает данные полученные от УСПД, счетчику по радио*/
-// static void uart_to_air() 
-// {
-	// uip_ipaddr_t addr;		/*Выделяем память для адреса на который отправится пакет*/
-	// u8_u16_t nonce;			/*Выделяем память для nonce*/
+/*Отправка настроек канала ШИМ'а*/
+void pwm_settings_sender(const uip_ip6addr_t *dest_addr, uint8_t channel, uint32_t frequency, uint8_t duty)
+{
+	/*Проверка на то что передан существующий адрес*/
+	if (dest_addr == NULL)
+		return;
 	
-	// /*Парсим серийник из данных принятых из UART от УСПД и ищем в таблице IPv6 адрес*/
-	// /*Если команда меньше 7 байт, то она для однобайтно адресуемых счетчиков*/
-	// if(data_iterator < 7) 
-	// {
-		// /*Ищем IPv6 адрес по серийному номеру*/
-		// addr = find_addr((uint32_t)(uart_rx_buffer[0]));
+	uip_ipaddr_t addr;						/*Выделяем память для адреса на который отправится пакет*/
+	uip_ip6addr_copy(&addr, dest_addr);		/*Копируем адрес*/
 		
-		// /*Проверка на то что не это не нулевой адрес*/
-		// if(uip_ip6addr_cmp(&addr, &null_addr))
-		// {
-			// return;
-		// }
+	/*Выделяем память под пакет. Общий размер пакета (header + payload)*/
+	uint8_t udp_buffer[HEADER_LENGTH + PWM_SETTINGS_PAYLOAD_LENGTH];
+	
+	/*Отражаем структуры на массивы*/ 
+	header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
+	pwm_settings_t *pwm_settings_pack = (pwm_settings_t*)&aes_buffer[0];
+	
+	/*Получаем nonce*/
+	u8_u16_t nonce;
+	nonce.u16 = get_nonce(&addr);	
+	
+	/*Копируем полученный nonce и используем его в качестве сессионного ключа (AES128-CBC)*/
+	for(int i = 0; i < 16; i += 2)
+	{
+		nonce_key[i] = nonce.u8[1];	
+		nonce_key[i+1] = nonce.u8[0];	
+	}
+	
+	/*Заполняем пакет*/  
+	/*Header*/ 
+	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
+	header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
+	header_pack->data_type = PWM_SETTINGS;						/*Тип пакета*/  
+	header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
+	header_pack->temperature = get_temperature();				/*Температура*/ 
+	header_pack->voltage = get_voltage();						/*Напряжение*/ 
+	header_pack->counter.u16 = packet_counter_root.u16;			/*Счетчик пакетов*/ 
+	header_pack->length = PWM_SETTINGS_LENGTH;					/*Размер пакета (незашифрованного)*/
+	
+	/*Payload*/ 
+	pwm_settings_pack->channel = channel;
+	pwm_settings_pack->frequency = frequency;
+	pwm_settings_pack->duty = duty;
+	
+	/*Дозаполняем пакет нулями, зашифровываем и отправляем его ROOT'у. */ 
+	for(uint8_t i = PWM_SETTINGS_LENGTH; i < 16; i++)
+		aes_buffer[i] = 0x00;
+	
+	/*Зашифровываем данные*/
+	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[PAYLOAD_OFFSET]), CRYPTO_1_BLOCK_LENGTH);
+	
+	/*Отправляем пакет*/ 
+	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_LENGTH + PWM_SETTINGS_PAYLOAD_LENGTH), &addr);
+	packet_counter_root.u16++;		/*Инкрементируем счетчик пакетов*/
+}
+
+/*---------------------------------------------------------------------------*/
+/*Отправка команды включения/выключения канала ШИМ'а*/
+void pwm_power_channel_sender(const uip_ip6addr_t *dest_addr, uint8_t channel, uint8_t pwm_power_channel)
+{
+	/*Проверка на то что передан существующий адрес*/
+	if (dest_addr == NULL)
+		return;
+	
+	uip_ipaddr_t addr;						/*Выделяем память для адреса на который отправится пакет*/
+	uip_ip6addr_copy(&addr, dest_addr);		/*Копируем адрес*/
 		
-		// /*Получаем nonce*/
-		// nonce.u16 = get_nonce((uint32_t)(uart_rx_buffer[0]));
-	// }
+	/*Выделяем память под пакет. Общий размер пакета (header + payload)*/
+	uint8_t udp_buffer[HEADER_LENGTH + PWM_POWER_PAYLOAD_LENGTH];
 	
-	// /*В первую очередь проверяем по четырехбайтному адресу, а потом по однобайтному*/
-	// else 
-	// {
-		// /*Ищем IPv6 адрес по серийному номеру*/
-		// addr = find_addr((uint32_t)((uart_rx_buffer[0] << 24) |
-									// (uart_rx_buffer[1] << 16) |
-									// (uart_rx_buffer[2] << 8)  |
-									 // uart_rx_buffer[3]));
-		
-		// /*Проверка на то что не это не нулевой адрес*/
-		// if(uip_ip6addr_cmp(&addr, &null_addr))	
-		// {	
-			// /*Ищем IPv6 адрес по серийному номеру*/
-			// addr = find_addr((uint32_t)(uart_rx_buffer[0]));
-
-			// /*Проверка на то что не это не нулевой адрес*/
-			// if(uip_ip6addr_cmp(&addr, &null_addr))
-			// {
-				// return;
-			// }
-			
-			// /*Получаем nonce*/
-			// nonce.u16 = get_nonce((uint32_t)(uart_rx_buffer[0]));
-		// }
-		// else
-		// {
-			// /*Получаем nonce*/
-			// nonce.u16 = get_nonce((uint32_t)((uart_rx_buffer[0] << 24)|
-											// (uart_rx_buffer[1] << 16) |
-											// (uart_rx_buffer[2] << 8)  |
-											// (uart_rx_buffer[3] )));
-		// }
-	// }
+	/*Отражаем структуры на массивы*/ 
+	header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
+	pwm_power_t *pwm_power_pack = (pwm_power_t*)&aes_buffer[0];
 	
-	// /*Копируем nonce и используем его в качестве сессионного ключа (AES128-CBC)*/
-	// for(int i = 0; i < 16; i += 2)
-	// {
-		// nonce_key[i] = nonce.u8[1];	
-		// nonce_key[i+1] = nonce.u8[0];	
-	// }
-
-	// /*Выделяем память под пакет. Общий размер пакета (header + payload)*/
-	// /*Нижняя часть header'а будет шифроваться. Поэтому для рассчета payload'а нужно учитывать её*/
-	// uint8_t crypto_length = iterator_to_byte(data_iterator + HEADER_DOWN_LENGTH);
-	// uint8_t udp_buffer[HEADER_UP_LENGTH + crypto_length];
+	/*Получаем nonce*/
+	u8_u16_t nonce;
+	nonce.u16 = get_nonce(&addr);	
 	
-	// /*Отражаем структуры на массивы*/ 
-	// header_up_t *header_up_pack = (header_up_t*)&udp_buffer[HEADER_OFFSET];
-	// header_down_t *header_down_pack = (header_down_t*)&aes_buffer[0];	
+	/*Копируем полученный nonce и используем его в качестве сессионного ключа (AES128-CBC)*/
+	for(int i = 0; i < 16; i += 2)
+	{
+		nonce_key[i] = nonce.u8[1];	
+		nonce_key[i+1] = nonce.u8[0];	
+	}
 	
-	// /*Заполняем пакет*/  
-	// /*Header*/ 
-	// header_up_pack->protocol_version = UDBP_PROTOCOL_VERSION; 	/*Текущая версия протокола*/ 
-	// header_up_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
-	// header_up_pack->data_type = UART_FROM_AIR_TO_TX;			/*Тип пакета*/  
-	// header_up_pack->rssi = get_parent_rssi();					/*RSSI*/ 
-	// header_up_pack->temperature = get_temperature();			/*Температура*/ 
-	// header_up_pack->voltage = get_voltage();					/*Напряжение*/ 
+	/*Заполняем пакет*/  
+	/*Header*/ 
+	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
+	header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
+	header_pack->data_type = PWM_POWER;							/*Тип пакета*/  
+	header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
+	header_pack->temperature = get_temperature();				/*Температура*/ 
+	header_pack->voltage = get_voltage();						/*Напряжение*/ 
+	header_pack->counter.u16 = packet_counter_root.u16;			/*Счетчик пакетов*/ 
+	header_pack->length = PWM_POWER_LENGTH;						/*Размер пакета (незашифрованного)*/
 	
-	// /*Шифрованая часть header'а*/ 
-	// header_down_pack->counter.u16 = packet_counter_root.u16;	/*Счетчик пакетов*/ 
-	// header_down_pack->length = data_iterator;					/*Размер пакета*/
+	/*Payload*/ 
+	pwm_power_pack->pwm_power = channel;
 	
-	// /*Заполняем блок для шифрования*/ 
-	// for(uint8_t i = HEADER_DOWN_LENGTH; i < crypto_length; i++)
-	// {
-		// if(i < (data_iterator + HEADER_DOWN_LENGTH))
-			// aes_buffer[i] = uart_rx_buffer[i-3];		/*Заполняем блок для шифрования данными*/ 
-		// else
-			// aes_buffer[i] = 0x00;						/*Дозаполняем блок для шифрования нулями*/ 
-	// }
+	if(pwm_power_channel)
+		pwm_power_pack->pwm_power |= 0x80;
 	
-	// /*Зашифровываем данные*/
-	// aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[HEADER_DOWN_OFFSET]), crypto_length);
+	/*Дозаполняем пакет нулями, зашифровываем и отправляем его ROOT'у. */ 
+	for(uint8_t i = PWM_POWER_LENGTH; i < 16; i++)
+		aes_buffer[i] = 0x00;
 	
-	// /*Отправляем пакет*/ 
-	// simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_UP_LENGTH + crypto_length), &addr);
-	// packet_counter_root.u16++;		/*Инкрементируем счетчик пакетов*/
-// }
-
-// /*---------------------------------------------------------------------------*/
-// /*Передает данные полученные от счетчика на УСПД*/
-// static void uart_from_air(const uip_ip6addr_t *addr, const uint8_t *data, const uint16_t length)
-// {
-	// /*Если мы не ожидаем приёма от утройства, то пакет отбрасываем*/
-	// if(wait_response_slave == 0)
-		// return;
+	/*Зашифровываем данные*/
+	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[PAYLOAD_OFFSET]), CRYPTO_1_BLOCK_LENGTH);
 	
-	// /*Отражаем структуры на массивы*/ 
-	// header_down_t *header_down_pack = (header_down_t*)&aes_buffer[0];
-	
-	// /*Расшифровываем данные*/
-	// aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[HEADER_DOWN_OFFSET], (uint32_t*)(aes_buffer), (length - HEADER_UP_LENGTH));
-	
-	// /*Получаем из принятого сообщения серийный номер*/
-	// uint32_t serial = ( (aes_buffer[3] << 24) |
-						// (aes_buffer[4] << 16) |
-						// (aes_buffer[5] << 8)  |
-						// (aes_buffer[6] ));					
-	
-	// /*Проверка счетчика пакета на валидность*/
-	// if(valid_counter(serial, header_down_pack->counter.u16) || valid_counter(aes_buffer[3], header_down_pack->counter.u16))
-	// {
-		// /*Отправка данных в UART*/
-		// for(uint16_t i = 0; i < aes_buffer[2]; i++)
-			// cc26xx_uart_write_byte(aes_buffer[i + 3]);
-	// }
-// }
-
+	/*Отправляем пакет*/ 
+	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_LENGTH + PWM_POWER_PAYLOAD_LENGTH), &addr);
+	packet_counter_root.u16++;		/*Инкрементируем счетчик пакетов*/
+}
 /*---------------------------------------------------------------------------*/
 /*Иннициализация RPL*/
 void rpl_initialize()

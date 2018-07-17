@@ -196,7 +196,7 @@ PROCESS_THREAD(shell_repeat_server_process, ev, data)
 static void
 repeat_print_usage(void)
 {
-  shell_output_str(&repeat_command, "usage: ", repeat_command.description);
+  shell_output_str(&repeat_command, "[CMD] usage: ", repeat_command.description);
 }
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(shell_repeat_process, ev, data)

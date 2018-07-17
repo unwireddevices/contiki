@@ -110,7 +110,7 @@ PROCESS_THREAD(help_command_process, ev, data)
 {
   struct shell_command *c;
   PROCESS_BEGIN();
-  shell_output_str(&help_command, "\nAvailable commands:", "");
+  shell_output_str(&help_command, "\n[CMD] Available commands:", "");
   for(c = list_head(commands);
       c != NULL;
       c = c->next) {

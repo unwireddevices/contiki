@@ -76,9 +76,6 @@ SHELL_COMMAND(unwired_shell_time_command, "time", "time: show the current node t
 PROCESS(unwired_shell_uptime_process, "uptime");
 SHELL_COMMAND(unwired_shell_uptime_command, "uptime", "uptime: show the current node uptime", &unwired_shell_uptime_process);
 
-PROCESS(unwired_shell_timesync_process, "timesync");
-SHELL_COMMAND(unwired_shell_timesync_command, "timesync", "timesync: sync time now", &unwired_shell_timesync_process);
-
 PROCESS(unwired_shell_status_process, "status");
 SHELL_COMMAND(unwired_shell_status_command, "status", "status: show node status", &unwired_shell_status_process);
 
@@ -87,9 +84,6 @@ SHELL_COMMAND(unwired_shell_panid_command, "panid", "panid <set/get> <panid(ABCD
 
 PROCESS(unwired_shell_channel_process, "channel");
 SHELL_COMMAND(unwired_shell_channel_command, "channel", "channel <set/get> <num>: set/get radio channel", &unwired_shell_channel_process);
-
-PROCESS(unwired_shell_bootloader_process, "bootloader");
-SHELL_COMMAND(unwired_shell_bootloader_command, "bootloader", "bootloader: bootloader start", &unwired_shell_bootloader_process);
 
 PROCESS(unwired_shell_address_process, "address");
 SHELL_COMMAND(unwired_shell_address_command, "address", "address: show net address", &unwired_shell_address_process);
@@ -116,7 +110,7 @@ static uint8_t parse_args(char *args_string, char **args, uint8_t max_args)
 PROCESS_THREAD(unwired_shell_uptime_process, ev, data)
 {
 	PROCESS_BEGIN();
-	printf( "Uptime: %" PRIu32 " sec, %" PRIu16 " ms\n", rtc_s(), rtc_ms());
+	printf( "[CMD] Uptime: %" PRIu32 " sec, %" PRIu16 " ms\n", rtc_s(), rtc_ms());
 	printf("\n");
 	PROCESS_END();
 }
@@ -127,7 +121,7 @@ PROCESS_THREAD(unwired_shell_time_process, ev, data)
 {
 	PROCESS_BEGIN();
 	time_data_t time = get_epoch_time();
-	printf( "RTC: %" PRIu32 " sec, %" PRIu16 " ms\n", time.seconds, time.milliseconds);
+	printf( "[CMD] RTC: %" PRIu32 " sec, %" PRIu16 " ms\n", time.seconds, time.milliseconds);
 	printf("\n");
 	PROCESS_END();
 }
@@ -142,50 +136,31 @@ PROCESS_THREAD(unwired_shell_status_process, ev, data)
 	if(dag)
 	{
 		uip_ipaddr_t *ipaddr_parent = rpl_get_parent_ipaddr(dag->preferred_parent);
-		printf("STATUS: rpl parent ip address: ");
+		printf("[CMD] Status: rpl parent ip address: ");
 		uip_debug_ipaddr_print(ipaddr_parent);
 		printf("\n");
 
 		uip_ipaddr_t dag_id_addr = dag->dag_id;
-		printf("STATUS: rpl dag root ip address: ");
+		printf("[CMD] Status: rpl dag root ip address: ");
 		uip_debug_ipaddr_print(&dag_id_addr);
 		printf("\n");
 
 		const struct link_stats *stat_parent = rpl_get_parent_link_stats(dag->preferred_parent);
-		printf("STATUS: rpl parent last tx: %u sec ago\n", (unsigned)((clock_time() - stat_parent->last_tx_time) / (CLOCK_SECOND)));
+		printf("[CMD] Status: rpl parent last tx: %u sec ago\n", (unsigned)((clock_time() - stat_parent->last_tx_time) / (CLOCK_SECOND)));
 
-		printf("STATUS: rpl parent rssi: %" PRId16 "\n", stat_parent->rssi);
+		printf("[CMD] Status: rpl parent rssi: %" PRId16 "\n", stat_parent->rssi);
 
 		int parent_is_reachable = rpl_parent_is_reachable(dag->preferred_parent);
-		printf("STATUS: rpl parent is reachable: %" PRId16 "\n", parent_is_reachable);
+		printf("[CMD] Status: rpl parent is reachable: %" PRId16 "\n", parent_is_reachable);
 	}
 	else
 	{
-		printf("STATUS: not join to net, net status not available\n");
+		printf("[CMD] Status: not join to net, net status not available\n");
 	}
 	uint8_t temp = (uint8_t)batmon_sensor.value(BATMON_SENSOR_TYPE_TEMP);
-	printf("STATUS: temp: %"PRIu8"C, voltage: %"PRId16"mv\n", temp, ((batmon_sensor.value(BATMON_SENSOR_TYPE_VOLT) * 125) >> 5));
+	printf("[CMD] Status: temp: %"PRIu8"C, voltage: %"PRId16"mv\n", temp, ((batmon_sensor.value(BATMON_SENSOR_TYPE_VOLT) * 125) >> 5));
 
 	printf("\n");
-	PROCESS_END();
-}
-
-/*---------------------------------------------------------------------------*/
-
-PROCESS_THREAD(unwired_shell_timesync_process, ev, data)
-{
-	PROCESS_BEGIN();
-	//send_time_sync_req_packet();
-	PROCESS_END();
-}
-
-/*---------------------------------------------------------------------------*/
-
-PROCESS_THREAD(unwired_shell_bootloader_process, ev, data)
-{
-	PROCESS_BEGIN();
-	printf("Bootloader: bootloader activate\n");
-	ti_lib_flash_sector_erase(0x0001F000);
 	PROCESS_END();
 }
 
@@ -200,11 +175,11 @@ PROCESS_THREAD(unwired_shell_address_process, ev, data)
 	if (dag)
 	{
 		uip_ipaddr_t ipaddr_node = dag->dag_id;
-		printf("ADDRESS: node full ipv6 address: ");
+		printf("[CMD] Address: node full ipv6 address: ");
 		uip_debug_ipaddr_print(&ipaddr_node);
 		printf("\n");
 
-		printf("ADDRESS: unwired net address: ");
+		printf("[CMD] Address: unwired net address: ");
 		printf("%"PRIXX8"%"PRIXX8"%"PRIXX8"%"PRIXX8"%"PRIXX8"%"PRIXX8"%"PRIXX8"%"PRIXX8"",
 		((uint8_t *)&ipaddr_node)[8],
 		((uint8_t *)&ipaddr_node)[9],
@@ -218,7 +193,7 @@ PROCESS_THREAD(unwired_shell_address_process, ev, data)
 	}
 	else
 	{
-		printf("ADDRESS: not join to net, local address not available\n");
+		printf("[CMD] Address: not join to net, local address not available\n");
 	}
 
 	printf("\n");
@@ -239,7 +214,7 @@ PROCESS_THREAD(unwired_shell_channel_process, ev, data)
 	argc = parse_args(data, args, max_args);
 	if (argc < 1)
 	{
-		printf("Channel: No args! Use \"channel <set/get> <num>\"\n");
+		printf("[CMD] Channel: No args! Use \"channel <set/get> <num>\"\n");
 		printf("\n");
 		PROCESS_EXIT();
 	}
@@ -252,13 +227,13 @@ PROCESS_THREAD(unwired_shell_channel_process, ev, data)
 		if (ti_lib_chipinfo_chip_family_is_cc26xx())
 		{
 			uint32_t freq_mhz = (2405 + 5 * (channel - 11));
-			printf("Channel get: Current radio-channel: %"PRIint" (%"PRIu32" MHz)\n", (int)channel, freq_mhz);
+			printf("[CMD] Channel get: Current radio-channel: %"PRIint" (%"PRIu32" MHz)\n", (int)channel, freq_mhz);
 		}
 
 		if (ti_lib_chipinfo_chip_family_is_cc13xx())
 		{
 			uint32_t freq_khz = 863125 + (channel * 200);
-			printf("Channel get: Current radio-channel: %"PRIint" (%"PRIu32" kHz)\n", (int)channel, freq_khz);
+			printf("[CMD] Channel get: Current radio-channel: %"PRIint" (%"PRIu32" kHz)\n", (int)channel, freq_khz);
 		}
 	}
 
@@ -275,7 +250,7 @@ PROCESS_THREAD(unwired_shell_channel_process, ev, data)
 
 		if (status != STR2INT_SUCCESS)
 		{
-			printf("Channel set error: Incorrect channel number arg\n");
+			printf("[CMD] Channel set error: Incorrect channel number arg\n");
 			printf("\n");
 			PROCESS_EXIT();
 		}
@@ -284,11 +259,11 @@ PROCESS_THREAD(unwired_shell_channel_process, ev, data)
 		if (ti_lib_chipinfo_chip_family_is_cc26xx())
 		{
 			if (channel > cc2650_max_channel || channel < cc2650_min_channel)
-				printf("Channel set error: Select a channel in the range %"PRIu8"-%"PRIu8"\n", cc2650_min_channel, cc2650_max_channel);
+				printf("[CMD] Channel set error: Select a channel in the range %"PRIu8"-%"PRIu8"\n", cc2650_min_channel, cc2650_max_channel);
 			else
 			{
 				uint32_t freq_mhz = (2405 + 5 * (channel - 11));
-				printf("Channel: Set new radio-channel: %"PRIu8" (%"PRIu32" MHz)\n", channel, freq_mhz);
+				printf("[CMD] Channel: Set new radio-channel: %"PRIu8" (%"PRIu32" MHz)\n", channel, freq_mhz);
 				NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, channel);
 				channel_update(channel);
 			}
@@ -297,17 +272,17 @@ PROCESS_THREAD(unwired_shell_channel_process, ev, data)
 		if (ti_lib_chipinfo_chip_family_is_cc13xx())
 		{
 			if (channel > cc1310_max_channel || channel < cc1310_min_channel)
-				printf("Channel set error: Select a channel in the range %"PRIu8"-%"PRIu8"\n", cc1310_min_channel, cc1310_max_channel);
+				printf("[CMD] Channel set error: Select a channel in the range %"PRIu8"-%"PRIu8"\n", cc1310_min_channel, cc1310_max_channel);
 			else if (channel == 30 || channel == 29)
 			{
 				uint32_t freq_khz = 863125 + (channel * 200);
-				printf("Channel: Set new radio-channel: %"PRIu8" (%"PRIu32" kHz)\n", channel, freq_khz);
+				printf("[CMD] Channel: Set new radio-channel: %"PRIu8" (%"PRIu32" kHz)\n", channel, freq_khz);
 				NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, channel);
 				channel_update(channel);
 			}
 			else
 			{
-				printf("Channel set error: Сhannel %" PRIu8 " is not available in the current region(only 29/30 ch). ¯\\_(ツ)_/¯\n", channel);
+				printf("[CMD] Channel set error: Сhannel %" PRIu8 " is not available in the current region(only 29/30 ch). ¯\\_(ツ)_/¯\n", channel);
 				printf("\n");
 				PROCESS_EXIT();
 			}
@@ -331,7 +306,7 @@ PROCESS_THREAD(unwired_shell_panid_process, ev, data)
 	argc = parse_args(data, args, max_args);
 	if (argc < 1)
 	{
-		printf("PAN ID: No args! Use \"panid <set/get> <panid(ABCD)>\", value in hex\n");
+		printf("[CMD] PAN ID: No args! Use \"panid <set/get> <panid(ABCD)>\", value in hex\n");
 		PROCESS_EXIT();
 	}
 
@@ -341,11 +316,11 @@ PROCESS_THREAD(unwired_shell_panid_process, ev, data)
 		{
 			radio_value_t panid = 0;
 			NETSTACK_RADIO.get_value(RADIO_PARAM_PAN_ID, &panid);
-			printf("PAN ID: Current ID %"PRIXX16"\n", panid);
+			printf("[CMD] PAN ID: Current ID %"PRIXX16"\n", panid);
 		}
 		else
 		{
-			printf("PAN ID: Not support in cc1310\n");
+			printf("[CMD] PAN ID: Not support in cc1310\n");
 		}
 
 	}
@@ -358,13 +333,13 @@ PROCESS_THREAD(unwired_shell_panid_process, ev, data)
 			str2int_errno_t status = hex_str2uint16(&panid, args[1]);
 			if (status != STR2INT_SUCCESS)
 			{
-				printf("PAN ID set error: Incorrect id value\n");
+				printf("[CMD] PAN ID set error: Incorrect id value\n");
 				printf("\n");
 				PROCESS_EXIT();
 			}
 			NETSTACK_RADIO.set_value(RADIO_PARAM_PAN_ID, panid);
 			panid_update(panid);
-			printf("PAN ID: Set new ID %"PRIXX16"\n", panid);
+			printf("[CMD] PAN ID: Set new ID %"PRIXX16"\n", panid);
 		}
 		else
 		{
@@ -395,7 +370,7 @@ PROCESS_THREAD(unwired_shell_cryptokey_process, ev, data)
 	argc = parse_args(data, args, max_args);
 	if(argc == 0)
 	{
-		printf("CryptoKey: No args! Use \"cryptokey <set/get> <AES-128 Key(xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx)>\"\n");
+		printf("[CMD] CryptoKey: No args! Use \"cryptokey <set/get> <AES-128 Key(xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx)>\"\n");
 		PROCESS_EXIT();
 	}
 
@@ -404,7 +379,7 @@ PROCESS_THREAD(unwired_shell_cryptokey_process, ev, data)
 		if(!strncmp(args[0], "get", 3))
 		{
 			uint8_t *key = get_aes128_key();
-			printf("AES-128 Key:");
+			printf("[CMD] AES-128 Key:");
 			for (uint8_t i = 0; i < 16; i++)
 				printf(" %"PRIXX8, key[i]);
 			printf("\n");
@@ -424,7 +399,7 @@ PROCESS_THREAD(unwired_shell_cryptokey_process, ev, data)
 				
 				if (status != STR2INT_SUCCESS)
 				{
-					printf("AES-128 Key set error: Incorrect key arg\n");
+					printf("[CMD] AES-128 Key set error: Incorrect key arg\n");
 					PROCESS_EXIT();
 				}	
 			}
@@ -432,7 +407,7 @@ PROCESS_THREAD(unwired_shell_cryptokey_process, ev, data)
 			aes128_key_update(new_aes128_key);
 			
 			uint8_t *key = get_aes128_key();
-			printf("AES-128 Key set:");
+			printf("[CMD] AES-128 Key set:");
 			for (uint8_t i = 0; i < 16; i++)
 				printf(" %"PRIXX8, key[i]);
 			printf("\n");
@@ -441,8 +416,8 @@ PROCESS_THREAD(unwired_shell_cryptokey_process, ev, data)
 		}
 	}
 	
-	printf("AES-128 Key set error: Incorrect key arg\n");
-	printf("Use \"cryptokey <set/get> <AES-128 Key(xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx)>\"\n");
+	printf("[CMD] AES-128 Key set error: Incorrect key arg\n");
+	printf("[CMD] Use \"cryptokey <set/get> <AES-128 Key(xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx xx)>\"\n");
 	printf("\n");
 	PROCESS_END();
 }
@@ -453,11 +428,9 @@ void unwired_shell_init(void)
 {
 	shell_register_command(&unwired_shell_time_command);
 	shell_register_command(&unwired_shell_uptime_command);
-	shell_register_command(&unwired_shell_timesync_command);
 	shell_register_command(&unwired_shell_status_command);
 	shell_register_command(&unwired_shell_channel_command);
 	shell_register_command(&unwired_shell_panid_command);
-	shell_register_command(&unwired_shell_bootloader_command);
 	shell_register_command(&unwired_shell_address_command);
 	shell_register_command(&unwired_shell_cryptokey_command);
 }

@@ -121,6 +121,39 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 				printf("UDM: Button E long click, reboot\n");
 			watchdog_reboot();
 		}
+		if (ev == sensors_event && data == &button_e_sensor_click)
+		{	
+			/*Включаем светодиод*/
+			led_on(LED_A); 
+			
+			/*Адрес DAG'а*/
+			static uip_ipaddr_t dest_addr;
+			uip_ip6addr(&dest_addr, 0xFD00, 0x0, 0x0, 0x0, 0x0212, 0x4B00, 0x0C46, 0x8D03);
+
+			/*Отправка настроек канала ШИМ'а*/
+			// pwm_settings_sender(&dest_addr, 0, 100, 20);
+			// pwm_settings_sender(&dest_addr, 1, 100, 30);
+			// pwm_settings_sender(&dest_addr, 2, 100, 40);
+			// pwm_settings_sender(&dest_addr, 3, 100, 50);
+			// pwm_settings_sender(&dest_addr, 4, 100, 60);
+			// pwm_settings_sender(&dest_addr, 5, 100, 70);
+			
+			
+			/*Отправка команды включения/выключения канала ШИМ'а*/
+			// pwm_power_channel_sender(&dest_addr, 0, 1);
+			// pwm_power_channel_sender(&dest_addr, 1, 1);
+			// pwm_power_channel_sender(&dest_addr, 2, 1);
+			// pwm_power_channel_sender(&dest_addr, 3, 1);
+			// pwm_power_channel_sender(&dest_addr, 4, 1);
+			// pwm_power_channel_sender(&dest_addr, 5, 1);
+			
+			
+			if(uart_status_r() == 0)
+				printf("UDM: PWM SETTINGS SENT\n");
+			
+			/*Выключаем светодиод*/
+			led_off(LED_A);
+		}
 	}
 
 	PROCESS_END();

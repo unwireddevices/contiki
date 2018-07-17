@@ -60,7 +60,7 @@
 #include "system-common.h"
 #include "radio_power.h"
 
-#include "uart.h"
+#include "pwm_fet.h"
 
 #include "ti-lib.h"
 #include "dev/cc26xx-uart.h"
@@ -86,7 +86,7 @@ AUTOSTART_PROCESSES(&main_process);
 PROCESS_THREAD(main_process, ev, data)
 {
 	PROCESS_BEGIN();
-	printf("Start Unwired Button device.\n");
+	printf("Start Unwired PWM device.\n");
 	PROCESS_PAUSE();
 	
 	if (BOARD_IOID_UART_RX == IOID_UNUSED)
@@ -109,7 +109,7 @@ PROCESS_THREAD(main_process, ev, data)
 	
 	process_start(&dag_node_process, NULL);					/*Запуск ноды*/
 	
-	opt3001_init();
+	// opt3001_init();
 	// opt3001_measure();
 	
 	// pwm_config(0, 100, 20, IOID_5); //channel, frequency, duty, pin
@@ -150,7 +150,21 @@ PROCESS_THREAD(main_process, ev, data)
 			
 			if (data == &button_e_sensor_click)
 			{
-				printf("[UMDK-LIT] Luminocity: %lu lux\n", opt3001_measure());
+				pwm_config(0, 100, 20, IOID_5); //channel, frequency, duty, pin
+				pwm_config(1, 100, 30, IOID_6); //channel, frequency, duty, pin
+				pwm_config(2, 100, 40, IOID_7); //channel, frequency, duty, pin
+				pwm_config(3, 100, 50, IOID_24); //channel, frequency, duty, pin
+				pwm_config(4, 100, 60, IOID_25); //channel, frequency, duty, pin
+				pwm_config(5, 100, 70, IOID_26); //channel, frequency, duty, pin
+
+				pwm_start(0);
+				pwm_start(1);
+				pwm_start(2);
+				pwm_start(3);
+				pwm_start(4);
+				pwm_start(5);
+
+				// printf("[UMDK-LIT] Luminocity: %lu lux\n", opt3001_measure());
 			}
 		}
 	}

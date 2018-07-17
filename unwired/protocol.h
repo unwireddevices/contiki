@@ -62,7 +62,9 @@
 #define JOIN_STAGE_4_PAYLOAD_LENGTH 	CRYPTO_1_BLOCK_LENGTH
 #define PING_PAYLOAD_LENGTH 			CRYPTO_1_BLOCK_LENGTH
 #define PONG_PAYLOAD_LENGTH 			STATUS_CODE_LENGTH + CRYPTO_1_BLOCK_LENGTH
-#define BUTTON_STATUS_PAYLOAD_LENGTH	1
+#define BUTTON_STATUS_PAYLOAD_LENGTH	CRYPTO_1_BLOCK_LENGTH
+#define PWM_SETTINGS_PAYLOAD_LENGTH		CRYPTO_1_BLOCK_LENGTH
+#define PWM_POWER_PAYLOAD_LENGTH		CRYPTO_1_BLOCK_LENGTH
 
 #define HEADER_LENGTH 					9
 #define JOIN_STAGE_1_LENGTH 			SERIAL_LENGTH
@@ -72,6 +74,8 @@
 #define PING_LENGTH 					ARRAY_OF_ZEROS_LENGTH
 #define PONG_LENGTH 					STATUS_CODE_LENGTH + ARRAY_OF_ZEROS_LENGTH
 #define BUTTON_STATUS_LENGTH 			1
+#define PWM_SETTINGS_LENGTH 			6
+#define PWM_POWER_LENGTH 				1
 
 #define OFFSET_0_BYTE 					0
 #define OFFSET_1_BYTE 					1
@@ -113,6 +117,8 @@
 #define UART_FROM_AIR_TO_TX					0x20 //Пакет с UART
 #define UART_FROM_RX_TO_AIR					0x21 //Пакет с UART
 #define BUTTON_STATUS						0x23 //Пакет статусом нажатой кнопки
+#define PWM_SETTINGS						0x24 //Пакет с настройкоами ШИМ канала
+#define PWM_POWER							0x25 //Команда включения/выключения канала ШИМ'а
 
 /*---------------------------------------------------------------------------*/
 
@@ -214,6 +220,16 @@ typedef struct {
 typedef struct {		
 	uint8_t button_status;
 } button_status_t;
+
+typedef struct {
+	uint32_t frequency;
+	uint8_t channel;
+	uint8_t duty;
+} pwm_settings_t;
+
+typedef struct {		
+	uint8_t pwm_power;
+} pwm_power_t;
 
 /*---------------------------------------------------------------------------*/
 

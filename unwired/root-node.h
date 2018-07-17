@@ -59,6 +59,17 @@ void udp_data_receiver(struct simple_udp_connection *connection,
                        const uint8_t *data,
                        uint16_t datalen);
 
+/*Отправка настроек канала ШИМ'а*/
+void pwm_settings_sender(const uip_ip6addr_t *dest_addr, 
+						uint8_t channel, 
+						uint32_t frequency, 
+						uint8_t duty);
+
+/*Отправка команды включения/выключения канала ШИМ'а*/
+void pwm_power_channel_sender ( const uip_ip6addr_t *dest_addr, 
+								uint8_t channel, 
+								uint8_t pwm_power_channel);
+						
 /*Иннициализация RPL*/
 void rpl_initialize();
 

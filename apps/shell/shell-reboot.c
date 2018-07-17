@@ -58,7 +58,7 @@ PROCESS_THREAD(shell_reboot_process, ev, data)
 
   PROCESS_BEGIN();
 
-  shell_output_str(&reboot_command, "Rebooting...", "");
+  shell_output_str(&reboot_command, "[CMD] Rebooting...", "");
   watchdog_reboot();
 
   PROCESS_END();

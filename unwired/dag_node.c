@@ -89,9 +89,6 @@
 #define FALSE							0x00
 #define TRUE							0x01
 
-
-// #define WAIT_RESPONSE					0.150 	//Максимальное время ожидания ответа от счетчика в секундах
-
 #define CC26XX_UART_INTERRUPT_ALL ( UART_INT_OE | UART_INT_BE | UART_INT_PE | \
 									UART_INT_FE | UART_INT_RT | UART_INT_TX | \
 									UART_INT_RX | UART_INT_CTS)
@@ -106,9 +103,6 @@ volatile uint8_t led_mode;
 volatile uint8_t non_answered_ping = 0;	/*Количество неотвеченых пингов*/
 
 static struct etimer maintenance_timer;	/*Таймер*/
-
-// static struct ctimer wait_response; 	/*Таймер который запускатся после выдачи сообщения счетчику, если счетчик не ответил за это время, то сообщение принятые данные не передаются root'у*/
-// static bool wait_response_slave = 0; 	/*Переменная которая отражает состояние таймера*/
 
 /*Счетчик пакетов*/
 static volatile union 
@@ -158,13 +152,15 @@ static void pong_handler(const uip_ipaddr_t *sender_addr,
 						const uint8_t *data,
 						uint16_t datalen);
 								
-// /*Передает данные полученные из радио от ROOT'а на счетчик через UART*/
-// static void uart_from_air ( const uip_ipaddr_t *sender_addr,
-							// const uint8_t *data,
-							// uint16_t datalen);
+/*Инициализация с заданными настройками канала ШИМ'а*/
+static void dag_pwm_settings(const uip_ipaddr_t *sender_addr,
+							const uint8_t *data,
+							uint16_t datalen);
 
-// /*Сбрасывает переменную которая показывает ожидаем ли мы ответ от счетчика*/
-// static void wait_response_reset(void *ptr);
+/*Включение/выключение канала ШИМ'а*/
+static void dag_pwm_power (	const uip_ipaddr_t *sender_addr,
+							const uint8_t *data,
+							uint16_t datalen);
 
 /*---------------------------------------------------------------------------*/
 /*ПРОТОТИПЫ ПРОЦЕССОВ*/
@@ -237,11 +233,17 @@ static void udp_receiver(struct simple_udp_connection *c,
 				pong_handler(sender_addr, data, datalen);
 			}
 			
-			// else if (header_pack->data_type == UART_FROM_AIR_TO_TX)
-			// {
-				// /*Передает данные полученные из радио от root'а на счетчик через UART*/
-				// uart_from_air(sender_addr, data, datalen);
-			// }
+			else if (header_pack->data_type == PWM_SETTINGS)
+			{
+				/*Инициализация с заданными настройками канала ШИМ'а*/
+				dag_pwm_settings(sender_addr, data, datalen);
+			}
+			
+			else if (header_pack->data_type == PWM_POWER)
+			{
+				/*Включение/выключение канала ШИМ'а*/
+				dag_pwm_power(sender_addr, data, datalen);
+			}
 			
 			else
 			{
@@ -502,6 +504,79 @@ static void pong_handler(const uip_ipaddr_t *sender_addr,
 }
 
 /*---------------------------------------------------------------------------*/
+/*Инициализация с заданными настройками канала ШИМ'а*/
+static void dag_pwm_settings(const uip_ipaddr_t *sender_addr,
+							const uint8_t *data,
+							uint16_t datalen)
+{
+	/*Проверка на то что передан существующий адрес*/
+	if (sender_addr == NULL)
+		return;
+
+	/*Отражаем структуры на массивы*/ 
+	pwm_settings_t *pwm_settings_pack = (pwm_settings_t*)&aes_buffer[0];
+	
+	/*Расшифровываем данные*/
+	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[PAYLOAD_OFFSET], (uint32_t*)(aes_buffer), CRYPTO_1_BLOCK_LENGTH);
+	
+	if(pwm_settings_pack->channel == 0)
+	{
+		pwm_config(pwm_settings_pack->channel, pwm_settings_pack->frequency, pwm_settings_pack->duty, IOID_5);
+	}
+	
+	else if(pwm_settings_pack->channel == 1)
+	{
+		pwm_config(pwm_settings_pack->channel, pwm_settings_pack->frequency, pwm_settings_pack->duty, IOID_6);
+	}
+	else if(pwm_settings_pack->channel == 2)
+	{
+		pwm_config(pwm_settings_pack->channel, pwm_settings_pack->frequency, pwm_settings_pack->duty, IOID_7);
+	}
+	else if(pwm_settings_pack->channel == 3)
+	{
+		pwm_config(pwm_settings_pack->channel, pwm_settings_pack->frequency, pwm_settings_pack->duty, IOID_24);
+	}
+	else if(pwm_settings_pack->channel == 4)
+	{
+		pwm_config(pwm_settings_pack->channel, pwm_settings_pack->frequency, pwm_settings_pack->duty, IOID_25);
+	}
+	else if(pwm_settings_pack->channel == 5)
+	{
+		pwm_config(pwm_settings_pack->channel, pwm_settings_pack->frequency, pwm_settings_pack->duty, IOID_26);
+	}
+}
+
+/*---------------------------------------------------------------------------*/
+/*Включение/выключение канала ШИМ'а*/
+static void dag_pwm_power (	const uip_ipaddr_t *sender_addr,
+							const uint8_t *data,
+							uint16_t datalen)
+{
+	/*Проверка на то что передан существующий адрес*/
+	if (sender_addr == NULL)
+		return;
+
+	/*Отражаем структуры на массивы*/ 
+	pwm_power_t *pwm_power_pack = (pwm_power_t*)&aes_buffer[0];
+	
+	/*Расшифровываем данные*/
+	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[PAYLOAD_OFFSET], (uint32_t*)(aes_buffer), CRYPTO_1_BLOCK_LENGTH);
+	
+	uint8_t pwm_channel = pwm_power_pack->pwm_power & 0x7F;
+	uint8_t pwm_power = ((pwm_power_pack->pwm_power & 0x80) >> 7); 
+	
+	if(pwm_power)
+	{
+		pwm_start(pwm_channel);
+	}
+	
+	else
+	{
+		pwm_stop(pwm_channel);
+	}
+}
+
+/*---------------------------------------------------------------------------*/
 /*Функция отправки состояния кнопок*/
 void button_status_sender ( uint8_t button_number,
 							uint8_t click_type)
@@ -514,7 +589,7 @@ void button_status_sender ( uint8_t button_number,
 	
 	/*Отражаем структуры на массивы*/ 
 	header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
-	button_status_t *button_status_pack = (button_status_t*)&udp_buffer[PAYLOAD_OFFSET];
+	button_status_t *button_status_pack = (button_status_t*)&aes_buffer[0];
 	
 	/*Заполняем пакет*/  
 	/*Header*/ 
@@ -538,15 +613,15 @@ void button_status_sender ( uint8_t button_number,
 	else if (click_type == LONG_CLICK)
 		button_status_pack->button_status |= LONG_CLICK;
 	
-	/*Заполняем пакет нулями, зашифровываем и отправляем его ROOT'у. */ 
-	// for(uint8_t i = 0; i < 16; i++)
-		// ping_pack->array_of_zeros[i] = 0x00;
+	/*Дозаполняем пакет нулями, зашифровываем и отправляем его ROOT'у. */ 
+	for(uint8_t i = BUTTON_STATUS_LENGTH; i < 16; i++)
+		aes_buffer[i] = 0x00;
 	
-	// /*Зашифровываем данные*/
-	// aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[PAYLOAD_OFFSET]), CRYPTO_1_BLOCK_LENGTH);
+	/*Зашифровываем данные*/
+	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[PAYLOAD_OFFSET]), CRYPTO_1_BLOCK_LENGTH);
 	
 	/*Для отладки. Выводит содержимое пакета*/ 
-	// printf("Ping_sender pack:\n");
+	// printf("button_status_sender pack:\n");
 	// hexraw_print((HEADER_LENGTH + PING_PAYLOAD_LENGTH), udp_buffer);
 	// printf("\n");
 	

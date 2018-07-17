@@ -60,7 +60,7 @@
 #include "system-common.h"
 #include "radio_power.h"
 
-#include "uart.h"
+#include "lit.h"
 
 #include "ti-lib.h"
 #include "dev/cc26xx-uart.h"

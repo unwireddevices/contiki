@@ -133,3 +133,28 @@ output PWM signal.*/
 /*In PWM timing mode, the timer continues to run after the PWM signal is generated. The PWM period can
 be adjusted at any time by writing the GPT:TnILR register, and the change takes effect at the next cycle
 after the write.*/
+
+
+	/*Проверка на то что передан существующий адрес*/
+	if (sender_addr == NULL)
+		return;
+
+	/*Отражаем структуры на массивы*/ 
+	pwm_power_t *pwm_power_pack = (pwm_power_t*)&aes_buffer[0];
+	
+	/*Расшифровываем данные*/
+	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[PAYLOAD_OFFSET], (uint32_t*)(aes_buffer), CRYPTO_1_BLOCK_LENGTH);
+	
+	uint8_t pwm_channel = pwm_power_pack->pwm_power & 0x7F;
+	uint8_t pwm_power = ((pwm_power_pack->pwm_power & 0x80) >> 7); 
+	
+	if(pwm_power)
+	{
+		pwm_start(pwm_channel);
+	}
+	
+	else
+	{
+		pwm_stop(pwm_channel);
+	}
+	
