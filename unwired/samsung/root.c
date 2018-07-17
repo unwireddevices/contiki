@@ -130,6 +130,8 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 			static uip_ipaddr_t dest_addr;
 			uip_ip6addr(&dest_addr, 0xFD00, 0x0, 0x0, 0x0, 0x0212, 0x4B00, 0x0C46, 0x8D03);
 
+			lit_measurement_sender(&dest_addr);
+			
 			/*Отправка настроек канала ШИМ'а*/
 			// pwm_settings_sender(&dest_addr, 0, 100, 20);
 			// pwm_settings_sender(&dest_addr, 1, 100, 30);
@@ -149,7 +151,7 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 			
 			
 			if(uart_status_r() == 0)
-				printf("UDM: PWM SETTINGS SENT\n");
+				printf("UDM: LIT MEASURE SENT\n");
 			
 			/*Выключаем светодиод*/
 			led_off(LED_A);

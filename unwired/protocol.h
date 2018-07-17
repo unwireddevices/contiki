@@ -65,6 +65,7 @@
 #define BUTTON_STATUS_PAYLOAD_LENGTH	CRYPTO_1_BLOCK_LENGTH
 #define PWM_SETTINGS_PAYLOAD_LENGTH		CRYPTO_1_BLOCK_LENGTH
 #define PWM_POWER_PAYLOAD_LENGTH		CRYPTO_1_BLOCK_LENGTH
+#define LIT_MEASURE_PAYLOAD_LENGTH		CRYPTO_1_BLOCK_LENGTH
 
 #define HEADER_LENGTH 					9
 #define JOIN_STAGE_1_LENGTH 			SERIAL_LENGTH
@@ -76,6 +77,7 @@
 #define BUTTON_STATUS_LENGTH 			1
 #define PWM_SETTINGS_LENGTH 			6
 #define PWM_POWER_LENGTH 				1
+#define LIT_MEASURE_LENGTH				4
 
 #define OFFSET_0_BYTE 					0
 #define OFFSET_1_BYTE 					1
@@ -119,6 +121,7 @@
 #define BUTTON_STATUS						0x23 //Пакет статусом нажатой кнопки
 #define PWM_SETTINGS						0x24 //Пакет с настройкоами ШИМ канала
 #define PWM_POWER							0x25 //Команда включения/выключения канала ШИМ'а
+#define LIT_MEASURE							0x26 //Команда замера освещенности
 
 /*---------------------------------------------------------------------------*/
 
@@ -230,6 +233,10 @@ typedef struct {
 typedef struct {		
 	uint8_t pwm_power;
 } pwm_power_t;
+
+typedef struct {		
+	uint32_t lit_measure;
+} lit_measure_t;
 
 /*---------------------------------------------------------------------------*/
 

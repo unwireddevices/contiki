@@ -66,8 +66,7 @@
 #include "dev/cc26xx-uart.h"
 #include "../dag_node.h"
 
-#include "../../cpu/cc26xx-cc13xx/dev/pwm.h" /*PWM*/
-#include "../../platform/unwired/udboards/opt3001.h" /*PWM*/
+#include "../../platform/unwired/udboards/opt3001.h" /*LIT*/
 
 #include "net/rpl/rpl-private.h"
 

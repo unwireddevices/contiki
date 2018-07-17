@@ -161,6 +161,11 @@ static void dag_pwm_settings(const uip_ipaddr_t *sender_addr,
 static void dag_pwm_power (	const uip_ipaddr_t *sender_addr,
 							const uint8_t *data,
 							uint16_t datalen);
+							
+/*Совершить замер освещенности*/
+static void dag_lit_measure_sender( const uip_ipaddr_t *sender_addr,
+									const uint8_t *data,
+									uint16_t datalen);
 
 /*---------------------------------------------------------------------------*/
 /*ПРОТОТИПЫ ПРОЦЕССОВ*/
@@ -243,6 +248,12 @@ static void udp_receiver(struct simple_udp_connection *c,
 			{
 				/*Включение/выключение канала ШИМ'а*/
 				dag_pwm_power(sender_addr, data, datalen);
+			}
+			
+			else if (header_pack->data_type == LIT_MEASURE)
+			{
+				/*Совершить замер освещенности*/
+				dag_lit_measure_sender(sender_addr, data, datalen);
 			}
 			
 			else
@@ -574,6 +585,57 @@ static void dag_pwm_power (	const uip_ipaddr_t *sender_addr,
 	{
 		pwm_stop(pwm_channel);
 	}
+}
+
+/*---------------------------------------------------------------------------*/
+/*Совершить замер освещенности*/
+static void dag_lit_measure_sender( const uip_ipaddr_t *sender_addr,
+									const uint8_t *data,
+									uint16_t datalen)
+{
+	uip_ipaddr_t addr;						/*Выделяем память для адреса на который отправится пакет*/
+	uip_ip6addr_copy(&addr, &root_addr);	/*Копируем адрес ROOT'а*/
+	
+	/*Выделяем память под пакет. Общий размер пакета (header + payload)*/
+	uint8_t udp_buffer[HEADER_LENGTH + LIT_MEASURE_PAYLOAD_LENGTH];	
+	
+	/*Отражаем структуры на массивы*/ 
+	header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
+	lit_measure_t *lit_measure_pack = (lit_measure_t*)&aes_buffer[0];
+	
+	/*Заполняем пакет*/  
+	/*Header*/ 
+	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
+	header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
+	header_pack->data_type = LIT_MEASURE;						/*Тип пакета*/  
+	header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
+	header_pack->temperature = get_temperature();				/*Температура*/ 
+	header_pack->voltage = get_voltage();						/*Напряжение*/ 
+	header_pack->counter.u16 = packet_counter_node.u16;			/*Счетчик пакетов*/ 
+	header_pack->length = LIT_MEASURE_LENGTH;					/*Размер пакета*/
+
+	/*Payload*/ 
+	lit_measure_pack->lit_measure = opt3001_measure();
+	
+	printf("[DAG Node] Send LIT measure packet to DAG-root node\n");
+	printf("[UMDK-LIT] Luminocity: %lu lux\n", lit_measure_pack->lit_measure);
+	
+	/*Дозаполняем пакет нулями, зашифровываем и отправляем его ROOT'у. */ 
+	for(uint8_t i = LIT_MEASURE_LENGTH; i < 16; i++)
+		aes_buffer[i] = 0x00;
+	
+	/*Зашифровываем данные*/
+	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[PAYLOAD_OFFSET]), CRYPTO_1_BLOCK_LENGTH);
+	
+	/*Для отладки. Выводит содержимое пакета*/ 
+	// printf("button_status_sender pack:\n");
+	// hexraw_print((HEADER_LENGTH + LIT_MEASURE_LENGTH), udp_buffer);
+	// printf("\n");
+	
+	/*Отправляем пакет*/ 
+	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_LENGTH + LIT_MEASURE_PAYLOAD_LENGTH), &addr);
+	packet_counter_node.u16++;		/*Инкрементируем счетчик пакетов*/
+	led_mode_set(LED_FLASH);		/*Мигаем светодиодом*/
 }
 
 /*---------------------------------------------------------------------------*/

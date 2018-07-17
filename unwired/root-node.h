@@ -69,6 +69,9 @@ void pwm_settings_sender(const uip_ip6addr_t *dest_addr,
 void pwm_power_channel_sender ( const uip_ip6addr_t *dest_addr, 
 								uint8_t channel, 
 								uint8_t pwm_power_channel);
+								
+/*Совершить замер освещенности*/
+void lit_measurement_sender(const uip_ip6addr_t *dest_addr);
 						
 /*Иннициализация RPL*/
 void rpl_initialize();
