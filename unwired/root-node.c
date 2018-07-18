@@ -95,10 +95,8 @@ static eeprom_t eeprom_root;			/*Настройки из EEPROM*/
 
 static uint16_t data_iterator = 0;		/*Счетчик принятых байтов из UART*/
 static struct timer timeout_timer;		/*Таймер срабатываем на пришедший по UART байт и перезапускается.*/
-// static struct ctimer wait_response;		/*Таймер который считает время ожидания ответа от DAG'а*/
 
 static bool uart = 0;					/*Отражает режим работы UART'а (UART или консоль)*/
-// static bool wait_response_slave = 0;	/*Отражает ожидаем ли мы ответа от DAG'а*/
 
 static uip_ipaddr_t null_addr;			/*Сравниваем с этим адресом (аналог nullptr)*/
 
@@ -746,7 +744,7 @@ void root_node_initialize()
 	simple_udp_register(&udp_connection, UDP_DATA_PORT, NULL, UDP_DATA_PORT, udp_data_receiver);
 
 	/*Устанавливаем обработчик входящих UART данных*/
-	cc26xx_uart_set_input(&uart_data_receiver);
+	// cc26xx_uart_set_input(&uart_data_receiver);
 
 	/*Мигнуть светодиодом*/
 	led_blink(LED_A);

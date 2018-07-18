@@ -60,20 +60,28 @@
 
 typedef  struct {
 	uint16_t panid; 				
-    uint8_t channel; 				
-	uint8_t interface; 				
-	uint8_t aes_key[16];		
-	uint32_t serial;				
+    uint8_t channel; 						
+	uint8_t aes_key[16];					
 	uint8_t panid_configured;
 	uint8_t channel_configured;	
-	uint8_t interface_configured;	
 	uint8_t aes_key_configured;		
-	uint8_t serial_configured;	
 } eeprom_t;
 
 /*---------------------------------------------------------------------------*/
 uint32_t write_eeprom(uint8_t *pui8DataBuffer, uint32_t ui32Count);
 void read_eeprom(uint8_t *pui8DataBuffer, uint32_t ui32Count);
+
+/*Обновляет ключ шифрования и перезагружает*/
+void aes128_key_update(const uint8_t *aes_key_new);
+
+// /*Возвращает указатель на массив в котором хранится ключ шифрования*/
+// uint8_t *get_aes128_key(void);
+
+/*Обновляет channel в EEPROM*/
+void channel_update(uint8_t channel_new);
+
+/*Обновляет PANID в EEPROM*/
+void panid_update(uint16_t panid_new);
 
 void user_flash_update_byte(uint8_t offset, uint8_t data);
 uint8_t user_flash_read_byte(uint8_t offset);

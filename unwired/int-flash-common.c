@@ -46,6 +46,8 @@
 #include "driverlib/vims.h"
 #include "xxf_types_helper.h"
 
+extern 
+
 /*---------------------------------------------------------------------------*/
 
 uint32_t write_eeprom(uint8_t *pui8DataBuffer, uint32_t ui32Count)

@@ -41,6 +41,9 @@
 #include "dev/leds.h"
 #include "cc26xx/board.h"
 
+#include "../../apps/serial-shell/serial-shell.h"
+#include "../../apps/shell/shell.h"
+
 #include "net/ip/uip.h"
 #include "net/ipv6/uip-ds6.h"
 #include "net/ip/uip-debug.h"
@@ -82,9 +85,23 @@ AUTOSTART_PROCESSES(&rpl_root_process);
 PROCESS_THREAD(rpl_root_process, ev, data)
 {
 	PROCESS_BEGIN();
-
+	
 	printf("Start Unwired RLP root.\n");
-		
+	
+	if (BOARD_IOID_UART_RX == IOID_UNUSED)
+	{
+		printf("[DAG Node] Shell not active, uart RX set to IOID_UNUSED\n");
+		cc26xx_uart_set_input(NULL);
+	}
+	else
+	{
+		serial_shell_init();
+		shell_reboot_init();
+		shell_time_init();
+		unwired_shell_init();
+		printf("[DAG Node] Shell activated, type \"help\" for command list\n");
+	}
+	
 	process_start(&settings_root_init, NULL);
 	PROCESS_YIELD_UNTIL(ev == PROCESS_EVENT_CONTINUE);
 	process_exit(&settings_root_init);

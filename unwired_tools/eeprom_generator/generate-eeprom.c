@@ -9,24 +9,20 @@
 FILE *eeprom_bin; 
 
 typedef  struct {
-	uint16_t panid; 		
-    uint8_t channel; 				
-	uint8_t interface; 				
-	uint8_t aes_key[16];		
-	uint32_t serial;				
+	uint16_t panid; 				
+    uint8_t channel; 						
+	uint8_t aes_key[16];					
 	uint8_t panid_configured;
 	uint8_t channel_configured;	
-	uint8_t interface_configured;	
 	uint8_t aes_key_configured;		
-	uint8_t serial_configured;	
-}eeprom_t;
+} eeprom_t;
 
-//generate-eeprom.exe [panid] [channel] [aes_key] [interface] [serial] 
-//generate-eeprom.exe 0xAABB 26 11223344556677889900AABBCCDDEEFF CAN 37622
+//generate-eeprom.exe [panid] [channel] [aes_key]
+//generate-eeprom.exe 0xAABB 26 11223344556677889900AABBCCDDEEFF
 
 int main(int argc, char *argv[]) 
 {
-	if (argc != 6) 
+	if (argc != 4) 
 	{
 		puts("Wrong number of arguments");
 		return -1;
@@ -63,44 +59,7 @@ int main(int argc, char *argv[])
 	else
 	{
 		printf("Error key\n");
-		eeprom.interface_configured = 0xFF;
-		return -1;
-	}
-	
-	if(!strncmp(argv[4], "rs485", 5))
-	{
-		eeprom.interface = INTERFACE_RS485;
-		eeprom.interface_configured = 0;
-	}
-	if(!strncmp(argv[4], "RS485", 5))
-	{
-		eeprom.interface = INTERFACE_RS485;
-		eeprom.interface_configured = 0;
-	}
-	else if(!strncmp(argv[4], "can", 3))
-	{
-		eeprom.interface = INTERFACE_CAN;
-		eeprom.interface_configured = 0;
-	}
-	else if(!strncmp(argv[4], "CAN", 3))
-	{
-		eeprom.interface = INTERFACE_CAN;
-		eeprom.interface_configured = 0;
-	}
-	else
-	{
-		printf("Unknown interface\n");
-		eeprom.interface_configured = 0xFF;
-		return -1;
-	}
-	
-	eeprom.serial = (uint32_t)(strtoul(argv[5], NULL, 10));
-	if(eeprom.serial >= 0 && eeprom.serial < 1000000)
-		eeprom.serial_configured = 0;
-	else
-	{
-		printf("Error serial\n");
-		eeprom.serial_configured = 0xFF;
+		eeprom.aes_key_configured = 0xFF;
 		return -1;
 	}
 

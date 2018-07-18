@@ -69,6 +69,10 @@
 #include "../../unwired/int-flash-common.h"
 #include "../../unwired/crypto-common.h"
 
+extern eeprom_t eeprom_settings;			/*Структура с значениями из EEPROM*/
+extern uint8_t aes_key[16];					/*Ключ шифрования*/
+
+
 /*---------------------------------------------------------------------------*/
 PROCESS(unwired_shell_time_process, "time");
 SHELL_COMMAND(unwired_shell_time_command, "time", "time: show the current node time in unix epoch", &unwired_shell_time_process);
@@ -264,8 +268,10 @@ PROCESS_THREAD(unwired_shell_channel_process, ev, data)
 			{
 				uint32_t freq_mhz = (2405 + 5 * (channel - 11));
 				printf("[CMD] Channel: Set new radio-channel: %"PRIu8" (%"PRIu32" MHz)\n", channel, freq_mhz);
-				NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, channel);
-				channel_update(channel);
+				NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, channel);	
+				
+				eeprom_settings.channel = channel;
+				write_eeprom(((uint8_t*)&eeprom_settings), sizeof(eeprom_settings));
 			}
 		}
 
@@ -278,7 +284,9 @@ PROCESS_THREAD(unwired_shell_channel_process, ev, data)
 				uint32_t freq_khz = 863125 + (channel * 200);
 				printf("[CMD] Channel: Set new radio-channel: %"PRIu8" (%"PRIu32" kHz)\n", channel, freq_khz);
 				NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, channel);
-				channel_update(channel);
+				
+				eeprom_settings.channel = channel;
+				write_eeprom(((uint8_t*)&eeprom_settings), sizeof(eeprom_settings));
 			}
 			else
 			{
@@ -338,13 +346,16 @@ PROCESS_THREAD(unwired_shell_panid_process, ev, data)
 				PROCESS_EXIT();
 			}
 			NETSTACK_RADIO.set_value(RADIO_PARAM_PAN_ID, panid);
-			panid_update(panid);
+			
+			eeprom_settings.panid = panid;
+			write_eeprom(((uint8_t*)&eeprom_settings), sizeof(eeprom_settings));
+			
 			printf("[CMD] PAN ID: Set new ID %"PRIXX16"\n", panid);
 		}
 		else
 		{
 			frame802154_set_pan_id(0xAAA);
-			//printf("PAN ID: Not support in cc1310\n");
+			/*printf("PAN ID: Not support in cc1310\n");*/
 		}
 	}
 
@@ -378,7 +389,7 @@ PROCESS_THREAD(unwired_shell_cryptokey_process, ev, data)
 	{
 		if(!strncmp(args[0], "get", 3))
 		{
-			uint8_t *key = get_aes128_key();
+			uint8_t *key = aes_key;
 			printf("[CMD] AES-128 Key:");
 			for (uint8_t i = 0; i < 16; i++)
 				printf(" %"PRIXX8, key[i]);
@@ -404,13 +415,19 @@ PROCESS_THREAD(unwired_shell_cryptokey_process, ev, data)
 				}	
 			}
 			
-			aes128_key_update(new_aes128_key);
+			eeprom_settings.aes_key_configured = false;
 			
-			uint8_t *key = get_aes128_key();
 			printf("[CMD] AES-128 Key set:");
 			for (uint8_t i = 0; i < 16; i++)
-				printf(" %"PRIXX8, key[i]);
+			{
+				eeprom_settings.aes_key[i] = new_aes128_key[i];
+				printf(" %"PRIXX8, new_aes128_key[i]);
+			}
 			printf("\n");
+			
+			write_eeprom(((uint8_t*)&eeprom_settings), sizeof(eeprom_settings));
+			
+			watchdog_reboot();
 			
 			PROCESS_EXIT();
 		}
@@ -436,3 +453,6 @@ void unwired_shell_init(void)
 }
 
 /*---------------------------------------------------------------------------*/
+
+
+
