@@ -646,16 +646,16 @@ void button_status_sender ( uint8_t button_number,
 	uip_ip6addr_copy(&addr, &root_addr);	/*Копируем адрес ROOT'а*/
 	
 	/*Выделяем память под пакет. Общий размер пакета (header + payload)*/
-	uint8_t udp_buffer[HEADER_LENGTH + BUTTON_STATUS_PAYLOAD_LENGTH];	
+	uint8_t udp_buffer[HEADER_LENGTH + BUTTON_STATUS_PAYLOAD_LENGTH - 3];	
 	
 	/*Отражаем структуры на массивы*/ 
 	header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
-	button_status_t *button_status_pack = (button_status_t*)&aes_buffer[0];
+	button_status_t *button_status_pack = (button_status_t*)&udp_buffer[PAYLOAD_OFFSET];
 	
 	/*Заполняем пакет*/  
 	/*Header*/ 
 	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
-	header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
+	header_pack->device_id = UNWDS_4BTN_MODULE_ID;				/*ID устройства*/
 	header_pack->data_type = BUTTON_STATUS;						/*Тип пакета*/  
 	header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
 	header_pack->temperature = get_temperature();				/*Температура*/ 
@@ -679,7 +679,7 @@ void button_status_sender ( uint8_t button_number,
 		aes_buffer[i] = 0x00;
 	
 	/*Зашифровываем данные*/
-	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[PAYLOAD_OFFSET]), CRYPTO_1_BLOCK_LENGTH);
+	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)(&udp_buffer[HEADER_DOWN_OFFSET]), (uint32_t*)(&udp_buffer[HEADER_DOWN_OFFSET]), CRYPTO_1_BLOCK_LENGTH);
 	
 	/*Для отладки. Выводит содержимое пакета*/ 
 	// printf("button_status_sender pack:\n");

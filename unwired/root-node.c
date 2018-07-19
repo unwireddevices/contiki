@@ -91,7 +91,7 @@ uint8_t aes_key[16];					/*Ключ шифрования*/
 static uint8_t aes_buffer[128];			/*Буфер для операций шифрования*/
 static uint8_t nonce_key[16];			/*Сессионный ключ*/
 
-eeprom_t eeprom_settings;					/*Настройки из EEPROM*/
+eeprom_t eeprom_settings;				/*Настройки из EEPROM*/
 
 static uint16_t data_iterator = 0;		/*Счетчик принятых байтов из UART*/
 static struct timer timeout_timer;		/*Таймер срабатываем на пришедший по UART байт и перезапускается.*/
@@ -120,7 +120,7 @@ static void join_stage_4_sender(const uip_ip6addr_t *dest_addr, const uint8_t *d
 static void pong_sender(const uip_ip6addr_t *dest_addr, const uint8_t *data, const uint16_t length);
 
 /*Обработчик пакета с нажатой кнопкой*/
-static void button_status_handler(const uip_ip6addr_t *dest_addr, const uint8_t *data, const uint16_t length);
+static void button_status_handler(const uip_ip6addr_t *dest_addr, button_status_t *button_status_pack);
 
 /*Обработчик пакета с измерением освещенности*/
 static void lit_measure_handler(const uip_ip6addr_t *dest_addr, const uint8_t *data, const uint16_t length);
@@ -137,84 +137,120 @@ PROCESS(main_root_process, "main root process");
 /*---------------------------------------------------------------------------*/
 /*Обработчик принятых пакетов*/
 void udp_data_receiver(struct simple_udp_connection *connection,
-                       const uip_ipaddr_t *sender_addr,
+                       const uip_ipaddr_t *sender_addr, //
                        uint16_t sender_port,
-                       const uip_ipaddr_t *receiver_addr,
+                       const uip_ipaddr_t *receiver_addr, //
                        uint16_t receiver_port,
-                       const uint8_t *data,
+                       const uint8_t *data, //
                        uint16_t datalen)
 {
 	led_on(LED_A); 								/*Включаем светодиод*/
-
-	uip_ip6addr_t node_addr;					/*Выделяем память для адреса на который отправится пакет*/
-	uip_ip6addr_copy(&node_addr, sender_addr);	/*Копируем адрес*/
 	
-	/*Отражаем структуру на массив*/ 
-	header_t *header_pack = (header_t*)&data[HEADER_OFFSET];
-
 	/*Для отладки. Выводит тип принятого сообщения*/ 
-	// printf("Recive pack: %x\n", header_pack->data_type);
+	// printf("Recive pack: %x\n", header_up_pack->data_type);
 	
 	/*Вывод информационного сообщения в консоль*/
-	// {
-		// printf("Packet received(%"PRIu8"): ", datalen);
-		// for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
-			// printf("%"PRIXX8, data[i]);
-		// printf("\n");
-	// }
-	
-	/*Проверяем версию протокола*/ 
-	if(header_pack->protocol_version == UDBP_PROTOCOL_VERSION)
 	{
-		/*Проверяем ID модуля*/ 
-		if (header_pack->device_id == UNWDS_6LOWPAN_SYSTEM_MODULE_ID)
-		{
-			/*Проверяем тип пакета*/ 
-			if (header_pack->data_type == DATA_TYPE_JOIN_STAGE_1)
-			{
-				/*Вторая стадия авторизации*/
-				join_stage_2_sender(&node_addr, data, datalen);
-				led_off(LED_A);		/*Выключаем светодиод*/
-				return;
-			}
-			
-			else if(header_pack->data_type == DATA_TYPE_JOIN_STAGE_3)
-			{
-				/*Четвертая стадия авторизации*/
-				join_stage_4_sender(&node_addr, data, datalen);
-				led_off(LED_A);		/*Выключаем светодиод*/
-				return;
-			}
-			
-			else if(header_pack->data_type == PING)
-			{
-				/*Pong*/
-				pong_sender(&node_addr, data, datalen);
-				led_off(LED_A);		/*Выключаем светодиод*/
-				return;
-			}
-			
-			else if(header_pack->data_type == BUTTON_STATUS)
-			{
-				/*Обработчик пакета с нажатой кнопкой*/
-				button_status_handler(&node_addr, data, datalen);
-				led_off(LED_A);		/*Выключаем светодиод*/
-				return;
-			}
-			
-			else if(header_pack->data_type == LIT_MEASURE)
-			{
-				/*Обработчик пакета с измерением освещенности*/
-				lit_measure_handler(&node_addr, data, datalen);
-				led_off(LED_A);		/*Выключаем светодиод*/
-				return;
-			}
-		}
+		printf("Packet crypto received(%"PRIu8"): ", datalen);
+		for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
+			printf("%"PRIXX8, data[i]);
+		printf("\n");
 	}
+	
+	/*Отражаем структуру на массив*/ 
+	header_up_t *header_up_pack = (header_up_t*)&data[HEADER_OFFSET];
 
+	/*Проверяем версию протокола*/ 
+	if(header_up_pack->protocol_version == UDBP_PROTOCOL_VERSION)
+	{
+		/*Проверяем тип пакета*/ 
+		if (header_up_pack->data_type == DATA_TYPE_JOIN_STAGE_1)
+		{
+			/*Вторая стадия авторизации*/
+			join_stage_2_sender(sender_addr, data, datalen);
+			led_off(LED_A);		/*Выключаем светодиод*/
+			return;
+		}
+		
+		else if(header_up_pack->data_type == DATA_TYPE_JOIN_STAGE_3)
+		{
+			/*Четвертая стадия авторизации*/
+			join_stage_4_sender(sender_addr, data, datalen);
+			led_off(LED_A);		/*Выключаем светодиод*/
+			return;
+		}
+		
+		else if(header_up_pack->data_type == PING)
+		{
+			/*Pong*/
+			pong_sender(sender_addr, data, datalen);
+			led_off(LED_A);		/*Выключаем светодиод*/
+			return;
+		}
+		
+		else
+		{
+			/*Получаем nonce*/
+			u8_u16_t nonce;
+			nonce.u16 = get_nonce((uip_ip6addr_t*)sender_addr);	
+			
+			/*Копируем полученный nonce и используем его в качестве сессионного ключа (AES128-CBC)*/
+			for(int i = 0; i < 16; i += 2)
+			{
+				nonce_key[i] = nonce.u8[1];	
+				nonce_key[i+1] = nonce.u8[0];	
+			}
+			
+			/*Расшифровываем данные*/
+			aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[HEADER_DOWN_OFFSET], (uint32_t*)&data[HEADER_DOWN_OFFSET], iterator_to_byte(datalen - HEADER_UP_LENGTH));
+			
+			/*Вывод информационного сообщения в консоль*/
+			{
+				printf("Packet no crypto received(%"PRIu8"): ", datalen);
+				for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
+					printf("%"PRIXX8, data[i]);
+				printf("\n");
+			}
+			
+			
+			
+			/*Отражаем структуру на массив*/ 
+			header_down_t *header_down_pack = (header_down_t*)&data[HEADER_DOWN_OFFSET];
+			
+			/*Защита от атаки повтором*/
+			if(!valid_counter((uip_ip6addr_t*)sender_addr, header_down_pack->counter.u16))
+			{
+				return;
+			}
+				
+				
+			/*Проверяем ID модуля*/ 
+			if(header_up_pack->device_id == UNWDS_4BTN_MODULE_ID)
+			{
+				button_status_handler(sender_addr, (button_status_t*)&data[PAYLOAD_OFFSET]);
+				led_off(LED_A);		/*Выключаем светодиод*/
+				return;
+			}
+			
+			else if(header_up_pack->device_id == UNWDS_6FET_MODULE_ID)
+			{
+				//
+			}
+		
+			else if(header_up_pack->device_id == UNWDS_LIT_MODULE_ID)
+			{
+				//
+			}
+			
+			else
+			{	
+				//
+			}
+		}	
+	}
 	/*Выключаем светодиод*/
 	led_off(LED_A);
-}
+}	
 
 /*---------------------------------------------------------------------------*/
 /*Вторая стадия авторизации*/
@@ -444,32 +480,34 @@ static void pong_sender(const uip_ip6addr_t *dest_addr, const uint8_t *data, con
 
 /*---------------------------------------------------------------------------*/
 /*Обработчик нажатой кнопки*/
-static void button_status_handler(const uip_ip6addr_t *dest_addr, const uint8_t *data, const uint16_t length)
+static void button_status_handler(const uip_ip6addr_t *dest_addr, button_status_t *button_status_pack)
 {
-	/*Проверка на то что передан существующий адрес*/
-	if (dest_addr == NULL)
-		return;
+	// /*Проверка на то что передан существующий адрес*/
+	// if (dest_addr == NULL)
+		// return;
 	
-	uip_ipaddr_t addr;						/*Выделяем память для адреса на который отправится пакет*/
-	uip_ip6addr_copy(&addr, dest_addr);		/*Копируем адрес*/
+	// uip_ipaddr_t addr;						/*Выделяем память для адреса на который отправится пакет*/
+	// uip_ip6addr_copy(&addr, dest_addr);		/*Копируем адрес*/
 	
-	/*Отражаем структуры на массивы*/ 
-	button_status_t *button_status_pack = (button_status_t*)&aes_buffer[0];
+	// /*Отражаем структуры на массивы*/ 
+	// button_status_t *button_status_pack = (button_status_t*)&data[PAYLOAD_OFFSET];
+	// button_status_t *button_status_pack = (button_status_t*)&aes_buffer[0];
 	
-	/*Получаем nonce*/
-	u8_u16_t nonce;
-	nonce.u16 = get_nonce(&addr);	
 	
-	/*Копируем полученный nonce и используем его в качестве сессионного ключа (AES128-CBC)*/
-	for(int i = 0; i < 16; i += 2)
-	{
-		nonce_key[i] = nonce.u8[1];	
-		nonce_key[i+1] = nonce.u8[0];	
-	}
+	// /*Получаем nonce*/
+	// u8_u16_t nonce;
+	// nonce.u16 = get_nonce(&addr);	
 	
-	/*Расшифровываем данные*/
-	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[PAYLOAD_OFFSET], (uint32_t*)(aes_buffer), CRYPTO_1_BLOCK_LENGTH);
-		
+	// /*Копируем полученный nonce и используем его в качестве сессионного ключа (AES128-CBC)*/
+	// for(int i = 0; i < 16; i += 2)
+	// {
+		// nonce_key[i] = nonce.u8[1];	
+		// nonce_key[i+1] = nonce.u8[0];	
+	// }
+	
+	// /*Расшифровываем данные*/
+	// aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[PAYLOAD_OFFSET], (uint32_t*)&data[PAYLOAD_OFFSET], CRYPTO_1_BLOCK_LENGTH);
+	
 	uint8_t status = button_status_pack->button_status & STATUS_MASK;
 	uint8_t dio = button_status_pack->button_status & DIO_MASK;
 
@@ -499,7 +537,7 @@ static void button_status_handler(const uip_ip6addr_t *dest_addr, const uint8_t 
 		printf("Button E long click\n");
 	
 	else
-		printf("Button error");
+		printf("Button error\n");
 }
 
 /*---------------------------------------------------------------------------*/
@@ -549,140 +587,38 @@ void pwm_settings_sender(const uip_ip6addr_t *dest_addr, uint8_t channel, uint32
 				UNWDS_6FET_MODULE_ID, 				/*Индентификатор модуля UMDK-6FET*/
 				PWM_SETTINGS, 						/*Команда настройки канала ШИМ'а*/
 				(uint8_t*)&pwm_settings_pack, 		/*Payload*/
-				sizeof(pwm_settings_pack));			/*Размер зayload*/
+				sizeof(pwm_settings_pack));			/*Размер payload'а*/
 }
 
 /*---------------------------------------------------------------------------*/
 /*Отправка команды включения/выключения канала ШИМ'а*/
 void pwm_power_channel_sender(const uip_ip6addr_t *dest_addr, uint8_t channel, uint8_t pwm_power_channel)
 {
-	// /*Проверка на то что передан существующий адрес*/
-	// if (dest_addr == NULL)
-		// return;
-	
-	// uip_ipaddr_t addr;						/*Выделяем память для адреса на который отправится пакет*/
-	// uip_ip6addr_copy(&addr, dest_addr);		/*Копируем адрес*/
-		
-	// /*Выделяем память под пакет. Общий размер пакета (header + payload)*/
-	// uint8_t udp_buffer[HEADER_LENGTH + PWM_POWER_PAYLOAD_LENGTH];
-	
-	// /*Отражаем структуры на массивы*/ 
-	// header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
-	// pwm_power_t *pwm_power_pack = (pwm_power_t*)&aes_buffer[0];
-	
-	// /*Получаем nonce*/
-	// u8_u16_t nonce;
-	// nonce.u16 = get_nonce(&addr);	
-	
-	// /*Копируем полученный nonce и используем его в качестве сессионного ключа (AES128-CBC)*/
-	// for(int i = 0; i < 16; i += 2)
-	// {
-		// nonce_key[i] = nonce.u8[1];	
-		// nonce_key[i+1] = nonce.u8[0];	
-	// }
-	
-	// /*Заполняем пакет*/  
-	// /*Header*/ 
-	// header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
-	// header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
-	// header_pack->data_type = PWM_POWER;							/*Тип пакета*/  
-	// header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
-	// header_pack->temperature = get_temperature();				/*Температура*/ 
-	// header_pack->voltage = get_voltage();						/*Напряжение*/ 
-	// header_pack->counter.u16 = packet_counter_root.u16;			/*Счетчик пакетов*/ 
-	// header_pack->length = PWM_POWER_LENGTH;						/*Размер пакета (незашифрованного)*/
-	
-	// /*Payload*/ 
-	// pwm_power_pack->pwm_power = channel;
-	
-	// if(pwm_power_channel)
-		// pwm_power_pack->pwm_power |= 0x80;
-	
-	// /*Дозаполняем пакет нулями, зашифровываем и отправляем его ROOT'у. */ 
-	// for(uint8_t i = PWM_POWER_LENGTH; i < 16; i++)
-		// aes_buffer[i] = 0x00;
-	
-	// /*Зашифровываем данные*/
-	// aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[PAYLOAD_OFFSET]), CRYPTO_1_BLOCK_LENGTH);
-	
-	// /*Отправляем пакет*/ 
-	// simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_LENGTH + PWM_POWER_PAYLOAD_LENGTH), &addr);
-	// packet_counter_root.u16++;		/*Инкрементируем счетчик пакетов*/
-	
-	
-	
-	
-	
 	/*Заполняем payload*/
-	pwm_power_t pwm_power_pack;						/*Создаем структуру*/
+	pwm_power_t pwm_power_pack;					/*Создаем структуру*/
 	
-	pwm_power_pack.pwm_power = channel;				/*Номер канала*/
+	pwm_power_pack.pwm_power = channel;			/*Номер канала*/
 	
-	if(pwm_power_channel)							/*Если включить, то устанавливаем старший бит в единицу*/
+	if(pwm_power_channel)						/*Если включить, то устанавливаем старший бит в единицу*/
 		pwm_power_pack.pwm_power |= 0x80;			
 			
 	/*Отправляем пакет*/
-	pack_sender(dest_addr, 							/*Адрес модуля UMDK-6FET*/
-				UNWDS_6FET_MODULE_ID, 				/*Индентификатор модуля UMDK-6FET*/
-				PWM_POWER, 							/*Команда включения канала ШИМ'а*/
-				(uint8_t*)&pwm_power_pack, 			/*Payload*/
-				sizeof(pwm_power_pack));			/*Размер зayload*/
+	pack_sender(dest_addr, 						/*Адрес модуля UMDK-6FET*/
+				UNWDS_6FET_MODULE_ID, 			/*Индентификатор модуля UMDK-6FET*/
+				PWM_POWER, 						/*Команда включения канала ШИМ'а*/
+				(uint8_t*)&pwm_power_pack, 		/*Payload*/
+				sizeof(pwm_power_pack));		/*Размер payload'а*/
 }
 /*---------------------------------------------------------------------------*/
 /*Совершить замер освещенности*/
 void lit_measurement_sender(const uip_ip6addr_t *dest_addr)
 {
-	/*Проверка на то что передан существующий адрес*/
-	if (dest_addr == NULL)
-		return;
-	
-	uip_ipaddr_t addr;						/*Выделяем память для адреса на который отправится пакет*/
-	uip_ip6addr_copy(&addr, dest_addr);		/*Копируем адрес*/
-		
-	/*Выделяем память под пакет. Общий размер пакета (header + payload)*/
-	uint8_t udp_buffer[HEADER_LENGTH];
-	
-	// /*Отражаем структуры на массивы*/ 
-	header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
-	// pwm_settings_t *pwm_settings_pack = (pwm_settings_t*)&aes_buffer[0];
-	
-	// /*Получаем nonce*/
-	// u8_u16_t nonce;
-	// nonce.u16 = get_nonce(&addr);	
-	
-	// /*Копируем полученный nonce и используем его в качестве сессионного ключа (AES128-CBC)*/
-	// for(int i = 0; i < 16; i += 2)
-	// {
-		// nonce_key[i] = nonce.u8[1];	
-		// nonce_key[i+1] = nonce.u8[0];	
-	// }
-	
-	/*Заполняем пакет*/  
-	/*Header*/ 
-	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
-	header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
-	header_pack->data_type = LIT_MEASURE;						/*Тип пакета*/  
-	header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
-	header_pack->temperature = get_temperature();				/*Температура*/ 
-	header_pack->voltage = get_voltage();						/*Напряжение*/ 
-	header_pack->counter.u16 = packet_counter_root.u16;			/*Счетчик пакетов*/ 
-	header_pack->length = 0;									/*Размер пакета (незашифрованного)*/
-	
-	// /*Payload*/ 
-	// pwm_settings_pack->channel = channel;
-	// pwm_settings_pack->frequency = frequency;
-	// pwm_settings_pack->duty = duty;
-	
-	// /*Дозаполняем пакет нулями, зашифровываем и отправляем его ROOT'у. */ 
-	// for(uint8_t i = PWM_SETTINGS_LENGTH; i < 16; i++)
-		// aes_buffer[i] = 0x00;
-	
-	// /*Зашифровываем данные*/
-	// aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[PAYLOAD_OFFSET]), CRYPTO_1_BLOCK_LENGTH);
-	
-	/*Отправляем пакет*/ 
-	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_LENGTH), &addr);
-	packet_counter_root.u16++;		/*Инкрементируем счетчик пакетов*/
+	/*Отправляем пакет c запросом освещенности*/
+	pack_sender(dest_addr, 				/*Адрес модуля UMDK-6FET*/
+				UNWDS_LIT_MODULE_ID, 	/*Индентификатор модуля UMDK-LIT*/
+				LIT_MEASURE, 			/*Команда измерения освещенности*/
+				NULL, 					/*Payload'а нет*/
+				0);						/*Размер payload'а*/
 }
 
 /*---------------------------------------------------------------------------*/
@@ -754,6 +690,33 @@ void pack_sender(const uip_ip6addr_t *dest_addr,
 	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_LENGTH + crypto_length), &addr);
 	packet_counter_root.u16++;		/*Инкрементируем счетчик пакетов*/
 }
+/*---------------------------------------------------------------------------*/
+/**/
+// void pack_handler(const uip_ip6addr_t *dest_addr, 
+				// const uint8_t *data, 
+				// const uint16_t length)
+// {
+	// /*Проверка на то что передан существующий адрес*/
+	// if (dest_addr == NULL)
+		// return;
+	
+	// /*Получаем nonce*/
+	// u8_u16_t nonce;
+	// nonce.u16 = get_nonce(&addr);	
+	
+	// /*Копируем полученный nonce и используем его в качестве сессионного ключа (AES128-CBC)*/
+	// for(int i = 0; i < 16; i += 2)
+	// {
+		// nonce_key[i] = nonce.u8[1];	
+		// nonce_key[i+1] = nonce.u8[0];	
+	// }
+	
+	// /*Расшифровываем данные*/
+	// aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[PAYLOAD_OFFSET], (uint32_t*)(aes_buffer), CRYPTO_1_BLOCK_LENGTH);
+	
+	// printf("[UMDK-LIT] Luminocity: %lu lux\n", lit_measure_pack->lit_measure);
+// }
+
 /*---------------------------------------------------------------------------*/
 /*Иннициализация RPL*/
 void rpl_initialize()

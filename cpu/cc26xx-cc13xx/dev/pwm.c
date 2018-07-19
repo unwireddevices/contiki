@@ -174,7 +174,7 @@ void pwm_config(uint8_t channel, uint32_t frequency, uint8_t duty, uint32_t pin)
 	
 	settings_pwm |= (1 << channel);
 	
-	printf("[PWM] Channel %i is configured\n", channel);
+	printf("[PWM] Channel %i is configured: %lu Hz, duty %i percent, %lu pin\n", channel, frequency, duty, pin);
 }
 
 /*---------------------------------------------------------------------------*/
