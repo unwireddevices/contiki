@@ -536,116 +536,97 @@ static void lit_measure_handler(const uip_ip6addr_t *dest_addr, const uint8_t *d
 /*---------------------------------------------------------------------------*/
 /*Отправка настроек канала ШИМ'а*/
 void pwm_settings_sender(const uip_ip6addr_t *dest_addr, uint8_t channel, uint32_t frequency, uint8_t duty)
-{
-	/*Проверка на то что передан существующий адрес*/
-	if (dest_addr == NULL)
-		return;
+{	
+	/*Заполняем payload*/
+	pwm_settings_t pwm_settings_pack;				/*Создаем структуру*/
 	
-	uip_ipaddr_t addr;						/*Выделяем память для адреса на который отправится пакет*/
-	uip_ip6addr_copy(&addr, dest_addr);		/*Копируем адрес*/
-		
-	/*Выделяем память под пакет. Общий размер пакета (header + payload)*/
-	uint8_t udp_buffer[HEADER_LENGTH + PWM_SETTINGS_PAYLOAD_LENGTH];
-	
-	/*Отражаем структуры на массивы*/ 
-	header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
-	pwm_settings_t *pwm_settings_pack = (pwm_settings_t*)&aes_buffer[0];
-	
-	/*Получаем nonce*/
-	u8_u16_t nonce;
-	nonce.u16 = get_nonce(&addr);	
-	
-	/*Копируем полученный nonce и используем его в качестве сессионного ключа (AES128-CBC)*/
-	for(int i = 0; i < 16; i += 2)
-	{
-		nonce_key[i] = nonce.u8[1];	
-		nonce_key[i+1] = nonce.u8[0];	
-	}
-	
-	/*Заполняем пакет*/  
-	/*Header*/ 
-	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
-	header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
-	header_pack->data_type = PWM_SETTINGS;						/*Тип пакета*/  
-	header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
-	header_pack->temperature = get_temperature();				/*Температура*/ 
-	header_pack->voltage = get_voltage();						/*Напряжение*/ 
-	header_pack->counter.u16 = packet_counter_root.u16;			/*Счетчик пакетов*/ 
-	header_pack->length = PWM_SETTINGS_LENGTH;					/*Размер пакета (незашифрованного)*/
-	
-	/*Payload*/ 
-	pwm_settings_pack->channel = channel;
-	pwm_settings_pack->frequency = frequency;
-	pwm_settings_pack->duty = duty;
-	
-	/*Дозаполняем пакет нулями, зашифровываем и отправляем его ROOT'у. */ 
-	for(uint8_t i = PWM_SETTINGS_LENGTH; i < 16; i++)
-		aes_buffer[i] = 0x00;
-	
-	/*Зашифровываем данные*/
-	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[PAYLOAD_OFFSET]), CRYPTO_1_BLOCK_LENGTH);
-	
-	/*Отправляем пакет*/ 
-	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_LENGTH + PWM_SETTINGS_PAYLOAD_LENGTH), &addr);
-	packet_counter_root.u16++;		/*Инкрементируем счетчик пакетов*/
+	pwm_settings_pack.channel = channel;			/*Номер канала*/
+	pwm_settings_pack.frequency = frequency;		/*Частота*/
+	pwm_settings_pack.duty = duty;					/*Коэффицент заполненния*/
+			
+	/*Отправляем пакет*/
+	pack_sender(dest_addr, 							/*Адрес модуля UMDK-6FET*/
+				UNWDS_6FET_MODULE_ID, 				/*Индентификатор модуля UMDK-6FET*/
+				PWM_SETTINGS, 						/*Команда настройки канала ШИМ'а*/
+				(uint8_t*)&pwm_settings_pack, 		/*Payload*/
+				sizeof(pwm_settings_pack));			/*Размер зayload*/
 }
 
 /*---------------------------------------------------------------------------*/
 /*Отправка команды включения/выключения канала ШИМ'а*/
 void pwm_power_channel_sender(const uip_ip6addr_t *dest_addr, uint8_t channel, uint8_t pwm_power_channel)
 {
-	/*Проверка на то что передан существующий адрес*/
-	if (dest_addr == NULL)
-		return;
+	// /*Проверка на то что передан существующий адрес*/
+	// if (dest_addr == NULL)
+		// return;
 	
-	uip_ipaddr_t addr;						/*Выделяем память для адреса на который отправится пакет*/
-	uip_ip6addr_copy(&addr, dest_addr);		/*Копируем адрес*/
+	// uip_ipaddr_t addr;						/*Выделяем память для адреса на который отправится пакет*/
+	// uip_ip6addr_copy(&addr, dest_addr);		/*Копируем адрес*/
 		
-	/*Выделяем память под пакет. Общий размер пакета (header + payload)*/
-	uint8_t udp_buffer[HEADER_LENGTH + PWM_POWER_PAYLOAD_LENGTH];
+	// /*Выделяем память под пакет. Общий размер пакета (header + payload)*/
+	// uint8_t udp_buffer[HEADER_LENGTH + PWM_POWER_PAYLOAD_LENGTH];
 	
-	/*Отражаем структуры на массивы*/ 
-	header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
-	pwm_power_t *pwm_power_pack = (pwm_power_t*)&aes_buffer[0];
+	// /*Отражаем структуры на массивы*/ 
+	// header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
+	// pwm_power_t *pwm_power_pack = (pwm_power_t*)&aes_buffer[0];
 	
-	/*Получаем nonce*/
-	u8_u16_t nonce;
-	nonce.u16 = get_nonce(&addr);	
+	// /*Получаем nonce*/
+	// u8_u16_t nonce;
+	// nonce.u16 = get_nonce(&addr);	
 	
-	/*Копируем полученный nonce и используем его в качестве сессионного ключа (AES128-CBC)*/
-	for(int i = 0; i < 16; i += 2)
-	{
-		nonce_key[i] = nonce.u8[1];	
-		nonce_key[i+1] = nonce.u8[0];	
-	}
+	// /*Копируем полученный nonce и используем его в качестве сессионного ключа (AES128-CBC)*/
+	// for(int i = 0; i < 16; i += 2)
+	// {
+		// nonce_key[i] = nonce.u8[1];	
+		// nonce_key[i+1] = nonce.u8[0];	
+	// }
 	
-	/*Заполняем пакет*/  
-	/*Header*/ 
-	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
-	header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
-	header_pack->data_type = PWM_POWER;							/*Тип пакета*/  
-	header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
-	header_pack->temperature = get_temperature();				/*Температура*/ 
-	header_pack->voltage = get_voltage();						/*Напряжение*/ 
-	header_pack->counter.u16 = packet_counter_root.u16;			/*Счетчик пакетов*/ 
-	header_pack->length = PWM_POWER_LENGTH;						/*Размер пакета (незашифрованного)*/
+	// /*Заполняем пакет*/  
+	// /*Header*/ 
+	// header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
+	// header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
+	// header_pack->data_type = PWM_POWER;							/*Тип пакета*/  
+	// header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
+	// header_pack->temperature = get_temperature();				/*Температура*/ 
+	// header_pack->voltage = get_voltage();						/*Напряжение*/ 
+	// header_pack->counter.u16 = packet_counter_root.u16;			/*Счетчик пакетов*/ 
+	// header_pack->length = PWM_POWER_LENGTH;						/*Размер пакета (незашифрованного)*/
 	
-	/*Payload*/ 
-	pwm_power_pack->pwm_power = channel;
+	// /*Payload*/ 
+	// pwm_power_pack->pwm_power = channel;
 	
-	if(pwm_power_channel)
-		pwm_power_pack->pwm_power |= 0x80;
+	// if(pwm_power_channel)
+		// pwm_power_pack->pwm_power |= 0x80;
 	
-	/*Дозаполняем пакет нулями, зашифровываем и отправляем его ROOT'у. */ 
-	for(uint8_t i = PWM_POWER_LENGTH; i < 16; i++)
-		aes_buffer[i] = 0x00;
+	// /*Дозаполняем пакет нулями, зашифровываем и отправляем его ROOT'у. */ 
+	// for(uint8_t i = PWM_POWER_LENGTH; i < 16; i++)
+		// aes_buffer[i] = 0x00;
 	
-	/*Зашифровываем данные*/
-	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[PAYLOAD_OFFSET]), CRYPTO_1_BLOCK_LENGTH);
+	// /*Зашифровываем данные*/
+	// aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[PAYLOAD_OFFSET]), CRYPTO_1_BLOCK_LENGTH);
 	
-	/*Отправляем пакет*/ 
-	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_LENGTH + PWM_POWER_PAYLOAD_LENGTH), &addr);
-	packet_counter_root.u16++;		/*Инкрементируем счетчик пакетов*/
+	// /*Отправляем пакет*/ 
+	// simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_LENGTH + PWM_POWER_PAYLOAD_LENGTH), &addr);
+	// packet_counter_root.u16++;		/*Инкрементируем счетчик пакетов*/
+	
+	
+	
+	
+	
+	/*Заполняем payload*/
+	pwm_power_t pwm_power_pack;						/*Создаем структуру*/
+	
+	pwm_power_pack.pwm_power = channel;				/*Номер канала*/
+	
+	if(pwm_power_channel)							/*Если включить, то устанавливаем старший бит в единицу*/
+		pwm_power_pack.pwm_power |= 0x80;			
+			
+	/*Отправляем пакет*/
+	pack_sender(dest_addr, 							/*Адрес модуля UMDK-6FET*/
+				UNWDS_6FET_MODULE_ID, 				/*Индентификатор модуля UMDK-6FET*/
+				PWM_POWER, 							/*Команда включения канала ШИМ'а*/
+				(uint8_t*)&pwm_power_pack, 			/*Payload*/
+				sizeof(pwm_power_pack));			/*Размер зayload*/
 }
 /*---------------------------------------------------------------------------*/
 /*Совершить замер освещенности*/
@@ -723,8 +704,12 @@ void pack_sender(const uip_ip6addr_t *dest_addr,
 	uip_ipaddr_t addr;						/*Выделяем память для адреса на который отправится пакет*/
 	uip_ip6addr_copy(&addr, dest_addr);		/*Копируем адрес*/
 		
+	// uint8_t crypto_length = iterator_to_byte(data_iterator + HEADER_DOWN_LENGTH);
+	// uint8_t udp_buffer[HEADER_UP_LENGTH + crypto_length];
+		
 	/*Выделяем память под пакет. Общий размер пакета (header + payload)*/
-	uint8_t udp_buffer[HEADER_LENGTH + CRYPTO_1_BLOCK_LENGTH];
+	uint8_t crypto_length = iterator_to_byte(payload_len);
+	uint8_t udp_buffer[HEADER_LENGTH + crypto_length];
 	
 	/*Отражаем структуры на массивы*/ 
 	header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
@@ -753,7 +738,7 @@ void pack_sender(const uip_ip6addr_t *dest_addr,
 	
 	/*Payload*/ 	
 	/*Pаполняем пакет, зашифровываем и отправляем его DAG'у. */ 
-	for(uint8_t i = 0; i < 16; i++)
+	for(uint8_t i = 0; i < crypto_length; i++)
 	{
 		if(i < payload_len)
 			aes_buffer[i] = payload[i];
@@ -763,10 +748,10 @@ void pack_sender(const uip_ip6addr_t *dest_addr,
 	}
 	
 	/*Зашифровываем данные*/
-	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[PAYLOAD_OFFSET]), CRYPTO_1_BLOCK_LENGTH);
+	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[PAYLOAD_OFFSET]), crypto_length);
 	
 	/*Отправляем пакет*/ 
-	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_LENGTH + CRYPTO_1_BLOCK_LENGTH), &addr);
+	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_LENGTH + crypto_length), &addr);
 	packet_counter_root.u16++;		/*Инкрементируем счетчик пакетов*/
 }
 /*---------------------------------------------------------------------------*/

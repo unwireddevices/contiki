@@ -149,33 +149,46 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 			uip_ip6addr(&dest_addr, 0xFD00, 0x0, 0x0, 0x0, 0x0212, 0x4B00, 0x0C46, 0x8D03);
 
 			// lit_measurement_sender(&dest_addr);
+			// pack_sender(&dest_addr, 
+						// UNWDS_6LOWPAN_SYSTEM_MODULE_ID, 
+						// LIT_MEASURE, 
+						// NULL, 
+						// 0);
 			
 			/*Отправка настроек канала ШИМ'а*/
 			// pwm_settings_sender(&dest_addr, 0, 100, 20);
 			// pwm_settings_sender(&dest_addr, 1, 100, 30);
 			// pwm_settings_sender(&dest_addr, 2, 100, 40);
-			// pwm_settings_sender(&dest_addr, 3, 100, 50);
+			pwm_settings_sender(&dest_addr, 3, 100, 50);
 			// pwm_settings_sender(&dest_addr, 4, 100, 60);
 			// pwm_settings_sender(&dest_addr, 5, 100, 70);
+			
+			// pwm_settings_t pwm_settings_pack;
+			
+			// pwm_settings_pack.channel = 0;
+			// pwm_settings_pack.frequency = 100;
+			// pwm_settings_pack.duty = 20;
+			
+			// pack_sender(&dest_addr, 
+						// UNWDS_6LOWPAN_SYSTEM_MODULE_ID, 
+						// PWM_SETTINGS, 
+						// (uint8_t*)&pwm_settings_pack, 
+						// sizeof(pwm_settings_pack));
 			
 			
 			/*Отправка команды включения/выключения канала ШИМ'а*/
 			// pwm_power_channel_sender(&dest_addr, 0, 1);
 			// pwm_power_channel_sender(&dest_addr, 1, 1);
 			// pwm_power_channel_sender(&dest_addr, 2, 1);
-			// pwm_power_channel_sender(&dest_addr, 3, 1);
+			pwm_power_channel_sender(&dest_addr, 3, 1);
 			// pwm_power_channel_sender(&dest_addr, 4, 1);
 			// pwm_power_channel_sender(&dest_addr, 5, 1);
 			
 			
-			pack_sender(&dest_addr, 
-						UNWDS_6LOWPAN_SYSTEM_MODULE_ID, 
-						LIT_MEASURE, 
-						NULL, 
-						0);
+
 			
 			if(uart_status_r() == 0)
-				printf("UDM: LIT MEASURE SENT\n");
+				printf("UDM: SENT\n");
 			
 			/*Выключаем светодиод*/
 			led_off(LED_A);

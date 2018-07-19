@@ -215,9 +215,9 @@ static void udp_receiver(struct simple_udp_connection *c,
 	/*Проверяем версию протокола*/ 
 	if(header_pack->protocol_version == UDBP_PROTOCOL_VERSION)
 	{
-		/*Проверяем ID модуля*/ 
-		if(header_pack->device_id == UNWDS_6LOWPAN_SYSTEM_MODULE_ID)
-		{
+		// /*Проверяем ID модуля*/ 
+		// if(header_pack->device_id == UNWDS_6LOWPAN_SYSTEM_MODULE_ID)
+		// {
 			/*Проверяем тип пакета*/ 
 			if (header_pack->data_type == DATA_TYPE_JOIN_STAGE_2)
 			{
@@ -261,7 +261,7 @@ static void udp_receiver(struct simple_udp_connection *c,
 				if(uart_status() == 0)
 					printf("[DAG Node] Incompatible packet type(endpoint UNWDS_6LOWPAN_SYSTEM_MODULE_ID): %"PRIXX8"\n", header_pack->data_type);
 			}
-		}
+		// }
 	}
 	
 	else
