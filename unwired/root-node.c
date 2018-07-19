@@ -88,10 +88,10 @@
 uint8_t uart_rx_buffer[128];			/*Буфер UART RX*/
 
 uint8_t aes_key[16];					/*Ключ шифрования*/
-uint8_t aes_buffer[128];				/*Буфер для операций шифрования*/
-uint8_t nonce_key[16];					/*Сессионный ключ*/
+static uint8_t aes_buffer[128];			/*Буфер для операций шифрования*/
+static uint8_t nonce_key[16];			/*Сессионный ключ*/
 
-static eeprom_t eeprom_root;			/*Настройки из EEPROM*/
+eeprom_t eeprom_settings;					/*Настройки из EEPROM*/
 
 static uint16_t data_iterator = 0;		/*Счетчик принятых байтов из UART*/
 static struct timer timeout_timer;		/*Таймер срабатываем на пришедший по UART байт и перезапускается.*/
@@ -705,6 +705,71 @@ void lit_measurement_sender(const uip_ip6addr_t *dest_addr)
 }
 
 /*---------------------------------------------------------------------------*/
+/**/
+void pack_sender(const uip_ip6addr_t *dest_addr, 
+				uint8_t device_id, 
+				uint8_t data_type, 
+				uint8_t *payload, 
+				uint8_t payload_len)
+{
+	/*Проверка на то что передан существующий адрес*/
+	if (dest_addr == NULL)
+		return;
+	
+	/*Проверка на то что передан не нулевой адрес буфера*/
+	if ((payload == NULL) && (payload_len != 0))
+		return;
+	
+	uip_ipaddr_t addr;						/*Выделяем память для адреса на который отправится пакет*/
+	uip_ip6addr_copy(&addr, dest_addr);		/*Копируем адрес*/
+		
+	/*Выделяем память под пакет. Общий размер пакета (header + payload)*/
+	uint8_t udp_buffer[HEADER_LENGTH + CRYPTO_1_BLOCK_LENGTH];
+	
+	/*Отражаем структуры на массивы*/ 
+	header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
+	
+	/*Получаем nonce*/
+	u8_u16_t nonce;
+	nonce.u16 = get_nonce(&addr);	
+	
+	/*Копируем полученный nonce и используем его в качестве сессионного ключа (AES128-CBC)*/
+	for(int i = 0; i < 16; i += 2)
+	{
+		nonce_key[i] = nonce.u8[1];	
+		nonce_key[i+1] = nonce.u8[0];	
+	}
+	
+	/*Заполняем пакет*/  
+	/*Header*/ 
+	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
+	header_pack->device_id = device_id;							/*ID устройства*/
+	header_pack->data_type = data_type;							/*Тип пакета*/  
+	header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
+	header_pack->temperature = get_temperature();				/*Температура*/ 
+	header_pack->voltage = get_voltage();						/*Напряжение*/ 
+	header_pack->counter.u16 = packet_counter_root.u16;			/*Счетчик пакетов*/ 
+	header_pack->length = payload_len;							/*Размер пакета (незашифрованного)*/
+	
+	/*Payload*/ 	
+	/*Pаполняем пакет, зашифровываем и отправляем его DAG'у. */ 
+	for(uint8_t i = 0; i < 16; i++)
+	{
+		if(i < payload_len)
+			aes_buffer[i] = payload[i];
+		else
+			aes_buffer[i] = 0x00;
+	
+	}
+	
+	/*Зашифровываем данные*/
+	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[PAYLOAD_OFFSET]), CRYPTO_1_BLOCK_LENGTH);
+	
+	/*Отправляем пакет*/ 
+	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_LENGTH + CRYPTO_1_BLOCK_LENGTH), &addr);
+	packet_counter_root.u16++;		/*Инкрементируем счетчик пакетов*/
+}
+/*---------------------------------------------------------------------------*/
 /*Иннициализация RPL*/
 void rpl_initialize()
 {
@@ -797,13 +862,6 @@ uint8_t uart_status_r(void)
 }
 
 /*---------------------------------------------------------------------------*/
-// /*Сбрасывает переменную которая показывает ожидаем ли мы ответа от DAG'а*/
-// static void wait_response_reset(void *ptr)
-// {
-	// wait_response_slave = 0;
-// }
-
-/*---------------------------------------------------------------------------*/
 /*Процесс инициализации настроек из EEPROM*/
 PROCESS_THREAD(settings_root_init, ev, data)
 {
@@ -812,26 +870,26 @@ PROCESS_THREAD(settings_root_init, ev, data)
 		return 1;
 
 	/*Считываем данные из EEPROM в структуру*/
-	read_eeprom((uint8_t*)&eeprom_root, sizeof(eeprom_root));
+	read_eeprom((uint8_t*)&eeprom_settings, sizeof(eeprom_settings));
 	
 	/*Если настроек нет, то устанавливаем эти*/
-	if(eeprom_root.aes_key_configured == true) 
+	if(eeprom_settings.aes_key_configured == true)
 	{
-		if((eeprom_root.channel != 26) && (eeprom_root.panid != 0xAABB))
+		if((eeprom_settings.channel != 26) && (eeprom_settings.panid != 0xAABB))
 		{
-			eeprom_root.channel = 26;
-			eeprom_root.panid = 0xAABB;
-			write_eeprom((uint8_t*)&eeprom_root, sizeof(eeprom_root));
+			eeprom_settings.channel = 26;
+			eeprom_settings.panid = 0xAABB;
+			write_eeprom((uint8_t*)&eeprom_settings, sizeof(eeprom_settings));
 		}
 	}
 	
 	/*Если ключа шифрования нет, то информируем об этом*/
-	if(!eeprom_root.aes_key_configured) 
+	if(!eeprom_settings.aes_key_configured) 
 	{
 		printf("AES-128 key:");
 		for (uint8_t i = 0; i < 16; i++)
 		{
-			aes_key[i] = eeprom_root.aes_key[i];
+			aes_key[i] = eeprom_settings.aes_key[i];
 			printf(" %"PRIXX8, aes_key[i]);
 		}
 		printf("\n");
@@ -839,7 +897,7 @@ PROCESS_THREAD(settings_root_init, ev, data)
 	else
 	{
 		printf("AES-128 key not declared\n");
-		while(eeprom_root.aes_key_configured)
+		while(eeprom_settings.aes_key_configured)
 		{
 			PROCESS_YIELD();
 		}		
@@ -849,23 +907,23 @@ PROCESS_THREAD(settings_root_init, ev, data)
 	NETSTACK_RADIO.get_value(RADIO_PARAM_CHANNEL, &channel);	/*Считываем в channel текущий канал*/
 	
 	/*Если текущий канал отличается от настроенного в EEPROM, изменяем канал на тот что из EEPROM*/
-	if(channel != eeprom_root.channel)
+	if(channel != eeprom_settings.channel)
 	{
 		/*Устанавливаем канал*/
-		NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, eeprom_root.channel);
+		NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, eeprom_settings.channel);
 		
 		/*Если мы чип CC26XX, то выводим частоту*/
 		if (ti_lib_chipinfo_chip_family_is_cc26xx())
 		{
-			uint32_t freq_mhz = (2405 + 5 * (eeprom_root.channel - 11));
-			printf("Changed the radio-channel to: %"PRIint" (%"PRIu32" MHz)\n", (int)eeprom_root.channel, freq_mhz);
+			uint32_t freq_mhz = (2405 + 5 * (eeprom_settings.channel - 11));
+			printf("Changed the radio-channel to: %"PRIint" (%"PRIu32" MHz)\n", (int)eeprom_settings.channel, freq_mhz);
 		}
 
 		/*Если мы чип CC13XX, то выводим частоту*/
 		if (ti_lib_chipinfo_chip_family_is_cc13xx())
 		{
-			uint32_t freq_khz = 863125 + (eeprom_root.channel * 200);
-			printf("Changed the radio-channel to: %"PRIint" (%"PRIu32" kHz)\n", (int)eeprom_root.channel, freq_khz);
+			uint32_t freq_khz = 863125 + (eeprom_settings.channel * 200);
+			printf("Changed the radio-channel to: %"PRIint" (%"PRIu32" kHz)\n", (int)eeprom_settings.channel, freq_khz);
 		}
 	}
 	
@@ -875,13 +933,13 @@ PROCESS_THREAD(settings_root_init, ev, data)
 		NETSTACK_RADIO.get_value(RADIO_PARAM_PAN_ID, &panid);	/*Считываем в PAN ID*/
 		
 		/*Если текущий PAN ID отличается от настроенного в EEPROM, изменяем PAN ID на тот что из EEPROM*/
-		if(panid != eeprom_root.panid)
+		if(panid != eeprom_settings.panid)
 		{
 			/*Устанавливаем PAN ID*/
-			NETSTACK_RADIO.set_value(RADIO_PARAM_PAN_ID, eeprom_root.panid);
+			NETSTACK_RADIO.set_value(RADIO_PARAM_PAN_ID, eeprom_settings.panid);
 			
 			/*Выводим PAN ID*/
-			printf("PAN ID changed to: %"PRIXX16"\n", eeprom_root.panid);
+			printf("PAN ID changed to: %"PRIXX16"\n", eeprom_settings.panid);
 		}
 	}
 	

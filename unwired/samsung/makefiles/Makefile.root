@@ -2,9 +2,10 @@ all: root
 
 PROJECTDIRS += ..
 APPS = serial-shell
-PROJECT_SOURCEFILES += root-node.c dag_node.c crypto-common.c system-common.c rtc-common.c int-flash-common.c
+PROJECT_SOURCEFILES += root-node.c crypto-common.c system-common.c rtc-common.c int-flash-common.c
 DEFINES+=PROJECT_CONF_H=\"project-conf-class-c.h\"
 DEFINES+=FAKEDEFINE=1
+DEFINES+=UNWDS_ROOT=1
 DEFINES+=CLASS=0x0C
 PROJECTDIRS += $(VARIANT)
 CONTIKI = ../..

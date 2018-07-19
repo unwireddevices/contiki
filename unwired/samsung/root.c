@@ -64,6 +64,7 @@
 #include "root.h"
 #include "../root-node.h"
 #include "../system-common.h"//
+#include "../protocol.h"//
 
 #include "sys/etimer.h"
 
@@ -147,7 +148,7 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 			static uip_ipaddr_t dest_addr;
 			uip_ip6addr(&dest_addr, 0xFD00, 0x0, 0x0, 0x0, 0x0212, 0x4B00, 0x0C46, 0x8D03);
 
-			lit_measurement_sender(&dest_addr);
+			// lit_measurement_sender(&dest_addr);
 			
 			/*Отправка настроек канала ШИМ'а*/
 			// pwm_settings_sender(&dest_addr, 0, 100, 20);
@@ -166,6 +167,12 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 			// pwm_power_channel_sender(&dest_addr, 4, 1);
 			// pwm_power_channel_sender(&dest_addr, 5, 1);
 			
+			
+			pack_sender(&dest_addr, 
+						UNWDS_6LOWPAN_SYSTEM_MODULE_ID, 
+						LIT_MEASURE, 
+						NULL, 
+						0);
 			
 			if(uart_status_r() == 0)
 				printf("UDM: LIT MEASURE SENT\n");

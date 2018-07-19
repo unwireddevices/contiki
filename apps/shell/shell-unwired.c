@@ -80,8 +80,10 @@ SHELL_COMMAND(unwired_shell_time_command, "time", "time: show the current node t
 PROCESS(unwired_shell_uptime_process, "uptime");
 SHELL_COMMAND(unwired_shell_uptime_command, "uptime", "uptime: show the current node uptime", &unwired_shell_uptime_process);
 
+#ifndef UNWDS_ROOT
 PROCESS(unwired_shell_status_process, "status");
 SHELL_COMMAND(unwired_shell_status_command, "status", "status: show node status", &unwired_shell_status_process);
+#endif
 
 PROCESS(unwired_shell_panid_process, "panid");
 SHELL_COMMAND(unwired_shell_panid_command, "panid", "panid <set/get> <panid(ABCD)>: set/get panid", &unwired_shell_panid_process);
@@ -132,6 +134,7 @@ PROCESS_THREAD(unwired_shell_time_process, ev, data)
 
 /*---------------------------------------------------------------------------*/
 
+#ifndef UNWDS_ROOT
 PROCESS_THREAD(unwired_shell_status_process, ev, data)
 {
 	PROCESS_BEGIN();
@@ -167,6 +170,7 @@ PROCESS_THREAD(unwired_shell_status_process, ev, data)
 	printf("\n");
 	PROCESS_END();
 }
+#endif
 
 /*---------------------------------------------------------------------------*/
 
@@ -445,7 +449,9 @@ void unwired_shell_init(void)
 {
 	shell_register_command(&unwired_shell_time_command);
 	shell_register_command(&unwired_shell_uptime_command);
+#ifndef UNWDS_ROOT
 	shell_register_command(&unwired_shell_status_command);
+#endif
 	shell_register_command(&unwired_shell_channel_command);
 	shell_register_command(&unwired_shell_panid_command);
 	shell_register_command(&unwired_shell_address_command);
