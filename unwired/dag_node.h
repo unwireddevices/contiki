@@ -79,6 +79,13 @@ void button_status_sender ( uint8_t button_number,
 /*Функция управления светодиодами*/
 void led_mode_set(uint8_t mode);
 
+/**/
+void pack_sender(uip_ip6addr_t *dest_addr, 
+				uint8_t device_id, 
+				uint8_t data_type, 
+				uint8_t *payload, 
+				uint8_t payload_len);
+
 
 /*---------------------------------------------------------------------------*/
 /*ИМЕНА ПРОЦЕССОВ*/

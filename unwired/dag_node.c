@@ -153,18 +153,14 @@ static void pong_handler(const uip_ipaddr_t *sender_addr,
 								
 /*Инициализация с заданными настройками канала ШИМ'а*/
 static void dag_pwm_settings(const uip_ipaddr_t *sender_addr,
-							const uint8_t *data,
-							uint16_t datalen);
+							pwm_settings_t *pwm_settings_pack);
 
 /*Включение/выключение канала ШИМ'а*/
 static void dag_pwm_power (	const uip_ipaddr_t *sender_addr,
-							const uint8_t *data,
-							uint16_t datalen);
+							pwm_power_t *pwm_power_pack);
 							
 /*Совершить замер освещенности*/
-static void dag_lit_measure_sender( const uip_ipaddr_t *sender_addr,
-									const uint8_t *data,
-									uint16_t datalen);
+static void dag_lit_measure_sender(const uip_ipaddr_t *sender_addr);
 
 /*---------------------------------------------------------------------------*/
 /*ПРОТОТИПЫ ПРОЦЕССОВ*/
@@ -201,78 +197,172 @@ static void udp_receiver(struct simple_udp_connection *c,
 						uint16_t datalen)
 {
 	/*Отражаем структуру на массив*/ 
-	header_t *header_pack = (header_t*)&data[HEADER_OFFSET];
+	header_up_t *header_up_pack = (header_up_t*)&data[HEADER_OFFSET];
 
 	/*Вывод информационного сообщения в консоль*/
-	// if(uart_status() == 0)
-	// {
-		// printf("DAG Node: UDP packet received(%"PRIu8"): ", datalen);
-		// for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
-			// printf("%"PRIXX8, data[i]);
-		// printf("\n");
-	// }
+	if(uart_status() == 0)
+	{
+		printf("DAG Node: UDP crypto packet received(%"PRIu8"): ", datalen);
+		for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
+			printf("%"PRIXX8, data[i]);
+		printf("\n");
+	}
 	
 	/*Проверяем версию протокола*/ 
-	if(header_pack->protocol_version == UDBP_PROTOCOL_VERSION)
+	if(header_up_pack->protocol_version == UDBP_PROTOCOL_VERSION)
 	{
-		// /*Проверяем ID модуля*/ 
-		// if(header_pack->device_id == UNWDS_6LOWPAN_SYSTEM_MODULE_ID)
-		// {
-			/*Проверяем тип пакета*/ 
-			if (header_pack->data_type == DATA_TYPE_JOIN_STAGE_2)
+		/*Проверяем тип пакета*/ 
+		if (header_up_pack->data_type == DATA_TYPE_JOIN_STAGE_2)
+		{
+			/*Третья стадия авторизации*/
+			join_stage_3_sender(sender_addr, data, datalen);
+		}
+		
+		else if (header_up_pack->data_type == DATA_TYPE_JOIN_STAGE_4)
+		{
+			/*Обработчик четвертой стадии авторизации*/
+			join_stage_4_handler(sender_addr, data, datalen);
+		}
+		
+		else if (header_up_pack->data_type == PONG)
+		{
+			/*Pong*/
+			pong_handler(sender_addr, data, datalen);
+		}
+		
+		else 
+		{	
+			/*Расшифровываем данные*/
+			aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[HEADER_DOWN_OFFSET], (uint32_t*)&data[HEADER_DOWN_OFFSET], iterator_to_byte(datalen - HEADER_UP_LENGTH));
+
+			/*Вывод информационного сообщения в консоль*/
+			if(uart_status() == 0)
 			{
-				/*Третья стадия авторизации*/
-				join_stage_3_sender(sender_addr, data, datalen);
+				printf("DAG Node: UDP no crypto packet received(%"PRIu8"): ", datalen);
+				for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
+					printf("%"PRIXX8, data[i]);
+				printf("\n");
 			}
 			
-			else if (header_pack->data_type == DATA_TYPE_JOIN_STAGE_4)
-			{
-				/*Обработчик четвертой стадии авторизации*/
-				join_stage_4_handler(sender_addr, data, datalen);
-			}
+			/*Отражаем структуру на массив*/ 
+			/*header_down_t *header_down_pack = (header_down_t*)&data[HEADER_DOWN_OFFSET];*/
 			
-			else if (header_pack->data_type == PONG)
-			{
-				/*Pong*/
-				pong_handler(sender_addr, data, datalen);
-			}
+			/*Защита от атаки повтором*/
+			/*Защита от атаки повтором*/
+			/*Защита от атаки повтором*/
 			
-			else if (header_pack->data_type == PWM_SETTINGS)
-			{
-				/*Инициализация с заданными настройками канала ШИМ'а*/
-				dag_pwm_settings(sender_addr, data, datalen);
-			}
 			
-			else if (header_pack->data_type == PWM_POWER)
-			{
-				/*Включение/выключение канала ШИМ'а*/
-				dag_pwm_power(sender_addr, data, datalen);
-			}
 			
-			else if (header_pack->data_type == LIT_MEASURE)
+			/*Проверяем ID модуля*/ 
+			/*UMDK-6FET*/ 
+			if(header_up_pack->device_id == UNWDS_6FET_MODULE_ID)
 			{
-				/*Совершить замер освещенности*/
-				dag_lit_measure_sender(sender_addr, data, datalen);
+				if(header_up_pack->data_type == PWM_SETTINGS)
+				{
+					dag_pwm_settings(sender_addr, (pwm_settings_t*)&data[PAYLOAD_OFFSET]);
+					led_off(LED_A);		/*Выключаем светодиод*/
+					return;
+				}
+				
+				else if(header_up_pack->data_type == PWM_POWER)
+				{
+					dag_pwm_power(sender_addr, (pwm_power_t*)&data[PAYLOAD_OFFSET]);
+					led_off(LED_A);		/*Выключаем светодиод*/
+					return;
+				}
+				
+				else
+				{
+					return;
+				}
+					
 			}
-			
+		
+			/*UMDK-LIT*/ 
+			else if(header_up_pack->device_id == UNWDS_LIT_MODULE_ID)
+			{
+				if(header_up_pack->data_type == LIT_MEASURE)
+				{
+					dag_lit_measure_sender(sender_addr);
+					led_off(LED_A);		/*Выключаем светодиод*/
+					return;
+				}
+				
+				else
+				{
+					return;
+				}	
+			}
+
 			else
 			{
-				/*Вывод информационного сообщения в консоль*/
-				if(uart_status() == 0)
-					printf("[DAG Node] Incompatible packet type(endpoint UNWDS_6LOWPAN_SYSTEM_MODULE_ID): %"PRIXX8"\n", header_pack->data_type);
+				return;
 			}
-		// }
+		}
 	}
 	
 	else
 	{
 		/*Вывод информационного сообщения в консоль*/
 		if(uart_status() == 0)
-			printf("[DAG Node] Incompatible protocol version: %"PRIXX8"\n", header_pack->protocol_version);
+			printf("[DAG Node] Incompatible protocol version: %"PRIXX8"\n", header_up_pack->protocol_version);
+		return;
 	}
 
 	/*Мигаем светодиодом*/
 	led_mode_set(LED_FLASH);
+}
+
+/*---------------------------------------------------------------------------*/
+/**/
+void pack_sender(uip_ip6addr_t *dest_addr, 
+				uint8_t device_id, 
+				uint8_t data_type, 
+				uint8_t *payload, 
+				uint8_t payload_len)
+{
+	/*Проверка на то что передан существующий адрес*/
+	if (dest_addr == NULL)
+		return;
+	
+	/*Проверка на то что передан не нулевой адрес буфера*/
+	if ((payload == NULL) && (payload_len != 0))
+		return;
+		
+	/*Выделяем память под пакет. Общий размер пакета (header + payload)*/
+	uint8_t crypto_length = iterator_to_byte(HEADER_DOWN_LENGTH + payload_len);
+	uint8_t udp_buffer[HEADER_UP_LENGTH + crypto_length];
+	
+	/*Отражаем структуры на массивы*/ 
+	header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
+	
+	/*Заполняем пакет*/  
+	/*Header*/ 
+	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
+	header_pack->device_id = device_id;							/*ID устройства*/
+	header_pack->data_type = data_type;							/*Тип пакета*/  
+	header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
+	header_pack->temperature = get_temperature();				/*Температура*/ 
+	header_pack->voltage = get_voltage();						/*Напряжение*/ 
+	header_pack->counter.u16 = packet_counter_node.u16;			/*Счетчик пакетов*/ 
+	header_pack->length = payload_len;							/*Размер пакета (незашифрованного)*/
+	
+	/*Payload*/ 	
+	/*Pаполняем пакет, зашифровываем и отправляем его DAG'у. */ 
+	for(uint8_t i = 0; i < (crypto_length - HEADER_DOWN_LENGTH); i++)
+	{
+		if(i < payload_len)
+			udp_buffer[PAYLOAD_OFFSET + i] = payload[i];
+		else
+			udp_buffer[PAYLOAD_OFFSET + i] = 0x00;
+	}
+	
+	/*Зашифровываем данные*/
+	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)(&udp_buffer[HEADER_DOWN_OFFSET]), (uint32_t*)(&udp_buffer[HEADER_DOWN_OFFSET]), crypto_length);
+	
+	/*Отправляем пакет*/ 
+	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_UP_LENGTH + crypto_length), dest_addr);
+	packet_counter_node.u16++;		/*Инкрементируем счетчик пакетов*/
 }
 
 /*---------------------------------------------------------------------------*/
@@ -516,19 +606,8 @@ static void pong_handler(const uip_ipaddr_t *sender_addr,
 /*---------------------------------------------------------------------------*/
 /*Инициализация с заданными настройками канала ШИМ'а*/
 static void dag_pwm_settings(const uip_ipaddr_t *sender_addr,
-							const uint8_t *data,
-							uint16_t datalen)
-{
-	/*Проверка на то что передан существующий адрес*/
-	if (sender_addr == NULL)
-		return;
-
-	/*Отражаем структуры на массивы*/ 
-	pwm_settings_t *pwm_settings_pack = (pwm_settings_t*)&aes_buffer[0];
-	
-	/*Расшифровываем данные*/
-	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[PAYLOAD_OFFSET], (uint32_t*)(aes_buffer), CRYPTO_1_BLOCK_LENGTH);
-	
+							pwm_settings_t *pwm_settings_pack)
+{	
 	if(pwm_settings_pack->channel == 0)
 	{
 		pwm_config(pwm_settings_pack->channel, pwm_settings_pack->frequency, pwm_settings_pack->duty, IOID_5);
@@ -559,19 +638,8 @@ static void dag_pwm_settings(const uip_ipaddr_t *sender_addr,
 /*---------------------------------------------------------------------------*/
 /*Включение/выключение канала ШИМ'а*/
 static void dag_pwm_power (	const uip_ipaddr_t *sender_addr,
-							const uint8_t *data,
-							uint16_t datalen)
+							pwm_power_t *pwm_power_pack)
 {
-	/*Проверка на то что передан существующий адрес*/
-	if (sender_addr == NULL)
-		return;
-
-	/*Отражаем структуры на массивы*/ 
-	pwm_power_t *pwm_power_pack = (pwm_power_t*)&aes_buffer[0];
-	
-	/*Расшифровываем данные*/
-	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[PAYLOAD_OFFSET], (uint32_t*)(aes_buffer), CRYPTO_1_BLOCK_LENGTH);
-	
 	uint8_t pwm_channel = pwm_power_pack->pwm_power & 0x7F;
 	uint8_t pwm_power = ((pwm_power_pack->pwm_power & 0x80) >> 7); 
 	
@@ -588,53 +656,23 @@ static void dag_pwm_power (	const uip_ipaddr_t *sender_addr,
 
 /*---------------------------------------------------------------------------*/
 /*Совершить замер освещенности*/
-static void dag_lit_measure_sender( const uip_ipaddr_t *sender_addr,
-									const uint8_t *data,
-									uint16_t datalen)
+static void dag_lit_measure_sender(const uip_ipaddr_t *sender_addr)
 {
-	uip_ipaddr_t addr;						/*Выделяем память для адреса на который отправится пакет*/
-	uip_ip6addr_copy(&addr, &root_addr);	/*Копируем адрес ROOT'а*/
+	/*Заполняем payload*/
+	lit_measure_t lit_measure_pack;						/*Создаем структуру*/
 	
-	/*Выделяем память под пакет. Общий размер пакета (header + payload)*/
-	uint8_t udp_buffer[HEADER_LENGTH + LIT_MEASURE_PAYLOAD_LENGTH];	
+	lit_measure_pack.lit_measure = opt3001_measure();	/*Измеряем освещенность*/
 	
-	/*Отражаем структуры на массивы*/ 
-	header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
-	lit_measure_t *lit_measure_pack = (lit_measure_t*)&aes_buffer[0];
-	
-	/*Заполняем пакет*/  
-	/*Header*/ 
-	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
-	header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
-	header_pack->data_type = LIT_MEASURE;						/*Тип пакета*/  
-	header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
-	header_pack->temperature = get_temperature();				/*Температура*/ 
-	header_pack->voltage = get_voltage();						/*Напряжение*/ 
-	header_pack->counter.u16 = packet_counter_node.u16;			/*Счетчик пакетов*/ 
-	header_pack->length = LIT_MEASURE_LENGTH;					/*Размер пакета*/
-
-	/*Payload*/ 
-	lit_measure_pack->lit_measure = opt3001_measure();
-	
+	/*Вывод информационного сообщения в консоль*/
 	printf("[DAG Node] Send LIT measure packet to DAG-root node\n");
 	printf("[UMDK-LIT] Luminocity: %lu lux\n", lit_measure_pack->lit_measure);
 	
-	/*Дозаполняем пакет нулями, зашифровываем и отправляем его ROOT'у. */ 
-	for(uint8_t i = LIT_MEASURE_LENGTH; i < 16; i++)
-		aes_buffer[i] = 0x00;
-	
-	/*Зашифровываем данные*/
-	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[PAYLOAD_OFFSET]), CRYPTO_1_BLOCK_LENGTH);
-	
-	/*Для отладки. Выводит содержимое пакета*/ 
-	// printf("button_status_sender pack:\n");
-	// hexraw_print((HEADER_LENGTH + LIT_MEASURE_LENGTH), udp_buffer);
-	// printf("\n");
-	
-	/*Отправляем пакет*/ 
-	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_LENGTH + LIT_MEASURE_PAYLOAD_LENGTH), &addr);
-	packet_counter_node.u16++;		/*Инкрементируем счетчик пакетов*/
-	led_mode_set(LED_FLASH);		/*Мигаем светодиодом*/
+	/*Отправляем пакет*/	
+	pack_sender(&root_addr, 							/*Адрес модуля ROOT'а*/
+				UNWDS_LIT_MODULE_ID, 					/*Индентификатор модуля UMDK-6FET*/
+				LIT_MEASURE, 							/*Команда включения канала ШИМ'а*/
+				(uint8_t*)&button_status_pack, 			/*Payload*/
+				sizeof(button_status_pack));			/*Размер payload'а*/
 }
 
 /*---------------------------------------------------------------------------*/
@@ -642,54 +680,23 @@ static void dag_lit_measure_sender( const uip_ipaddr_t *sender_addr,
 void button_status_sender ( uint8_t button_number,
 							uint8_t click_type)
 {
-	uip_ipaddr_t addr;						/*Выделяем память для адреса на который отправится пакет*/
-	uip_ip6addr_copy(&addr, &root_addr);	/*Копируем адрес ROOT'а*/
+	/*Заполняем payload*/
+	button_status_t button_status_pack;				/*Создаем структуру*/
 	
-	/*Выделяем память под пакет. Общий размер пакета (header + payload)*/
-	uint8_t udp_buffer[HEADER_LENGTH + BUTTON_STATUS_PAYLOAD_LENGTH - 3];	
-	
-	/*Отражаем структуры на массивы*/ 
-	header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
-	button_status_t *button_status_pack = (button_status_t*)&udp_buffer[PAYLOAD_OFFSET];
-	
-	/*Заполняем пакет*/  
-	/*Header*/ 
-	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
-	header_pack->device_id = UNWDS_4BTN_MODULE_ID;				/*ID устройства*/
-	header_pack->data_type = BUTTON_STATUS;						/*Тип пакета*/  
-	header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
-	header_pack->temperature = get_temperature();				/*Температура*/ 
-	header_pack->voltage = get_voltage();						/*Напряжение*/ 
-	header_pack->counter.u16 = packet_counter_node.u16;			/*Счетчик пакетов*/ 
-	header_pack->length = BUTTON_STATUS_LENGTH;					/*Размер пакета*/
-
-	/*Payload*/ 
-	printf("[DAG Node] Send button packet to DAG-root node\n");
-	
-	button_status_pack->button_status = button_number;
+	button_status_pack.button_status = button_number;
 
 	if(click_type == CLICK)
-		button_status_pack->button_status |= CLICK;
+		button_status_pack.button_status |= CLICK;
 
 	else if (click_type == LONG_CLICK)
-		button_status_pack->button_status |= LONG_CLICK;
+		button_status_pack.button_status |= LONG_CLICK;
 	
-	/*Дозаполняем пакет нулями, зашифровываем и отправляем его ROOT'у. */ 
-	for(uint8_t i = BUTTON_STATUS_LENGTH; i < 16; i++)
-		aes_buffer[i] = 0x00;
-	
-	/*Зашифровываем данные*/
-	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)(&udp_buffer[HEADER_DOWN_OFFSET]), (uint32_t*)(&udp_buffer[HEADER_DOWN_OFFSET]), CRYPTO_1_BLOCK_LENGTH);
-	
-	/*Для отладки. Выводит содержимое пакета*/ 
-	// printf("button_status_sender pack:\n");
-	// hexraw_print((HEADER_LENGTH + PING_PAYLOAD_LENGTH), udp_buffer);
-	// printf("\n");
-	
-	/*Отправляем пакет*/ 
-	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_LENGTH + BUTTON_STATUS_PAYLOAD_LENGTH), &addr);
-	packet_counter_node.u16++;		/*Инкрементируем счетчик пакетов*/
-	led_mode_set(LED_FLASH);		/*Мигаем светодиодом*/
+	/*Отправляем пакет*/
+	pack_sender(&root_addr, 						/*Адрес модуля ROOT'а*/
+				UNWDS_4BTN_MODULE_ID, 				/*Индентификатор модуля UMDK-4BTN*/
+				BUTTON_STATUS, 						/*Команда включения канала ШИМ'а*/
+				(uint8_t*)&button_status_pack, 		/*Payload*/
+				sizeof(button_status_pack));		/*Размер payload'а*/
 }
 
 /*---------------------------------------------------------------------------*/
