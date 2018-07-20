@@ -169,6 +169,15 @@ typedef struct {
 
 /*---------------------------------------------------------------------------*/
 
+typedef struct {		
+	uip_ip6addr_t dest_addr; 
+	uint8_t device_id; 
+	uint8_t data_type; 
+	uint8_t payload_len;
+} uart_header_t;
+
+/*---------------------------------------------------------------------------*/
+
 typedef struct {
 	uint8_t protocol_version;
     uint8_t device_id;

@@ -160,7 +160,7 @@ static void dag_pwm_power (	const uip_ipaddr_t *sender_addr,
 							pwm_power_t *pwm_power_pack);
 							
 /*Совершить замер освещенности*/
-static void dag_lit_measure_sender(const uip_ipaddr_t *sender_addr);
+static void dag_lit_measure_sender();
 
 /*---------------------------------------------------------------------------*/
 /*ПРОТОТИПЫ ПРОЦЕССОВ*/
@@ -245,13 +245,17 @@ static void udp_receiver(struct simple_udp_connection *c,
 			}
 			
 			/*Отражаем структуру на массив*/ 
-			/*header_down_t *header_down_pack = (header_down_t*)&data[HEADER_DOWN_OFFSET];*/
+			header_down_t *header_down_pack = (header_down_t*)&data[HEADER_DOWN_OFFSET];
 			
 			/*Защита от атаки повтором*/
-			/*Защита от атаки повтором*/
-			/*Защита от атаки повтором*/
+			/*Проверяем счетчик пакетов на валидность данного пакета*/
+			if(packet_counter_root.u16 >= header_down_pack->counter.u16)
+			{	
+				return;
+			}
 			
-			
+			/*Обновляем значение счетчика ROOT'а*/
+			packet_counter_root.u16 = header_down_pack->counter.u16;	
 			
 			/*Проверяем ID модуля*/ 
 			/*UMDK-6FET*/ 
@@ -283,7 +287,7 @@ static void udp_receiver(struct simple_udp_connection *c,
 			{
 				if(header_up_pack->data_type == LIT_MEASURE)
 				{
-					dag_lit_measure_sender(sender_addr);
+					dag_lit_measure_sender();
 					led_off(LED_A);		/*Выключаем светодиод*/
 					return;
 				}
@@ -315,7 +319,7 @@ static void udp_receiver(struct simple_udp_connection *c,
 
 /*---------------------------------------------------------------------------*/
 /**/
-void pack_sender(uip_ip6addr_t *dest_addr, 
+void pack_sender(const uip_ip6addr_t *dest_addr, 
 				uint8_t device_id, 
 				uint8_t data_type, 
 				uint8_t *payload, 
@@ -656,7 +660,7 @@ static void dag_pwm_power (	const uip_ipaddr_t *sender_addr,
 
 /*---------------------------------------------------------------------------*/
 /*Совершить замер освещенности*/
-static void dag_lit_measure_sender(const uip_ipaddr_t *sender_addr)
+static void dag_lit_measure_sender()
 {
 	/*Заполняем payload*/
 	lit_measure_t lit_measure_pack;						/*Создаем структуру*/
@@ -665,14 +669,14 @@ static void dag_lit_measure_sender(const uip_ipaddr_t *sender_addr)
 	
 	/*Вывод информационного сообщения в консоль*/
 	printf("[DAG Node] Send LIT measure packet to DAG-root node\n");
-	printf("[UMDK-LIT] Luminocity: %lu lux\n", lit_measure_pack->lit_measure);
+	printf("[UMDK-LIT] Luminocity: %lu lux\n", lit_measure_pack.lit_measure);
 	
 	/*Отправляем пакет*/	
 	pack_sender(&root_addr, 							/*Адрес модуля ROOT'а*/
 				UNWDS_LIT_MODULE_ID, 					/*Индентификатор модуля UMDK-6FET*/
 				LIT_MEASURE, 							/*Команда включения канала ШИМ'а*/
-				(uint8_t*)&button_status_pack, 			/*Payload*/
-				sizeof(button_status_pack));			/*Размер payload'а*/
+				(uint8_t*)&lit_measure_pack, 			/*Payload*/
+				sizeof(lit_measure_pack));				/*Размер payload'а*/
 }
 
 /*---------------------------------------------------------------------------*/

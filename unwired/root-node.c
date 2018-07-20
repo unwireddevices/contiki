@@ -211,8 +211,6 @@ void udp_data_receiver(struct simple_udp_connection *connection,
 				printf("\n");
 			}
 			
-			
-			
 			/*Отражаем структуру на массив*/ 
 			header_down_t *header_down_pack = (header_down_t*)&data[HEADER_DOWN_OFFSET];
 			
@@ -221,9 +219,6 @@ void udp_data_receiver(struct simple_udp_connection *connection,
 			{
 				return;
 			}
-			
-
-			
 				
 			/*Проверяем ID модуля*/ 
 			if(header_up_pack->device_id == UNWDS_4BTN_MODULE_ID)
@@ -235,23 +230,6 @@ void udp_data_receiver(struct simple_udp_connection *connection,
 					return;
 				}
 			}
-			
-			// else if(header_up_pack->device_id == UNWDS_6FET_MODULE_ID)
-			// {
-				// if(header_up_pack->data_type == PWM_SETTINGS)
-				// {
-					// button_status_handler(sender_addr, (pwm_settings_t*)&data[PAYLOAD_OFFSET]);
-					// led_off(LED_A);		/*Выключаем светодиод*/
-					// return;
-				// }
-				
-				// else if(header_up_pack->data_type == PWM_POWER)
-				// {
-					// button_status_handler(sender_addr, (pwm_power_t*)&data[PAYLOAD_OFFSET]);
-					// led_off(LED_A);		/*Выключаем светодиод*/
-					// return;
-				// }
-			// }
 		
 			else if(header_up_pack->device_id == UNWDS_LIT_MODULE_ID)
 			{
@@ -539,30 +517,6 @@ static void button_status_handler(const uip_ip6addr_t *dest_addr, button_status_
 /*Обработчик пакета с измерением освещенности*/
 static void lit_measure_handler(const uip_ip6addr_t *dest_addr, lit_measure_t *lit_measure_pack)
 {
-	// /*Проверка на то что передан существующий адрес*/
-	// if (dest_addr == NULL)
-		// return;
-	
-	// uip_ipaddr_t addr;						/*Выделяем память для адреса на который отправится пакет*/
-	// uip_ip6addr_copy(&addr, dest_addr);		/*Копируем адрес*/
-	
-	// /*Отражаем структуры на массивы*/ 
-	// lit_measure_t *lit_measure_pack = (lit_measure_t*)&aes_buffer[0];
-	
-	// /*Получаем nonce*/
-	// u8_u16_t nonce;
-	// nonce.u16 = get_nonce(&addr);	
-	
-	// /*Копируем полученный nonce и используем его в качестве сессионного ключа (AES128-CBC)*/
-	// for(int i = 0; i < 16; i += 2)
-	// {
-		// nonce_key[i] = nonce.u8[1];	
-		// nonce_key[i+1] = nonce.u8[0];	
-	// }
-	
-	// /*Расшифровываем данные*/
-	// aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[PAYLOAD_OFFSET], (uint32_t*)(aes_buffer), CRYPTO_1_BLOCK_LENGTH);
-	
 	printf("[UMDK-LIT] Luminocity: %lu lux\n", lit_measure_pack->lit_measure);
 }
 
@@ -632,12 +586,6 @@ void pack_sender(const uip_ip6addr_t *dest_addr,
 	if ((payload == NULL) && (payload_len != 0))
 		return;
 	
-	// uip_ipaddr_t addr;						/*Выделяем память для адреса на который отправится пакет*/
-	// uip_ip6addr_copy(&addr, dest_addr);		/*Копируем адрес*/
-		
-	// uint8_t crypto_length = iterator_to_byte(data_iterator + HEADER_DOWN_LENGTH);
-	// uint8_t udp_buffer[HEADER_UP_LENGTH + crypto_length];
-		
 	/*Выделяем память под пакет. Общий размер пакета (header + payload)*/
 	uint8_t crypto_length = iterator_to_byte(HEADER_DOWN_LENGTH + payload_len);
 	uint8_t udp_buffer[HEADER_UP_LENGTH + crypto_length];
@@ -684,33 +632,6 @@ void pack_sender(const uip_ip6addr_t *dest_addr,
 	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_UP_LENGTH + crypto_length), dest_addr);
 	packet_counter_root.u16++;		/*Инкрементируем счетчик пакетов*/
 }
-
-/*---------------------------------------------------------------------------*/
-/**/
-// void pack_handler(const uip_ip6addr_t *dest_addr, 
-				// const uint8_t *data, 
-				// const uint16_t length)
-// {
-	// /*Проверка на то что передан существующий адрес*/
-	// if (dest_addr == NULL)
-		// return;
-	
-	// /*Получаем nonce*/
-	// u8_u16_t nonce;
-	// nonce.u16 = get_nonce(&addr);	
-	
-	// /*Копируем полученный nonce и используем его в качестве сессионного ключа (AES128-CBC)*/
-	// for(int i = 0; i < 16; i += 2)
-	// {
-		// nonce_key[i] = nonce.u8[1];	
-		// nonce_key[i+1] = nonce.u8[0];	
-	// }
-	
-	// /*Расшифровываем данные*/
-	// aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[PAYLOAD_OFFSET], (uint32_t*)(aes_buffer), CRYPTO_1_BLOCK_LENGTH);
-	
-	// printf("[UMDK-LIT] Luminocity: %lu lux\n", lit_measure_pack->lit_measure);
-// }
 
 /*---------------------------------------------------------------------------*/
 /*Иннициализация RPL*/
@@ -785,6 +706,7 @@ int uart_data_receiver(unsigned char uart_char)
 void set_uart_r(void)
 {
 	uart = 1;
+	cc26xx_uart_set_input(&uart_data_receiver);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -792,6 +714,7 @@ void set_uart_r(void)
 void unset_uart_r(void)
 {
 	uart = 0;
+	cc26xx_uart_set_input(&serial_line_input_byte);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -919,9 +842,20 @@ PROCESS_THREAD(main_root_process, ev, data)
 			/*Проверяем в каком режиме работает устройство (консоль или UART)*/
 			if(uart == 1)
 			{
-				// /*Проверка на минимальную длину*/
-				// if(data_iterator > 3)
-				// {
+				/*Проверка на минимальную длину*/
+				if(data_iterator > 18)
+				{	
+					/*Отражаем структуры на массивы*/ 
+					uart_header_t *uart_header_pack = (uart_header_t*)&uart_rx_buffer[0];
+					
+					hexraw_print(data_iterator, (uint8_t*)&uart_rx_buffer[0]);
+					
+					pack_sender((uint8_t*)&uart_rx_buffer[0], 
+								uart_header_pack->device_id, 
+								uart_header_pack->data_type, 
+								(uint8_t*)&uart_rx_buffer[19], 
+								uart_header_pack->payload_len);
+					
 					// /*Рассчитываем CRC16-MODBUS*/
 					// crc_uart = crc16_modbus(uart_rx_buffer, data_iterator-2);
 					
@@ -936,10 +870,10 @@ PROCESS_THREAD(main_root_process, ev, data)
 						// /*Отправляем сообщение DAG'у*/
 						// uart_to_air();
 					// }
-				// }
+				}
 				
-				// /*Обнуляем счетчик принятых байтов*/
-				// data_iterator = 0;
+				/*Обнуляем счетчик принятых байтов*/
+				data_iterator = 0;
 			}
 			else
 			{
