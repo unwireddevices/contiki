@@ -114,20 +114,20 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 	rpl_initialize();
 	root_node_initialize();
 
-	// static struct etimer shell_off;
-	// etimer_set(&shell_off, CLOCK_SECOND * 5);
-	// PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&shell_off));
+	static struct etimer shell_off;
+	etimer_set(&shell_off, CLOCK_SECOND * 5);
+	PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&shell_off));
    
-	// if (BOARD_IOID_UART_TX != BOARD_IOID_ALT_UART_TX || BOARD_IOID_UART_RX != BOARD_IOID_ALT_UART_RX)
-	// {
-		// if(uart_status_r() == 0)
-		// {
-			// printf("UDM: UART change to alt(RX: %"PRIu16", TX: %"PRIu16")\n", BOARD_IOID_ALT_UART_RX, BOARD_IOID_ALT_UART_TX);
-		// }
-		// off_uart(BOARD_IOID_UART_RX, BOARD_IOID_UART_TX);
-		// on_uart(BOARD_IOID_ALT_UART_RX, BOARD_IOID_ALT_UART_TX, 115200);
-		// set_uart_r();
-	// }
+	if (BOARD_IOID_UART_TX != BOARD_IOID_ALT_UART_TX || BOARD_IOID_UART_RX != BOARD_IOID_ALT_UART_RX)
+	{
+		if(uart_status_r() == 0)
+		{
+			printf("UDM: UART change to alt(RX: %"PRIu16", TX: %"PRIu16")\n", BOARD_IOID_ALT_UART_RX, BOARD_IOID_ALT_UART_TX);
+		}
+		off_uart(BOARD_IOID_UART_RX, BOARD_IOID_UART_TX);
+		on_uart(BOARD_IOID_ALT_UART_RX, BOARD_IOID_ALT_UART_TX, 115200);
+		set_uart_r();
+	}
 
 	while (1)
 	{
@@ -148,7 +148,7 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 			static uip_ipaddr_t dest_addr;
 			uip_ip6addr(&dest_addr, 0xFD00, 0x0, 0x0, 0x0, 0x0212, 0x4B00, 0x0C46, 0x8D03);
 
-			lit_measurement_sender(&dest_addr);
+			// lit_measurement_sender(&dest_addr);
 			// pack_sender(&dest_addr, 
 						// UNWDS_6LOWPAN_SYSTEM_MODULE_ID, 
 						// LIT_MEASURE, 
@@ -159,7 +159,7 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 			// pwm_settings_sender(&dest_addr, 0, 100, 20);
 			// pwm_settings_sender(&dest_addr, 1, 100, 30);
 			// pwm_settings_sender(&dest_addr, 2, 100, 40);
-			// pwm_settings_sender(&dest_addr, 3, 100, 50);
+			pwm_settings_sender(&dest_addr, 3, 100, 50);
 			// pwm_settings_sender(&dest_addr, 4, 100, 60);
 			// pwm_settings_sender(&dest_addr, 5, 100, 70);
 			
@@ -180,7 +180,7 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 			// pwm_power_channel_sender(&dest_addr, 0, 1);
 			// pwm_power_channel_sender(&dest_addr, 1, 1);
 			// pwm_power_channel_sender(&dest_addr, 2, 1);
-			// pwm_power_channel_sender(&dest_addr, 3, 1);
+			pwm_power_channel_sender(&dest_addr, 3, 1);
 			// pwm_power_channel_sender(&dest_addr, 4, 1);
 			// pwm_power_channel_sender(&dest_addr, 5, 1);
 			

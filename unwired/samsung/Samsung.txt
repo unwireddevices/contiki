@@ -134,27 +134,74 @@ output PWM signal.*/
 be adjusted at any time by writing the GPT:TnILR register, and the change takes effect at the next cycle
 after the write.*/
 
+uip_ip6addr_t dest_addr; 
+uint8_t device_id; 
+uint8_t data_type; 
+uint8_t payload_len;
 
-	/*Проверка на то что передан существующий адрес*/
-	if (sender_addr == NULL)
-		return;
 
-	/*Отражаем структуры на массивы*/ 
-	pwm_power_t *pwm_power_pack = (pwm_power_t*)&aes_buffer[0];
+
+dest_addr:
+0xFD 
+0x00 
+0x00
+0x00 
+0x00
+0x00 
+0x00
+0x00
+0x02
+0x12 
+0x4B
+0x00
+0x0C
+0x46 
+0x8D
+0x03
+
+device_id:
+0x0F			//UNWDS_LIT_MODULE_ID
+
+data_type:
+0x26			//LIT_MEASURE
+
+payload_len:
+0x00
+
+
+
+
+
+
+0xFD 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x02 0x12 0x46 0x03 0x0F 0x26 0x00
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 	
-	/*Расшифровываем данные*/
-	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[PAYLOAD_OFFSET], (uint32_t*)(aes_buffer), CRYPTO_1_BLOCK_LENGTH);
 	
-	uint8_t pwm_channel = pwm_power_pack->pwm_power & 0x7F;
-	uint8_t pwm_power = ((pwm_power_pack->pwm_power & 0x80) >> 7); 
 	
-	if(pwm_power)
-	{
-		pwm_start(pwm_channel);
-	}
 	
-	else
-	{
-		pwm_stop(pwm_channel);
-	}
+	
 	
