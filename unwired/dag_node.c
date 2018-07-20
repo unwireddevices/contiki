@@ -319,16 +319,10 @@ static void udp_receiver(struct simple_udp_connection *c,
 
 /*---------------------------------------------------------------------------*/
 /**/
-void pack_sender(const uip_ip6addr_t *dest_addr, 
-				uint8_t device_id, 
-				uint8_t data_type, 
+void pack_sender(uint8_t data_type, 
 				uint8_t *payload, 
 				uint8_t payload_len)
-{
-	/*Проверка на то что передан существующий адрес*/
-	if (dest_addr == NULL)
-		return;
-	
+{	
 	/*Проверка на то что передан не нулевой адрес буфера*/
 	if ((payload == NULL) && (payload_len != 0))
 		return;
@@ -343,7 +337,7 @@ void pack_sender(const uip_ip6addr_t *dest_addr,
 	/*Заполняем пакет*/  
 	/*Header*/ 
 	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
-	header_pack->device_id = device_id;							/*ID устройства*/
+	header_pack->device_id = UNWDS_MODULE_ID;					/*ID устройства*/
 	header_pack->data_type = data_type;							/*Тип пакета*/  
 	header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
 	header_pack->temperature = get_temperature();				/*Температура*/ 
@@ -365,7 +359,7 @@ void pack_sender(const uip_ip6addr_t *dest_addr,
 	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)(&udp_buffer[HEADER_DOWN_OFFSET]), (uint32_t*)(&udp_buffer[HEADER_DOWN_OFFSET]), crypto_length);
 	
 	/*Отправляем пакет*/ 
-	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_UP_LENGTH + crypto_length), dest_addr);
+	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_UP_LENGTH + crypto_length), (uip_ipaddr_t*)&root_addr);
 	packet_counter_node.u16++;		/*Инкрементируем счетчик пакетов*/
 }
 
@@ -528,42 +522,58 @@ static void join_stage_4_handler(const uip_ipaddr_t *sender_addr,
 /*Ping*/
 static void ping_sender(void)
 {
-	uip_ipaddr_t addr;						/*Выделяем память для адреса на который отправится пакет*/
-	uip_ip6addr_copy(&addr, &root_addr);	/*Копируем адрес ROOT'а*/
+	/*Заполняем payload*/
+	ping_t ping_pack;							/*Создаем структуру*/
 	
-	/*Выделяем память под пакет. Общий размер пакета (header + payload)*/
-	uint8_t udp_buffer[HEADER_LENGTH + PING_PAYLOAD_LENGTH];	
+	for (uint8_t i = 0; i < 16; i++)
+		ping_pack.array_of_zeros[i] = 0x00;		/*Заполняем нулями*/
 	
-	/*Отражаем структуры на массивы*/ 
-	header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
-	ping_t *ping_pack = (ping_t*)&aes_buffer[0];
+	/*Отправляем пакет*/	
+	pack_sender(PING, 							/*Команда ping*/
+				(uint8_t*)&ping_pack, 			/*Payload*/
+				sizeof(ping_pack));				/*Размер payload'а*/
+				
+				
+				
+				
 	
-	/*Заполняем пакет*/  
-	/*Header*/ 
-	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
-	header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
-	header_pack->data_type = PING;								/*Тип пакета*/  
-	header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
-	header_pack->temperature = get_temperature();				/*Температура*/ 
-	header_pack->voltage = get_voltage();						/*Напряжение*/ 
-	header_pack->counter.u16 = packet_counter_node.u16;			/*Счетчик пакетов*/ 
-	header_pack->length = PING_LENGTH;							/*Размер пакета*/
+	
+	// uip_ipaddr_t addr;						/*Выделяем память для адреса на который отправится пакет*/
+	// uip_ip6addr_copy(&addr, &root_addr);	/*Копируем адрес ROOT'а*/
+	
+	// /*Выделяем память под пакет. Общий размер пакета (header + payload)*/
+	// uint8_t udp_buffer[HEADER_LENGTH + PING_PAYLOAD_LENGTH];	
+	
+	// /*Отражаем структуры на массивы*/ 
+	// header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
+	// ping_t *ping_pack = (ping_t*)&aes_buffer[0];
+	
+	// /*Заполняем пакет*/  
+	// /*Header*/ 
+	// header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
+	// header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
+	// header_pack->data_type = PING;								/*Тип пакета*/  
+	// header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
+	// header_pack->temperature = get_temperature();				/*Температура*/ 
+	// header_pack->voltage = get_voltage();						/*Напряжение*/ 
+	// header_pack->counter.u16 = packet_counter_node.u16;			/*Счетчик пакетов*/ 
+	// header_pack->length = PING_LENGTH;							/*Размер пакета*/
 
-	/*Payload*/ 
-	/*Заполняем пакет нулями, зашифровываем и отправляем его ROOT'у. */ 
-	for(uint8_t i = 0; i < 16; i++)
-		ping_pack->array_of_zeros[i] = 0x00;
+	// /*Payload*/ 
+	// /*Заполняем пакет нулями, зашифровываем и отправляем его ROOT'у. */ 
+	// for(uint8_t i = 0; i < 16; i++)
+		// ping_pack->array_of_zeros[i] = 0x00;
 	
-	/*Зашифровываем данные*/
-	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[PAYLOAD_OFFSET]), CRYPTO_1_BLOCK_LENGTH);
+	// /*Зашифровываем данные*/
+	// aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[PAYLOAD_OFFSET]), CRYPTO_1_BLOCK_LENGTH);
 	
-	/*Для отладки. Выводит содержимое пакета*/ 
+	// /*Для отладки. Выводит содержимое пакета*/ 
 	// printf("Ping_sender pack:\n");
 	// hexraw_print((HEADER_LENGTH + PING_PAYLOAD_LENGTH), udp_buffer);
 	// printf("\n");
 	
-	/*Отправляем пакет*/ 
-	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_LENGTH + PING_PAYLOAD_LENGTH), &addr);
+	// /*Отправляем пакет*/ 
+	// simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_LENGTH + PING_PAYLOAD_LENGTH), &addr);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -672,9 +682,7 @@ static void dag_lit_measure_sender()
 	printf("[UMDK-LIT] Luminocity: %lu lux\n", lit_measure_pack.lit_measure);
 	
 	/*Отправляем пакет*/	
-	pack_sender(&root_addr, 							/*Адрес модуля ROOT'а*/
-				UNWDS_LIT_MODULE_ID, 					/*Индентификатор модуля UMDK-6FET*/
-				LIT_MEASURE, 							/*Команда включения канала ШИМ'а*/
+	pack_sender(LIT_MEASURE, 							/*Команда включения канала ШИМ'а*/
 				(uint8_t*)&lit_measure_pack, 			/*Payload*/
 				sizeof(lit_measure_pack));				/*Размер payload'а*/
 }
@@ -696,9 +704,7 @@ void button_status_sender ( uint8_t button_number,
 		button_status_pack.button_status |= LONG_CLICK;
 	
 	/*Отправляем пакет*/
-	pack_sender(&root_addr, 						/*Адрес модуля ROOT'а*/
-				UNWDS_4BTN_MODULE_ID, 				/*Индентификатор модуля UMDK-4BTN*/
-				BUTTON_STATUS, 						/*Команда включения канала ШИМ'а*/
+	pack_sender(BUTTON_STATUS, 						/*Команда включения канала ШИМ'а*/
 				(uint8_t*)&button_status_pack, 		/*Payload*/
 				sizeof(button_status_pack));		/*Размер payload'а*/
 }
@@ -733,7 +739,7 @@ PROCESS_THREAD(ping_process, ev, data)
 	
 	while (1)
 	{
-		etimer_set(&ping_timer, (CLOCK_SECOND * 60 * 10));		/*Устанавливаем таймер на 10 минут*/
+		etimer_set(&ping_timer, (CLOCK_SECOND * 10));			/*Устанавливаем таймер на 10 минут*/
 		
 		if(non_answered_ping > 3)								/*Перезагрузить если больше трех неотвеченных пингов*/
 			watchdog_reboot();

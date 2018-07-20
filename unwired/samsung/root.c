@@ -41,6 +41,7 @@
 #include "dev/leds.h"
 #include "cc26xx/board.h"
 
+#include "../../core/dev/serial-line.h"
 #include "../../apps/serial-shell/serial-shell.h"
 #include "../../apps/shell/shell.h"
 
@@ -126,12 +127,14 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 		}
 		off_uart(BOARD_IOID_UART_RX, BOARD_IOID_UART_TX);
 		on_uart(BOARD_IOID_ALT_UART_RX, BOARD_IOID_ALT_UART_TX, 115200);
+		set_uart();	
 		set_uart_r();
 	}
 
 	while (1)
 	{
 		PROCESS_WAIT_EVENT();
+		
 		if (ev == sensors_event && data == &button_e_sensor_long_click)
 		{
 			led_on(LED_A);
@@ -146,9 +149,13 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 			
 			/*Адрес DAG'а*/
 			static uip_ipaddr_t dest_addr;
-			uip_ip6addr(&dest_addr, 0xFD00, 0x0, 0x0, 0x0, 0x0212, 0x4B00, 0x0C46, 0x8D03);
-
-			// lit_measurement_sender(&dest_addr);
+			uip_ip6addr(&dest_addr, 0xFD00, 0x0, 0x0, 0x0, 0x0212, 0x4B00, 0x0C46, 0x8D03);			
+			
+			// hexraw_print(16, &dest_addr);
+			
+			lit_measurement_sender(&dest_addr);
+			
+			
 			// pack_sender(&dest_addr, 
 						// UNWDS_6LOWPAN_SYSTEM_MODULE_ID, 
 						// LIT_MEASURE, 
@@ -159,7 +166,7 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 			// pwm_settings_sender(&dest_addr, 0, 100, 20);
 			// pwm_settings_sender(&dest_addr, 1, 100, 30);
 			// pwm_settings_sender(&dest_addr, 2, 100, 40);
-			pwm_settings_sender(&dest_addr, 3, 100, 50);
+			// pwm_settings_sender(&dest_addr, 3, 100, 50);
 			// pwm_settings_sender(&dest_addr, 4, 100, 60);
 			// pwm_settings_sender(&dest_addr, 5, 100, 70);
 			
@@ -180,7 +187,7 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 			// pwm_power_channel_sender(&dest_addr, 0, 1);
 			// pwm_power_channel_sender(&dest_addr, 1, 1);
 			// pwm_power_channel_sender(&dest_addr, 2, 1);
-			pwm_power_channel_sender(&dest_addr, 3, 1);
+			// pwm_power_channel_sender(&dest_addr, 3, 1);
 			// pwm_power_channel_sender(&dest_addr, 4, 1);
 			// pwm_power_channel_sender(&dest_addr, 5, 1);
 			

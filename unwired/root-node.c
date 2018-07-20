@@ -68,6 +68,7 @@
 
 #include "dev/serial-line.h"
 #include "../cpu/cc26xx-cc13xx/dev/cc26xx-uart.h"
+#include "../../core/dev/serial-line.h"
 
 #include "uart/root.h"
 
@@ -124,6 +125,10 @@ static void button_status_handler(const uip_ip6addr_t *dest_addr, button_status_
 
 /*Обработчик пакета с измерением освещенности*/
 static void lit_measure_handler(const uip_ip6addr_t *dest_addr, lit_measure_t *lit_measure_pack);
+
+/**/
+static void send_pack_from_cr(uint8_t* data);
+
 /*---------------------------------------------------------------------------*/
 /*ПРОТОТИПЫ ПРОЦЕССОВ*/
 
@@ -152,12 +157,13 @@ void udp_data_receiver(struct simple_udp_connection *connection,
 	// printf("Recive pack: %x\n", header_up_pack->data_type);
 	
 	/*Вывод информационного сообщения в консоль*/
-	{
-		printf("Packet crypto received(%"PRIu8"): ", datalen);
-		for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
-			printf("%"PRIXX8, data[i]);
-		printf("\n");
-	}
+	// if(uart_status_r() == 0)
+	// {
+		// printf("Packet crypto received(%"PRIu8"): ", datalen);
+		// for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
+			// printf("%"PRIXX8, data[i]);
+		// printf("\n");
+	// }
 
 	/*Проверяем версию протокола*/ 
 	if(header_up_pack->protocol_version == UDBP_PROTOCOL_VERSION)
@@ -166,6 +172,8 @@ void udp_data_receiver(struct simple_udp_connection *connection,
 		if (header_up_pack->data_type == DATA_TYPE_JOIN_STAGE_1)
 		{
 			/*Вторая стадия авторизации*/
+			
+			/*Выдача сообщения CR*/			
 			join_stage_2_sender(sender_addr, data, datalen);
 			led_off(LED_A);		/*Выключаем светодиод*/
 			return;
@@ -204,12 +212,16 @@ void udp_data_receiver(struct simple_udp_connection *connection,
 			aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[HEADER_DOWN_OFFSET], (uint32_t*)&data[HEADER_DOWN_OFFSET], iterator_to_byte(datalen - HEADER_UP_LENGTH));
 			
 			/*Вывод информационного сообщения в консоль*/
-			{
-				printf("Packet no crypto received(%"PRIu8"): ", datalen);
-				for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
-					printf("%"PRIXX8, data[i]);
-				printf("\n");
-			}
+			// if(uart_status_r() == 0)
+			// {
+				// printf("Packet no crypto received(%"PRIu8"): ", datalen);
+				// for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
+					// printf("%"PRIXX8, data[i]);
+				// printf("\n");
+			// 
+			
+			
+			
 			
 			/*Отражаем структуру на массив*/ 
 			header_down_t *header_down_pack = (header_down_t*)&data[HEADER_DOWN_OFFSET];
@@ -219,6 +231,10 @@ void udp_data_receiver(struct simple_udp_connection *connection,
 			{
 				return;
 			}
+			
+			/*Выдача сообщения CR*/
+			for (uint8_t i = 0; i < (HEADER_LENGTH + header_down_pack->length); i++)	/*Выводим принятый пакет*/ 
+				UARTCharPut(UART0_BASE, data[i]);
 				
 			/*Проверяем ID модуля*/ 
 			if(header_up_pack->device_id == UNWDS_4BTN_MODULE_ID)
@@ -517,7 +533,8 @@ static void button_status_handler(const uip_ip6addr_t *dest_addr, button_status_
 /*Обработчик пакета с измерением освещенности*/
 static void lit_measure_handler(const uip_ip6addr_t *dest_addr, lit_measure_t *lit_measure_pack)
 {
-	printf("[UMDK-LIT] Luminocity: %lu lux\n", lit_measure_pack->lit_measure);
+	if(uart_status_r() == 0)
+		printf("[UMDK-LIT] Luminocity: %lu lux\n", lit_measure_pack->lit_measure);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -595,7 +612,7 @@ void pack_sender(const uip_ip6addr_t *dest_addr,
 	
 	/*Получаем nonce*/
 	u8_u16_t nonce;
-	nonce.u16 = get_nonce(dest_addr);	
+	nonce.u16 = get_nonce((uip_ip6addr_t*)dest_addr);	
 	
 	/*Копируем полученный nonce и используем его в качестве сессионного ключа (AES128-CBC)*/
 	for(int i = 0; i < 16; i += 2)
@@ -631,6 +648,22 @@ void pack_sender(const uip_ip6addr_t *dest_addr,
 	/*Отправляем пакет*/ 
 	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_UP_LENGTH + crypto_length), dest_addr);
 	packet_counter_root.u16++;		/*Инкрементируем счетчик пакетов*/
+}
+
+/*---------------------------------------------------------------------------*/
+/**/
+static void send_pack_from_cr(uint8_t* data)
+{
+	/*Отражаем структуры на массивы*/ 
+	uart_header_t *uart_header_pack = (uart_header_t*)&data[1];
+			
+	// hexraw_print((uint8_t)data[0], (uint8_t*)&data[1]);
+	
+	pack_sender(&(uart_header_pack->dest_addr), 
+				uart_header_pack->device_id, 
+				uart_header_pack->data_type, 
+				(uint8_t*)&data[20], 
+				uart_header_pack->payload_len);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -706,7 +739,7 @@ int uart_data_receiver(unsigned char uart_char)
 void set_uart_r(void)
 {
 	uart = 1;
-	cc26xx_uart_set_input(&uart_data_receiver);
+	// cc26xx_uart_set_input(&uart_data_receiver);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -714,7 +747,7 @@ void set_uart_r(void)
 void unset_uart_r(void)
 {
 	uart = 0;
-	cc26xx_uart_set_input(&serial_line_input_byte);
+	// cc26xx_uart_set_input(&serial_line_input_byte);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -820,67 +853,22 @@ PROCESS_THREAD(settings_root_init, ev, data)
 PROCESS_THREAD(main_root_process, ev, data)
 {
 	PROCESS_BEGIN();
-	timer_set(&timeout_timer, 10);					/*Устанавливаем таймер*/
+	// timer_set(&timeout_timer, 10);					/*Устанавливаем таймер*/
 
-	static struct etimer main_root_process_timer;	/*Таймер*/
+	// static struct etimer main_root_process_timer;	/*Таймер*/
 	packet_counter_root.u16 = 0;					/*Обнуляем счетчик пакетов*/
 	PROCESS_PAUSE();								/*Небольшая задержка*/
 
-	// uint16_t crc_uart;								/*Выделяем память под контрольную сумму*/
+	// uint16_t crc_uart;							/*Выделяем память под контрольную сумму*/
 
-	while (1)
-	{	
-		/**/
-		etimer_set(&main_root_process_timer, 1);
-		
-		/**/
-		PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&main_root_process_timer));
-
-		/*Проверяет поступилили к нам данные по UART*/
-		if(timer_expired(&timeout_timer) && data_iterator > 0)
+	while(1) 							/*Цикл который ожидает события uart_event_message*/
+	{
+		PROCESS_YIELD(); 
+		if(ev == uart_event_message) 
 		{
-			/*Проверяем в каком режиме работает устройство (консоль или UART)*/
-			if(uart == 1)
-			{
-				/*Проверка на минимальную длину*/
-				if(data_iterator > 18)
-				{	
-					/*Отражаем структуры на массивы*/ 
-					uart_header_t *uart_header_pack = (uart_header_t*)&uart_rx_buffer[0];
-					
-					hexraw_print(data_iterator, (uint8_t*)&uart_rx_buffer[0]);
-					
-					pack_sender((uint8_t*)&uart_rx_buffer[0], 
-								uart_header_pack->device_id, 
-								uart_header_pack->data_type, 
-								(uint8_t*)&uart_rx_buffer[19], 
-								uart_header_pack->payload_len);
-					
-					// /*Рассчитываем CRC16-MODBUS*/
-					// crc_uart = crc16_modbus(uart_rx_buffer, data_iterator-2);
-					
-					// /*Если контрольная сумма совпала то отправляем сообщение DAG'у*/
-					// if(crc_uart == (uint16_t) ((uart_rx_buffer[data_iterator-1] << 8) | 
-												// uart_rx_buffer[data_iterator-2]))
-					// {
-						// /*Устанавливаем время ожидание ответа от DAG'а*/
-						// wait_response_slave = 1;
-						// ctimer_set(&wait_response, WAIT_RESPONSE * CLOCK_SECOND, wait_response_reset, NULL);
-						
-						// /*Отправляем сообщение DAG'у*/
-						// uart_to_air();
-					// }
-				}
-				
-				/*Обнуляем счетчик принятых байтов*/
-				data_iterator = 0;
-			}
-			else
-			{
-				/*Обнуляем счетчик принятых байтов*/
-				data_iterator = 0;
-			}
-		}
+			/**/ 
+			send_pack_from_cr(data);
+		} 
 	}
 
 	PROCESS_END();
