@@ -80,7 +80,8 @@ void button_status_sender ( uint8_t button_number,
 void led_mode_set(uint8_t mode);
 
 /**/
-void pack_sender(uint8_t data_type, 
+void pack_sender(uint8_t device_id, 
+				uint8_t data_type, 
 				uint8_t *payload, 
 				uint8_t payload_len);
 

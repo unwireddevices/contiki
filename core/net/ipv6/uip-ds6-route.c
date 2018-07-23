@@ -485,7 +485,11 @@ uip_ds6_route_add ( uip_ipaddr_t *ipaddr,
 	
 	
 	r->length = length;
+////////////////////////////////////////////////////////////////////
+#ifdef UNWDS_ROOT 
 	r->counter = 0xFFFF;
+#endif
+////////////////////////////////////////////////////////////////////
 
 #ifdef UIP_DS6_ROUTE_STATE_TYPE
 	memset(&r->state, 0, sizeof(UIP_DS6_ROUTE_STATE_TYPE));
@@ -793,7 +797,7 @@ void decompress_uip_ipaddr_t(uip_ipaddr_t *addr_out, uip_ipaddr_compressed_t *ad
 	addr_out->u16[7] = addr_in->u16[3];
 }
 /*---------------------------------------------------------------------------*/
-#ifdef ROOT_TABLE 
+#ifdef UNWDS_ROOT 
 // uip_ds6_route_t *
 // uip_ds6_route_serial_lookup(uint32_t serial)
 // {

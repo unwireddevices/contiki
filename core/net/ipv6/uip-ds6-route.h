@@ -37,8 +37,6 @@
  * \file
  *    Header file for routing table manipulation
  */
-#define ROOT_TABLE //Добавляет в таблицу маршрутизации пару полей 
- 
 #ifndef UIP_DS6_ROUTE_H
 #define UIP_DS6_ROUTE_H
 
@@ -167,8 +165,7 @@ typedef struct __attribute__((__packed__)) uip_ds6_route {
 #endif
 	uint8_t length;
 ////////////////////////////////////////////////////////////////////
-#ifdef ROOT_TABLE 
-	// uint32_t serial;
+#ifdef UNWDS_ROOT 
 	uint16_t nonce; 
 	uint16_t counter; 
 #endif
@@ -219,13 +216,15 @@ int uip_ds6_route_is_nexthop(const uip_ipaddr_t *ipaddr);
 void compress_uip_ipaddr_t(uip_ipaddr_t *addr_in, uip_ipaddr_compressed_t *addr_out); 
 void decompress_uip_ipaddr_t(uip_ipaddr_t *addr_out, uip_ipaddr_compressed_t *addr_in);
 
-#ifdef ROOT_TABLE 
+////////////////////////////////////////////////////////////////////
+#ifdef UNWDS_ROOT 
 void add_route(uip_ip6addr_t *addr, uint16_t nonce);
 // uip_ip6addr_t find_addr(uint32_t serial);
 uint16_t get_nonce(uip_ip6addr_t *addr);
 void unlock_addr(uip_ip6addr_t *addr);
 bool valid_counter(uip_ip6addr_t *addr, uint16_t counter);
 #endif
+////////////////////////////////////////////////////////////////////
 /** @} */
 
 #endif /* UIP_DS6_ROUTE_H */

@@ -319,7 +319,8 @@ static void udp_receiver(struct simple_udp_connection *c,
 
 /*---------------------------------------------------------------------------*/
 /**/
-void pack_sender(uint8_t data_type, 
+void pack_sender(uint8_t device_id, 
+				uint8_t data_type, 
 				uint8_t *payload, 
 				uint8_t payload_len)
 {	
@@ -337,7 +338,7 @@ void pack_sender(uint8_t data_type,
 	/*Заполняем пакет*/  
 	/*Header*/ 
 	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
-	header_pack->device_id = UNWDS_MODULE_ID;					/*ID устройства*/
+	header_pack->device_id = device_id;							/*ID устройства*/
 	header_pack->data_type = data_type;							/*Тип пакета*/  
 	header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
 	header_pack->temperature = get_temperature();				/*Температура*/ 
@@ -388,7 +389,6 @@ static void join_stage_1_sender(const uip_ipaddr_t *dest_addr)
 	
 	/*Отражаем структуры на массив*/ 
 	header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
-	join_stage_1_t *join_stage_1_pack = (join_stage_1_t*)&udp_buffer[PAYLOAD_OFFSET];
 	
 	/*Заполняем пакет*/  
 	/*Header*/ 
@@ -400,16 +400,15 @@ static void join_stage_1_sender(const uip_ipaddr_t *dest_addr)
 	header_pack->voltage = get_voltage();						/*Напряжение*/ 
 	header_pack->counter.u16 = packet_counter_node.u16;			/*Счетчик пакетов*/ 
 	header_pack->length = JOIN_STAGE_1_LENGTH;					/*Размер пакета*/
+
+	/*CRC16*/ 
+	header_pack->crc.u16 = 0;
 	
-	/*Payload*/ 
-	join_stage_1_pack->serial.u32 = serial;						/*Серийный номер*/ 
-
 	/*Для отладки. Выводит содержимое пакета*/ 
-	// printf("Join_stage_1_sender serial: %i\n", join_stage_1_pack->serial.u32);
-	// printf("Join_stage_1_sender plaintext:\n");
-	// hexraw_print((HEADER_LENGTH + JOIN_STAGE_1_PAYLOAD_LENGTH), udp_buffer);
-	// printf("\n");
-
+	printf("Join_stage_1_sender plaintext:\n");
+	hexraw_print((HEADER_LENGTH + JOIN_STAGE_1_PAYLOAD_LENGTH), udp_buffer);
+	printf("\n");
+	
 	/*Отправляем пакет*/ 
 	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_LENGTH + JOIN_STAGE_1_PAYLOAD_LENGTH), &addr);
 }
@@ -437,11 +436,11 @@ static void join_stage_3_sender(const uip_ipaddr_t *dest_addr,
 	}
 	
 	/*Выделяем память под пакет. Общий размер пакета (header + payload)*/
-	uint8_t udp_buffer[HEADER_LENGTH + JOIN_STAGE_3_PAYLOAD_LENGTH];	
+	uint8_t udp_buffer[HEADER_UP_LENGTH + JOIN_STAGE_3_PAYLOAD_LENGTH];	
 	
 	/*Отражаем структуры на массивы*/ 
 	header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
-	join_stage_2_t *join_stage_2_pack = (join_stage_2_t*)&aes_buffer[0];
+	join_stage_2_t *join_stage_2_pack = (join_stage_2_t*)&data[PAYLOAD_OFFSET];
 	join_stage_3_t *join_stage_3_pack = (join_stage_3_t*)&udp_buffer[PAYLOAD_OFFSET];
 	
 	/*Заполняем пакет*/  
@@ -456,10 +455,9 @@ static void join_stage_3_sender(const uip_ipaddr_t *dest_addr,
 	header_pack->length = JOIN_STAGE_3_LENGTH;					/*Размер пакета*/
 	
 	/*Payload*/ 
-	join_stage_3_pack->serial.u32 = serial;						/*Serial*/ 
 	
 	/*Расшифровываем блок*/ 
-	aes_ecb_decrypt((uint32_t*)aes_key, (uint32_t*)&data[PAYLOAD_OFFSET], (uint32_t*)aes_buffer);
+	aes_ecb_decrypt((uint32_t*)aes_key, (uint32_t*)&data[PAYLOAD_OFFSET], (uint32_t*)&data[PAYLOAD_OFFSET]);
 	
 	/*Копируем полученный nonce и используем его в качестве сессионного ключа (AES128-CBC)*/
 	for(int i = 0; i < 16; i += 2)
@@ -468,13 +466,18 @@ static void join_stage_3_sender(const uip_ipaddr_t *dest_addr,
 		nonce_key[i+1] = join_stage_2_pack->nonce.u8[0];	
 	}
 	
+	join_stage_3_pack->nonce.u16 = join_stage_2_pack->nonce.u16++;
+	
 	/*Для отладки. Выводит содержимое пакета*/ 
-	// printf("Join_stage_3_sender nonce: %i\n", join_stage_2_pack->nonce.u16);
-	// hexraw_print(16, nonce_key);
-	// printf("\n");
+	printf("Join_stage_3_sender nonce: %i\n", join_stage_3_pack->nonce.u16);
+	hexraw_print(16, nonce_key);
+	printf("\n");
+	
+	/*CRC16*/ 
+	header_pack->crc.u16 = crc16_arc((uint8_t*)&join_stage_3_pack, sizeof(join_stage_3_pack));
 	
 	/*Зашифровываем данные*/
-	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&join_stage_3_pack->crypto_1_block), CRYPTO_1_BLOCK_LENGTH);		
+	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)(&join_stage_3_pack), (uint32_t*)(&join_stage_3_pack), CRYPTO_1_BLOCK_LENGTH);		
 
 	/*Для отладки. Выводит содержимое пакета*/ 
 	// printf("Join_stage_3_sender pack:\n");
@@ -529,51 +532,10 @@ static void ping_sender(void)
 		ping_pack.array_of_zeros[i] = 0x00;		/*Заполняем нулями*/
 	
 	/*Отправляем пакет*/	
-	pack_sender(PING, 							/*Команда ping*/
+	pack_sender(UNWDS_6LOWPAN_SYSTEM_MODULE_ID,
+				PING, 							/*Команда ping*/
 				(uint8_t*)&ping_pack, 			/*Payload*/
 				sizeof(ping_pack));				/*Размер payload'а*/
-				
-				
-				
-				
-	
-	
-	// uip_ipaddr_t addr;						/*Выделяем память для адреса на который отправится пакет*/
-	// uip_ip6addr_copy(&addr, &root_addr);	/*Копируем адрес ROOT'а*/
-	
-	// /*Выделяем память под пакет. Общий размер пакета (header + payload)*/
-	// uint8_t udp_buffer[HEADER_LENGTH + PING_PAYLOAD_LENGTH];	
-	
-	// /*Отражаем структуры на массивы*/ 
-	// header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
-	// ping_t *ping_pack = (ping_t*)&aes_buffer[0];
-	
-	// /*Заполняем пакет*/  
-	// /*Header*/ 
-	// header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
-	// header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
-	// header_pack->data_type = PING;								/*Тип пакета*/  
-	// header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
-	// header_pack->temperature = get_temperature();				/*Температура*/ 
-	// header_pack->voltage = get_voltage();						/*Напряжение*/ 
-	// header_pack->counter.u16 = packet_counter_node.u16;			/*Счетчик пакетов*/ 
-	// header_pack->length = PING_LENGTH;							/*Размер пакета*/
-
-	// /*Payload*/ 
-	// /*Заполняем пакет нулями, зашифровываем и отправляем его ROOT'у. */ 
-	// for(uint8_t i = 0; i < 16; i++)
-		// ping_pack->array_of_zeros[i] = 0x00;
-	
-	// /*Зашифровываем данные*/
-	// aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[PAYLOAD_OFFSET]), CRYPTO_1_BLOCK_LENGTH);
-	
-	// /*Для отладки. Выводит содержимое пакета*/ 
-	// printf("Ping_sender pack:\n");
-	// hexraw_print((HEADER_LENGTH + PING_PAYLOAD_LENGTH), udp_buffer);
-	// printf("\n");
-	
-	// /*Отправляем пакет*/ 
-	// simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_LENGTH + PING_PAYLOAD_LENGTH), &addr);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -682,7 +644,8 @@ static void dag_lit_measure_sender()
 	printf("[UMDK-LIT] Luminocity: %lu lux\n", lit_measure_pack.lit_measure);
 	
 	/*Отправляем пакет*/	
-	pack_sender(LIT_MEASURE, 							/*Команда включения канала ШИМ'а*/
+	pack_sender(UNWDS_MODULE_ID,
+				LIT_MEASURE, 							/*Команда включения канала ШИМ'а*/
 				(uint8_t*)&lit_measure_pack, 			/*Payload*/
 				sizeof(lit_measure_pack));				/*Размер payload'а*/
 }
@@ -704,7 +667,8 @@ void button_status_sender ( uint8_t button_number,
 		button_status_pack.button_status |= LONG_CLICK;
 	
 	/*Отправляем пакет*/
-	pack_sender(BUTTON_STATUS, 						/*Команда включения канала ШИМ'а*/
+	pack_sender(UNWDS_MODULE_ID,
+				BUTTON_STATUS, 						/*Команда включения канала ШИМ'а*/
 				(uint8_t*)&button_status_pack, 		/*Payload*/
 				sizeof(button_status_pack));		/*Размер payload'а*/
 }

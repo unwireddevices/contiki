@@ -32,52 +32,254 @@
 *         Manchenko Oleg man4enkoos@gmail.com
 */
 /*---------------------------------------------------------------------------*/
+#include "net/ip/uip.h"
+/*---------------------------------------------------------------------------*/
+#ifndef PROTOCOL_H
+#define PROTOCOL_H
+
+#define pack 		__attribute__((packed))
+/*---------------------------------------------------------------------------*/
+/**/
+typedef union u8_u16_t
+{
+	uint16_t u16;
+	uint8_t u8[2];
+} u8_u16_t;
+
+typedef union u8_i16_t
+{
+	int16_t i16;
+	uint8_t u8[2];
+} u8_i16_t;
+
+typedef union u8_u32_t
+{
+	uint32_t u32;
+	uint8_t u8[4];
+} u8_u32_t;
+
+/*---------------------------------------------------------------------------*/
+/**/
+typedef enum 
+{
+	UNWDS_GPIO_MODULE_ID = 1,
+	UNWDS_4BTN_MODULE_ID = 2,
+	UNWDS_GPS_MODULE_ID = 3,
+	UNWDS_LSM6DS3_MODULE_ID = 4,
+	UNWDS_LM75_MODULE_ID = 5,
+	UNWDS_LMT01_MODULE_ID = 6,
+	UNWDS_UART_MODULE_ID = 7,
+	UNWDS_SHT21_MODULE_ID = 8,
+	UNWDS_PIR_MODULE_ID = 9,
+	UNWDS_ADC_MODULE_ID = 10,
+	UNWDS_LPS331_MODULE_ID = 11,
+	UNWDS_COUNTER_MODULE_ID = 12,
+	UNWDS_RSSIECHO_MODULE_ID = 13,
+	UNWDS_6FET_MODULE_ID = 14,
+	UNWDS_LIT_MODULE_ID = 15,
+	UNWDS_DALI_MODULE_ID = 16,
+	UNWDS_BME280_MODULE_ID = 17,
+	UNWDS_MHZ19_MODULE_ID = 18,
+	UNWDS_RANGE_MODULE_ID = 19,
+	UNWDS_ADXL345_MODULE_ID = 20,
+	/* Proprietary 50 to 99 */
+	UNWDS_M200_MODULE_ID = 50,
+	UNWDS_PULSE_MODULE_ID = 51,
+	UNWDS_IBUTTON_MODULE_ID = 52,
+	UNWDS_SWITCH_MODULE_ID = 53,
+	UNWDS_M230_MODULE_ID = 54,
+	UNWDS_IEC61107_MODULE_ID = 55,
+	/* Customer 100 to 125*/
+	UNWDS_CUSTOMER_MODULE_ID = 100,
+	UNWDS_FIREBUTTON_MODULE_ID = 101,
+	/* System module 126 */
+	UNWDS_CONFIG_MODULE_ID = 126,
+	UNWDS_6LOWPAN_SYSTEM_MODULE_ID = 127,
+} UNWDS_MODULE_IDS_t;
+
+/*---------------------------------------------------------------------------*/
+/*CR->ROOT*/
+//0xFD 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x02 0x12 0x4B 0x00 0x0C 0x46 0x8D 0x03 0x0F 0x26 0x00 //test lum
+typedef struct {		
+	uip_ip6addr_t dest_addr; 
+	uint8_t device_id; 
+	uint8_t data_type; 
+	uint8_t payload_len;
+} pack uart_header_t;
+
+/*---------------------------------------------------------------------------*/
+/*HEADER*/
+typedef struct {
+	uint8_t protocol_version;
+    uint8_t device_id;
+	uint8_t data_type;
+	uint8_t rssi;
+	uint8_t temperature;
+	uint8_t voltage;
+} pack header_up_t;
+
+typedef struct {		
+    u8_u16_t counter;
+	u8_u16_t crc;
+	uint8_t length;
+} pack header_down_t;
+
+typedef struct {		
+	uint8_t protocol_version;
+    uint8_t device_id;
+	uint8_t data_type;
+	uint8_t rssi;
+	uint8_t temperature;
+	uint8_t voltage;
+	u8_u16_t counter;
+	u8_u16_t crc;
+	uint8_t length;
+} pack header_t; 
+
+/*---------------------------------------------------------------------------*/
+
+typedef struct {		
+	uint8_t ciphertext[16];
+} pack crypto_1_block_t;
+
+/*---------------------------------------------------------------------------*/
+/*UNWDS-4BTN*/
+
+/*Command*/
+#define BUTTON_STATUS		0x00 /*Пакет статусом нажатой кнопки*/
+
+/*Struct*/
+typedef struct {		
+	uint8_t button_status;
+} pack button_status_t;
+
+/*---------------------------------------------------------------------------*/
+/*UNWDS-6FET*/
+
+/*Command*/
+#define PWM_SETTINGS		0x00 /*Пакет с настройкоами ШИМ канала*/
+
+/*Struct*/
+typedef struct {
+	uint32_t frequency;
+	uint8_t channel;
+	uint8_t duty;
+} pack pwm_settings_t;
+
+/*-----------------------------------*/
+/*Command*/
+#define PWM_POWER			0x01 /*Команда включения/выключения канала ШИМ'а*/
+
+/*Struct*/
+typedef struct {		
+	uint8_t pwm_power;
+} pack pwm_power_t;
+
+/*---------------------------------------------------------------------------*/
+/*UNWDS-LIT*/
+
+/*Command*/
+#define LIT_MEASURE			0x00 /*Команда замера освещенности*/
+
+/*Struct*/
+typedef struct {		
+	uint32_t lit_measure;
+} pack lit_measure_t;
+
+/*---------------------------------------------------------------------------*/
+/*UNWDS-6LOWPAN_SYSTEM*/
+
+/*Command*/
+#define DATA_TYPE_JOIN_STAGE_1		0x00 /*Нода посылает запрос координатору*/
+
+/*Struct*/
+// typedef struct {		
+// } join_stage_1_t;
+
+/*-----------------------------------*/
+/*Command*/
+#define DATA_TYPE_JOIN_STAGE_2		0x01 /*Координатор отправляет ecb_encrypt(nonce=rand())*/
+
+/*Struct*/
+typedef struct {		
+	u8_u16_t nonce;
+} pack join_stage_2_t;
+
+/*-----------------------------------*/
+/*Command*/
+#define DATA_TYPE_JOIN_STAGE_3		0x02 /*Нода удостоверяет, что она знает ключ отправляя cbc_encrypt(nonce)*/
+
+/*Struct*/
+typedef struct {		
+	u8_u16_t nonce;
+} pack join_stage_3_t;
+
+
+/*-----------------------------------*/
+/*Command*/
+#define DATA_TYPE_JOIN_STAGE_4		0x03 /*Координатор отвечает ноде что она имеет право быть в сети*/
+
+/*Struct*/
+typedef struct {		
+	uint8_t status_code;
+} pack join_stage_4_t;
+
+/*-----------------------------------*/
+/*Command*/
+#define PING						0x04 /*Ping*/
+
+/*Struct*/
+typedef struct {		
+	uint8_t array_of_zeros[16];
+} pack ping_t;
+
+/*-----------------------------------*/
+/*Command*/
+#define PONG						0x05 /*Pong*/
+
+/*Struct*/
+typedef struct {		
+	uint8_t status_code;
+} pack pong_t;
+
+/*---------------------------------------------------------------------------*/
 #define UDP_DATA_PORT					4004
 
 #define UDBP_PROTOCOL_VERSION			1
 
-#define HEADER_OFFSET 					0
-#define HEADER_DOWN_OFFSET 				6
-#define PAYLOAD_OFFSET 					9
-#define HEADER_DOWN_LENGTH_OFFSET 		2
-
-#define SERIAL_LENGTH 					4
-#define NONCE_LENGTH					2
 #define STATUS_CODE_LENGTH				1
-#define ARRAY_OF_ZEROS_LENGTH			16
-#define HEADER_UP_LENGTH				6
-#define HEADER_DOWN_LENGTH				3
+#define NONCE_LENGTH					2
+#define HEADER_UP_LENGTH				sizeof(header_up_t)
+#define HEADER_DOWN_LENGTH				sizeof(header_down_t)
 
-#define CRYPTO_1_BLOCK_LENGTH 			16	
-#define CRYPTO_2_BLOCK_LENGTH 			32
-#define CRYPTO_3_BLOCK_LENGTH 			48
-#define CRYPTO_4_BLOCK_LENGTH 			64
-#define CRYPTO_5_BLOCK_LENGTH 			80
-#define CRYPTO_6_BLOCK_LENGTH 			96
-#define CRYPTO_7_BLOCK_LENGTH 			112
+#define HEADER_OFFSET 					0
+#define HEADER_DOWN_OFFSET 				HEADER_UP_LENGTH
+#define PAYLOAD_OFFSET 					HEADER_UP_LENGTH + HEADER_DOWN_LENGTH
 
-#define JOIN_STAGE_1_PAYLOAD_LENGTH 	SERIAL_LENGTH
+#define CRYPTO_1_BLOCK_LENGTH 			sizeof(crypto_1_block_t)
+
+#define JOIN_STAGE_1_PAYLOAD_LENGTH 	0
 #define JOIN_STAGE_2_PAYLOAD_LENGTH 	CRYPTO_1_BLOCK_LENGTH
-#define JOIN_STAGE_3_PAYLOAD_LENGTH 	SERIAL_LENGTH + CRYPTO_1_BLOCK_LENGTH
+#define JOIN_STAGE_3_PAYLOAD_LENGTH 	CRYPTO_1_BLOCK_LENGTH
 #define JOIN_STAGE_4_PAYLOAD_LENGTH 	CRYPTO_1_BLOCK_LENGTH
 #define PING_PAYLOAD_LENGTH 			CRYPTO_1_BLOCK_LENGTH
-#define PONG_PAYLOAD_LENGTH 			STATUS_CODE_LENGTH + CRYPTO_1_BLOCK_LENGTH
+#define PONG_PAYLOAD_LENGTH 			CRYPTO_1_BLOCK_LENGTH
 #define BUTTON_STATUS_PAYLOAD_LENGTH	CRYPTO_1_BLOCK_LENGTH
 #define PWM_SETTINGS_PAYLOAD_LENGTH		CRYPTO_1_BLOCK_LENGTH
 #define PWM_POWER_PAYLOAD_LENGTH		CRYPTO_1_BLOCK_LENGTH
 #define LIT_MEASURE_PAYLOAD_LENGTH		CRYPTO_1_BLOCK_LENGTH
 
-#define HEADER_LENGTH 					9
-#define JOIN_STAGE_1_LENGTH 			SERIAL_LENGTH
+#define HEADER_LENGTH 					HEADER_UP_LENGTH + HEADER_DOWN_LENGTH
+#define JOIN_STAGE_1_LENGTH 			0
 #define JOIN_STAGE_2_LENGTH 			NONCE_LENGTH
-#define JOIN_STAGE_3_LENGTH 			SERIAL_LENGTH + NONCE_LENGTH
-#define JOIN_STAGE_4_LENGTH 			ARRAY_OF_ZEROS_LENGTH
+#define JOIN_STAGE_3_LENGTH 			NONCE_LENGTH
+#define JOIN_STAGE_4_LENGTH 			STATUS_CODE_LENGTH
 #define PING_LENGTH 					ARRAY_OF_ZEROS_LENGTH
-#define PONG_LENGTH 					STATUS_CODE_LENGTH + ARRAY_OF_ZEROS_LENGTH
-#define BUTTON_STATUS_LENGTH 			1
-#define PWM_SETTINGS_LENGTH 			6
-#define PWM_POWER_LENGTH 				1
-#define LIT_MEASURE_LENGTH				4
+#define PONG_LENGTH 					STATUS_CODE_LENGTH
+#define BUTTON_STATUS_LENGTH 			sizeof(button_status_t)
+#define PWM_SETTINGS_LENGTH 			sizeof(pwm_settings_t)
+#define PWM_POWER_LENGTH 				sizeof(pwm_power_t)
+#define LIT_MEASURE_LENGTH				sizeof(lit_measure_t)
 
 #define OFFSET_0_BYTE 					0
 #define OFFSET_1_BYTE 					1
@@ -94,167 +296,8 @@
 #define STATUS_ERROR	 				0x01
 
 /*---------------------------------------------------------------------------*/
-/* Data types */
-// #define DATA_TYPE_RESERVED_1				0x01 //Не используется
-// #define DATA_TYPE_SENSOR_DATA			0x02 //Данные с датчиков устройства
-// #define DATA_TYPE_RESERVED_2				0x03 //Не используется
-// #define DATA_TYPE_ACK					0x04 //Подтверждение доставки пакета
-// #define DATA_TYPE_COMMAND				0x05 //Команды возможностям устройства
-// #define DATA_TYPE_STATUS					0x06 //Пакет со статусными данными
-// #define DATA_TYPE_GET_STATUS				0x07 //Запрос статуса(не реализовано)
-// #define DATA_TYPE_SETTINGS				0x08 //Команда настройки параметров
-// #define DATA_TYPE_MESSAGE				0x09 //Сообщения
-// #define DATA_TYPE_SET_TIME				0x0A //Команда установки времени
-// #define DATA_TYPE_SET_SCHEDULE			0x0B //Команда установки расписания(не реализовано)
-// #define DATA_TYPE_FIRMWARE				0x0C //Данные для OTA
-// #define DATA_TYPE_UART					0x0D //Команда с данными UART
-// #define DATA_TYPE_FIRMWARE_CMD			0x0E //Команды OTA
-// #define DATA_TYPE_RESERVED_3				0x0F //Не используется
-#define DATA_TYPE_JOIN_STAGE_1				0x10 //Нода посылает запрос координатору
-#define DATA_TYPE_JOIN_STAGE_2				0x11 //Координатор отправляет ecb_encrypt(nonce=rand())
-#define DATA_TYPE_JOIN_STAGE_3				0x12 //Нода удостоверяет, что она знает ключ отправляя cbc_encrypt(nonce)
-#define DATA_TYPE_JOIN_STAGE_4				0x13 //Координатор отвечает ноде что она имеет право быть в сети
-#define PING								0x14 //Ping
-#define PONG								0x15 //Pong
-#define UART_FROM_AIR_TO_TX					0x20 //Пакет с UART
-#define UART_FROM_RX_TO_AIR					0x21 //Пакет с UART
-#define BUTTON_STATUS						0x23 //Пакет статусом нажатой кнопки
-#define PWM_SETTINGS						0x24 //Пакет с настройкоами ШИМ канала
-#define PWM_POWER							0x25 //Команда включения/выключения канала ШИМ'а
-#define LIT_MEASURE							0x26 //Команда замера освещенности
-
+#endif
 /*---------------------------------------------------------------------------*/
-
-// typedef union u8_u16_t
-// {
-	// uint16_t u16;
-	// uint8_t u8[2];
-// } u8_u16_t;
-
-// typedef union u8_u32_t
-// {
-	// uint32_t u32;
-	// uint8_t u8[4];
-// } u8_u32_t;
-
-/*---------------------------------------------------------------------------*/
-
-typedef struct {		
-	uint8_t ciphertext[16];
-} crypto_1_block_t;
-
-typedef struct {		
-	uint8_t ciphertext[32];
-} crypto_2_block_t;
-
-typedef struct {		
-	uint8_t ciphertext[48];
-} crypto_3_block_t;
-
-typedef struct {		
-	uint8_t ciphertext[64];
-} crypto_4_block_t;
-
-typedef struct {		
-	uint8_t ciphertext[80];
-} crypto_5_block_t;
-
-typedef struct {		
-	uint8_t ciphertext[96];
-} crypto_6_block_t;
-
-typedef struct {		
-	uint8_t ciphertext[112];
-} crypto_7_block_t;
-
-/*---------------------------------------------------------------------------*/
-//0xFD 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x02 0x12 0x4B 0x00 0x0C 0x46 0x8D 0x03 0x0F 0x26 0x00 //test lum
-typedef struct {		
-	uip_ip6addr_t dest_addr; 
-	uint8_t device_id; 
-	uint8_t data_type; 
-	uint8_t payload_len;
-} uart_header_t;
-
-/*---------------------------------------------------------------------------*/
-
-typedef struct {
-	uint8_t protocol_version;
-    uint8_t device_id;
-	uint8_t data_type;
-	uint8_t rssi;
-	uint8_t temperature;
-	uint8_t voltage;
-} header_up_t;
-
-typedef struct {		
-    u8_u16_t counter;
-	uint8_t length;
-} header_down_t;
-
-typedef struct {		
-	uint8_t protocol_version;
-    uint8_t device_id;
-	uint8_t data_type;
-	uint8_t rssi;
-	uint8_t temperature;
-	uint8_t voltage;
-	u8_u16_t counter;
-	uint8_t length;
-} header_t;
-
-typedef struct {		
-	u8_u32_t serial;
-} join_stage_1_t;
-
-typedef struct {		
-	u8_u16_t nonce;
-} join_stage_2_t;
-
-typedef struct {		
-	u8_u32_t serial;
-	crypto_1_block_t crypto_1_block;
-} join_stage_3_t;
-
-typedef struct {		
-	uint8_t array_of_zeros[16];
-} join_stage_4_t;
-
-typedef struct {		
-	uint8_t array_of_zeros[16];
-} ping_t;
-
-typedef struct {		
-	uint8_t status_code;
-	uint8_t array_of_zeros[16];
-} pong_t;
-
-typedef struct {		
-	uint8_t button_status;
-} button_status_t;
-
-typedef struct {
-	uint32_t frequency;
-	uint8_t channel;
-	uint8_t duty;
-} pwm_settings_t;
-
-typedef struct {		
-	uint8_t pwm_power;
-} pwm_power_t;
-
-typedef struct {		
-	uint32_t lit_measure;
-} lit_measure_t;
-
-/*---------------------------------------------------------------------------*/
-
-
-
-
-
-
-
 
 
 
