@@ -202,7 +202,7 @@ static void udp_receiver(struct simple_udp_connection *c,
 	/*Вывод информационного сообщения в консоль*/
 	if(uart_status() == 0)
 	{
-		printf("DAG Node: UDP crypto packet received(%"PRIu8"): ", datalen);
+		printf("[DAG Node]: UDP crypto packet received(%"PRIu8"): ", datalen);
 		for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
 			printf("%"PRIXX8, data[i]);
 		printf("\n");
@@ -389,6 +389,7 @@ static void join_stage_1_sender(const uip_ipaddr_t *dest_addr)
 	
 	/*Отражаем структуры на массив*/ 
 	header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
+	join_stage_1_t *join_stage_1_pack = (join_stage_1_t*)&udp_buffer[PAYLOAD_OFFSET];
 	
 	/*Заполняем пакет*/  
 	/*Header*/ 
@@ -401,11 +402,14 @@ static void join_stage_1_sender(const uip_ipaddr_t *dest_addr)
 	header_pack->counter.u16 = packet_counter_node.u16;			/*Счетчик пакетов*/ 
 	header_pack->length = JOIN_STAGE_1_LENGTH;					/*Размер пакета*/
 
+	/*Payload*/
+	join_stage_1_pack->module_id = UNWDS_MODULE_ID;
+	
 	/*CRC16*/ 
 	header_pack->crc.u16 = 0;
 	
 	/*Для отладки. Выводит содержимое пакета*/ 
-	printf("Join_stage_1_sender plaintext:\n");
+	printf("Join_stage_1_sender:\n");
 	hexraw_print((HEADER_LENGTH + JOIN_STAGE_1_PAYLOAD_LENGTH), udp_buffer);
 	printf("\n");
 	
@@ -455,9 +459,13 @@ static void join_stage_3_sender(const uip_ipaddr_t *dest_addr,
 	header_pack->length = JOIN_STAGE_3_LENGTH;					/*Размер пакета*/
 	
 	/*Payload*/ 
-	
 	/*Расшифровываем блок*/ 
-	aes_ecb_decrypt((uint32_t*)aes_key, (uint32_t*)&data[PAYLOAD_OFFSET], (uint32_t*)&data[PAYLOAD_OFFSET]);
+	aes_ecb_decrypt((uint32_t*)aes_key, (uint32_t*)&data[HEADER_DOWN_OFFSET], (uint32_t*)&data[HEADER_DOWN_OFFSET]);
+	
+	/*Для отладки. Выводит содержимое пакета*/ 
+	printf("Join_stage_2_sender:\n");
+	hexraw_print(datalen, (uint8_t*)data);
+	printf("\n");
 	
 	/*Копируем полученный nonce и используем его в качестве сессионного ключа (AES128-CBC)*/
 	for(int i = 0; i < 16; i += 2)
@@ -466,7 +474,12 @@ static void join_stage_3_sender(const uip_ipaddr_t *dest_addr,
 		nonce_key[i+1] = join_stage_2_pack->nonce.u8[0];	
 	}
 	
-	join_stage_3_pack->nonce.u16 = join_stage_2_pack->nonce.u16++;
+	/*Отправляем ROOT'у nonce на еденицу больше для того что бы он был уверен что у нас одинаковое шифрование*/ 
+	join_stage_3_pack->nonce.u16 = join_stage_2_pack->nonce.u16 + 1;
+	
+	/*Дозаполняем блок для шифрования нулями*/ 
+	for(uint8_t i = JOIN_STAGE_3_LENGTH; i < (JOIN_STAGE_3_PAYLOAD_LENGTH - HEADER_DOWN_LENGTH); i++)
+		udp_buffer[PAYLOAD_OFFSET + i] = 0x00;
 	
 	/*Для отладки. Выводит содержимое пакета*/ 
 	printf("Join_stage_3_sender nonce: %i\n", join_stage_3_pack->nonce.u16);
@@ -476,8 +489,13 @@ static void join_stage_3_sender(const uip_ipaddr_t *dest_addr,
 	/*CRC16*/ 
 	header_pack->crc.u16 = crc16_arc((uint8_t*)&join_stage_3_pack, sizeof(join_stage_3_pack));
 	
+	/*Для отладки. Выводит содержимое пакета*/ 
+	printf("Join_stage_3_sender:\n");
+	hexraw_print((HEADER_UP_LENGTH + JOIN_STAGE_3_PAYLOAD_LENGTH), udp_buffer);
+	printf("\n");
+	
 	/*Зашифровываем данные*/
-	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)(&join_stage_3_pack), (uint32_t*)(&join_stage_3_pack), CRYPTO_1_BLOCK_LENGTH);		
+	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&udp_buffer[HEADER_DOWN_OFFSET], (uint32_t*)&udp_buffer[HEADER_DOWN_OFFSET], CRYPTO_1_BLOCK_LENGTH);		
 
 	/*Для отладки. Выводит содержимое пакета*/ 
 	// printf("Join_stage_3_sender pack:\n");
@@ -485,7 +503,7 @@ static void join_stage_3_sender(const uip_ipaddr_t *dest_addr,
 	// printf("\n");
 	
 	/*Отправляем пакет*/ 
-	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_LENGTH + JOIN_STAGE_3_PAYLOAD_LENGTH), &addr);
+	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_DOWN_OFFSET + JOIN_STAGE_3_PAYLOAD_LENGTH), &addr);
 }
 /*---------------------------------------------------------------------------*/
 /*Обработчик четвертой стадии авторизации*/
@@ -500,13 +518,20 @@ static void join_stage_4_handler(const uip_ipaddr_t *sender_addr,
 
 	/*Отражаем структуры на массивы*/ 
 	header_t *header_pack = (header_t*)&data[HEADER_OFFSET];
-	// join_stage_4_t *join_stage_4_pack = (join_stage_4_t*)&aes_buffer[0];
+	join_stage_4_t *join_stage_4_pack = (join_stage_4_t*)&data[PAYLOAD_OFFSET];
 	
 	/*Расшифровываем данные*/
-	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[PAYLOAD_OFFSET], (uint32_t*)(aes_buffer), CRYPTO_1_BLOCK_LENGTH);
+	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[HEADER_DOWN_OFFSET], (uint32_t*)&data[HEADER_DOWN_OFFSET], CRYPTO_1_BLOCK_LENGTH);
 		
+	/*Для отладки. Выводит содержимое пакета*/ 
+	printf("Join_stage_4_handler:\n");
+	hexraw_print(datalen, (uint8_t*)data);
+	printf("\n");
+	
+	printf("%i == %i\n", join_stage_4_pack->status_code, STATUS_OK);
+	
 	/*Проверяем массив. Если все нули, то авториция прошла успешно*/
-	if(is_array_zero(aes_buffer))
+	if(join_stage_4_pack->status_code)
 	{
 		packet_counter_root.u16 = header_pack->counter.u16;				/*Сохраняем счетчик пакетов ROOT'а*/ 
 		uip_ipaddr_copy(&root_addr, sender_addr); 						/*Копируем адрес ROOT'а с которым авторизировались*/ 

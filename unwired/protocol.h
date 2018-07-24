@@ -40,20 +40,17 @@
 #define pack 		__attribute__((packed))
 /*---------------------------------------------------------------------------*/
 /**/
-typedef union u8_u16_t
-{
+typedef union u8_u16_t {
 	uint16_t u16;
 	uint8_t u8[2];
 } u8_u16_t;
 
-typedef union u8_i16_t
-{
+typedef union u8_i16_t {
 	int16_t i16;
 	uint8_t u8[2];
 } u8_i16_t;
 
-typedef union u8_u32_t
-{
+typedef union u8_u32_t {
 	uint32_t u32;
 	uint8_t u8[4];
 } u8_u32_t;
@@ -193,8 +190,9 @@ typedef struct {
 #define DATA_TYPE_JOIN_STAGE_1		0x00 /*Нода посылает запрос координатору*/
 
 /*Struct*/
-// typedef struct {		
-// } join_stage_1_t;
+typedef struct {		
+	uint8_t module_id;
+} pack join_stage_1_t;
 
 /*-----------------------------------*/
 /*Command*/
@@ -248,7 +246,6 @@ typedef struct {
 #define UDBP_PROTOCOL_VERSION			1
 
 #define STATUS_CODE_LENGTH				1
-#define NONCE_LENGTH					2
 #define HEADER_UP_LENGTH				sizeof(header_up_t)
 #define HEADER_DOWN_LENGTH				sizeof(header_down_t)
 
@@ -258,7 +255,7 @@ typedef struct {
 
 #define CRYPTO_1_BLOCK_LENGTH 			sizeof(crypto_1_block_t)
 
-#define JOIN_STAGE_1_PAYLOAD_LENGTH 	0
+#define JOIN_STAGE_1_PAYLOAD_LENGTH 	JOIN_STAGE_1_LENGTH
 #define JOIN_STAGE_2_PAYLOAD_LENGTH 	CRYPTO_1_BLOCK_LENGTH
 #define JOIN_STAGE_3_PAYLOAD_LENGTH 	CRYPTO_1_BLOCK_LENGTH
 #define JOIN_STAGE_4_PAYLOAD_LENGTH 	CRYPTO_1_BLOCK_LENGTH
@@ -270,12 +267,12 @@ typedef struct {
 #define LIT_MEASURE_PAYLOAD_LENGTH		CRYPTO_1_BLOCK_LENGTH
 
 #define HEADER_LENGTH 					HEADER_UP_LENGTH + HEADER_DOWN_LENGTH
-#define JOIN_STAGE_1_LENGTH 			0
-#define JOIN_STAGE_2_LENGTH 			NONCE_LENGTH
-#define JOIN_STAGE_3_LENGTH 			NONCE_LENGTH
-#define JOIN_STAGE_4_LENGTH 			STATUS_CODE_LENGTH
-#define PING_LENGTH 					ARRAY_OF_ZEROS_LENGTH
-#define PONG_LENGTH 					STATUS_CODE_LENGTH
+#define JOIN_STAGE_1_LENGTH 			sizeof(join_stage_1_t)
+#define JOIN_STAGE_2_LENGTH 			sizeof(join_stage_2_t)
+#define JOIN_STAGE_3_LENGTH 			sizeof(join_stage_3_t)
+#define JOIN_STAGE_4_LENGTH 			sizeof(join_stage_4_t)
+#define PING_LENGTH 					sizeof(ping_t)
+#define PONG_LENGTH 					sizeof(pong_t)
 #define BUTTON_STATUS_LENGTH 			sizeof(button_status_t)
 #define PWM_SETTINGS_LENGTH 			sizeof(pwm_settings_t)
 #define PWM_POWER_LENGTH 				sizeof(pwm_power_t)
@@ -292,13 +289,12 @@ typedef struct {
 #define OFFSET_8_BYTE 					8
 #define OFFSET_9_BYTE 					9
 
-#define STATUS_OK	 					0x00
-#define STATUS_ERROR	 				0x01
+#define STATUS_OK	 					0x01
+#define STATUS_ERROR	 				0x00
 
 /*---------------------------------------------------------------------------*/
 #endif
 /*---------------------------------------------------------------------------*/
-
 
 
 

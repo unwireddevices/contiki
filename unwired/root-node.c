@@ -89,7 +89,6 @@
 uint8_t uart_rx_buffer[128];			/*Буфер UART RX*/
 
 uint8_t aes_key[16];					/*Ключ шифрования*/
-static uint8_t aes_buffer[128];			/*Буфер для операций шифрования*/
 static uint8_t nonce_key[16];			/*Сессионный ключ*/
 
 eeprom_t eeprom_settings;				/*Настройки из EEPROM*/
@@ -213,8 +212,6 @@ void udp_data_receiver(struct simple_udp_connection *connection,
 			// 
 			
 			
-			
-			
 			/*Отражаем структуру на массив*/ 
 			header_down_t *header_down_pack = (header_down_t*)&data[HEADER_DOWN_OFFSET];
 			
@@ -279,6 +276,11 @@ static void join_stage_2_sender(const uip_ip6addr_t *dest_addr, const uint8_t *d
 	uip_ipaddr_t addr;					/*Выделяем память для адреса на который отправится пакет*/
 	uip_ip6addr_copy(&addr, dest_addr);	/*Копируем адрес*/
 	
+	/*Для отладки. Выводит содержимое пакета*/ 
+	printf("Join_stage_1_sender:\n");
+	hexraw_print(length, (uint8_t*)data);
+	printf("\n");
+	
 	/*Выделяем память под пакет. Общий размер пакета (header + payload)*/
 	uint8_t udp_buffer[HEADER_UP_LENGTH + JOIN_STAGE_2_PAYLOAD_LENGTH];
 	
@@ -308,16 +310,16 @@ static void join_stage_2_sender(const uip_ip6addr_t *dest_addr, const uint8_t *d
 				join_stage_2_pack->nonce.u16);				/*Nonce*/ 
 	
 	/*Дозаполняем блок для шифрования нулями*/ 
-	for(uint8_t i = NONCE_LENGTH; i < (CRYPTO_1_BLOCK_LENGTH - HEADER_DOWN_LENGTH); i++)
+	for(uint8_t i = JOIN_STAGE_2_LENGTH; i < (JOIN_STAGE_2_PAYLOAD_LENGTH - HEADER_DOWN_LENGTH); i++)
 		udp_buffer[PAYLOAD_OFFSET + i] = 0x00;
-	
-	/*Для отладки. Выводит незашифрованный payload пакета*/ 
-	printf("Join_stage_2_sender payload:\n");
-	hexraw_print(JOIN_STAGE_2_LENGTH, (uint8_t*)&udp_buffer[PAYLOAD_OFFSET]);
-	printf("\n");
 	
 	/*CRC16*/ 
 	header_pack->crc.u16 = crc16_arc((uint8_t*)&join_stage_2_pack, sizeof(join_stage_2_pack));
+	
+	/*Для отладки. Выводит содержимое пакета*/ 
+	printf("Join_stage_2_sender:\n");
+	hexraw_print((HEADER_UP_LENGTH + JOIN_STAGE_2_PAYLOAD_LENGTH), (uint8_t*)udp_buffer);
+	printf("\n");
 	
 	/*Зашифровываем блок*/ 
 	aes_ecb_encrypt((uint32_t*)aes_key, (uint32_t*)(&udp_buffer[HEADER_DOWN_OFFSET]), (uint32_t*)(&udp_buffer[HEADER_DOWN_OFFSET]));
@@ -336,73 +338,53 @@ static void join_stage_2_sender(const uip_ip6addr_t *dest_addr, const uint8_t *d
 /*Четвертая стадия авторизации*/
 /*Принимает nonce зашифрованный AES128-CBC. Если сходится с тем что он сгенерировал, то авторизация прошла успешно, настройки шифрования верные. Отправляем пакет с нулями что бы DAG мог убедиться в этом*/
 static void join_stage_4_sender(const uip_ip6addr_t *dest_addr, const uint8_t *data, const uint16_t length)
-{
-	// /*Проверка на то что передан существующий адрес*/
-	// if (dest_addr == NULL)
-		// return;
+{	
+	/*Получаем nonce*/
+	u8_u16_t nonce;
+	nonce.u16 = get_nonce((uip_ip6addr_t*)dest_addr);	
 	
-	// uip_ipaddr_t addr;						/*Выделяем память для адреса на который отправится пакет*/
-	// uip_ip6addr_copy(&addr, dest_addr);		/*Копируем адрес*/
-	
-	// /*Выделяем память под пакет. Общий размер пакета (header + payload)*/
-	// uint8_t udp_buffer[HEADER_LENGTH + JOIN_STAGE_4_PAYLOAD_LENGTH];	
-	
-	// /*Отражаем структуры на массивы*/ 
-	// header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
-	// join_stage_3_t *join_stage_3_pack = (join_stage_3_t*)&data[PAYLOAD_OFFSET];
-	// join_stage_4_t *join_stage_4_pack = (join_stage_4_t*)&aes_buffer[0];
-	
-	// /*Получаем nonce*/
-	// u8_u16_t nonce;
-	// nonce.u16 = get_nonce(&addr);	
-	
-	// /*Для отладки. Выводит serial и nonce*/ 
-	// printf("Join_stage_4_sender serial: %lu\n", join_stage_3_pack->serial.u32);
-	// printf("Join_stage_4_sender nonce: %i\n", nonce.u16);
+	/*Копируем полученный nonce и используем его в качестве сессионного ключа (AES128-CBC)*/
+	for(int i = 0; i < 16; i += 2)
+	{
+		nonce_key[i] = nonce.u8[1];	
+		nonce_key[i+1] = nonce.u8[0];	
+	}
 
-	// /*Копируем полученный nonce и используем его в качестве сессионного ключа (AES128-CBC)*/
-	// for(int i = 0; i < 16; i += 2)
-	// {
-		// nonce_key[i] = nonce.u8[1];	
-		// nonce_key[i+1] = nonce.u8[0];	
-	// }
+	/*Расшифровываем данные*/
+		aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[HEADER_DOWN_OFFSET], (uint32_t*)&data[HEADER_DOWN_OFFSET], CRYPTO_1_BLOCK_LENGTH);
+
+	/*Для отладки. Выводит содержимое пакета*/ 
+	printf("Join_stage_3_sender:\n");
+	hexraw_print(length, (uint8_t*)data);
+	printf("\n");
 	
-	// /*Расшифровываем данные*/
-	// aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[PAYLOAD_OFFSET], (uint32_t*)(aes_buffer), CRYPTO_1_BLOCK_LENGTH);
+	/*Отражаем структуры на массивы*/ 
+	join_stage_3_t *join_stage_3_pack = (join_stage_3_t*)&data[PAYLOAD_OFFSET];
 	
-	// /*Если nonce'ы совпадают, то авторизация прошла успешно, шифрование настроенно правильно*/ 
-	// if((aes_buffer[0] == nonce_key[1]) && (aes_buffer[1] == nonce_key[0]))
-	// {		
-		// unlock_addr(&addr);			/*Разрешаем обрабатывать пакеты принятые с авторизированного устройства*/ 		
-	// }
+	/*Заполняем payload*/
+	join_stage_4_t join_stage_4_pack;				/*Создаем структуру*/
 	
-	// /*Заполняем пакет*/  
-	// /*Header*/ 
-	// header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
-	// header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
-	// header_pack->data_type = DATA_TYPE_JOIN_STAGE_4;			/*Тип пакета*/  
-	// header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
-	// header_pack->temperature = get_temperature();				/*Температура*/ 
-	// header_pack->voltage = get_voltage();						/*Напряжение*/ 
-	// header_pack->counter.u16 = packet_counter_root.u16;			/*Счетчик пакетов*/ 
-	// header_pack->length = JOIN_STAGE_4_LENGTH;					/*Размер пакета*/
+	/*Проверяем одинаковые ли у нас настройки шифрования*/ 
+	if((get_nonce((uip_ip6addr_t*)dest_addr) + 1) != join_stage_3_pack->nonce.u16)
+	{
+		join_stage_4_pack.status_code = false;
+		printf("Nonce error: %i != %i", (get_nonce((uip_ip6addr_t*)dest_addr) + 1) , join_stage_3_pack->nonce.u16);
+	}
 	
-	// /*Payload*/ 
-	// /*Заполняем пакет нулями и отправляем его DAG'у. Если они после расшифровки получит массив нулей, то он считает что авторизавался и настройки шифрования верны*/ 
-	// for(uint8_t i = 0; i < 16; i++)
-		// join_stage_4_pack->array_of_zeros[i] = 0;
-	
-	// /*Зашифровываем данные*/
-	// aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)aes_buffer, (uint32_t*)(&udp_buffer[PAYLOAD_OFFSET]), CRYPTO_1_BLOCK_LENGTH);
-	
-	// /*Для отладки. Выводит содержимое пакета*/ 
-	// printf("Join_stage_4_sender pack:\n");
-	// hexraw_print((HEADER_LENGTH + JOIN_STAGE_4_PAYLOAD_LENGTH), udp_buffer);
-	// printf("\n");
-	
-	// /*Отправляем пакет*/ 
-	// simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_LENGTH + JOIN_STAGE_4_PAYLOAD_LENGTH), &addr);
-	// packet_counter_root.u16++;		/*Инкрементируем счетчик пакетов*/
+	/*Если nonce'ы совпадают, то авторизация прошла успешно, шифрование настроенно правильно*/ 
+	else
+	{
+		join_stage_4_pack.status_code = true;		/*Статус код*/
+		unlock_addr((uip_ip6addr_t*)dest_addr);		/*Разрешаем обрабатывать пакеты принятые с авторизированного устройства*/
+		printf("ok: %i == %i", (get_nonce((uip_ip6addr_t*)dest_addr) + 1) , join_stage_3_pack->nonce.u16);
+	}
+			
+	/*Отправляем пакет*/
+	pack_sender(dest_addr, 						/*Адрес модуля UMDK-6FET*/
+				UNWDS_6LOWPAN_SYSTEM_MODULE_ID, /*Индентификатор модуля*/
+				DATA_TYPE_JOIN_STAGE_4, 		/*Команда 4 стадии авторизации*/
+				(uint8_t*)&join_stage_4_pack, 	/*Payload*/
+				sizeof(join_stage_4_pack));		/*Размер payload'а*/
 }
 
 /*---------------------------------------------------------------------------*/
@@ -576,6 +558,15 @@ void pack_sender(const uip_ip6addr_t *dest_addr,
 		else
 			udp_buffer[PAYLOAD_OFFSET + i] = 0x00;
 	}
+	
+	/*Для отладки. Выводит содержимое пакета*/ 
+	// printf("Pack:\n");
+	// hexraw_print(payload_len, (uint8_t*)payload);
+	// printf("\n");
+	
+	printf("Pack:\n");
+	hexraw_print((HEADER_UP_LENGTH + crypto_length), (uint8_t*)udp_buffer);
+	printf("\n");
 	
 	/*Зашифровываем данные*/
 	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)(&udp_buffer[HEADER_DOWN_OFFSET]), (uint32_t*)(&udp_buffer[HEADER_DOWN_OFFSET]), crypto_length);
