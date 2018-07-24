@@ -228,7 +228,7 @@ typedef struct {
 
 /*Struct*/
 typedef struct {		
-	uint8_t array_of_zeros[16];
+	u8_u16_t nonce;
 } pack ping_t;
 
 /*-----------------------------------*/

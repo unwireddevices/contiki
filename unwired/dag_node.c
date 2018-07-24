@@ -112,7 +112,6 @@ static volatile union
 	uint8_t u8[2];
 } packet_counter_root;					
 
-static uint8_t aes_buffer[128];			/*Буффер для шифрования*/
 uint8_t aes_key[16];					/*Ключ шифрования для ECB*/
 static uint8_t nonce_key[16];			/*Сессионный ключ*/
 
@@ -148,8 +147,7 @@ static void ping_sender(void);
 
 /*Pong*/
 static void pong_handler(const uip_ipaddr_t *sender_addr,
-						const uint8_t *data,
-						uint16_t datalen);
+						pong_t *pong_pack);
 								
 /*Инициализация с заданными настройками канала ШИМ'а*/
 static void dag_pwm_settings(const uip_ipaddr_t *sender_addr,
@@ -211,23 +209,18 @@ static void udp_receiver(struct simple_udp_connection *c,
 	/*Проверяем версию протокола*/ 
 	if(header_up_pack->protocol_version == UDBP_PROTOCOL_VERSION)
 	{
-		/*Проверяем тип пакета*/ 
-		if (header_up_pack->data_type == DATA_TYPE_JOIN_STAGE_2)
+
+		/*Проверяем ID модуля и тип пакета*/ 
+		if((header_up_pack->device_id == UNWDS_6LOWPAN_SYSTEM_MODULE_ID) && (header_up_pack->data_type == DATA_TYPE_JOIN_STAGE_2))
 		{
 			/*Третья стадия авторизации*/
 			join_stage_3_sender(sender_addr, data, datalen);
 		}
 		
-		else if (header_up_pack->data_type == DATA_TYPE_JOIN_STAGE_4)
+		else if((header_up_pack->device_id == UNWDS_6LOWPAN_SYSTEM_MODULE_ID) && (header_up_pack->data_type == DATA_TYPE_JOIN_STAGE_4))
 		{
 			/*Обработчик четвертой стадии авторизации*/
 			join_stage_4_handler(sender_addr, data, datalen);
-		}
-		
-		else if (header_up_pack->data_type == PONG)
-		{
-			/*Pong*/
-			pong_handler(sender_addr, data, datalen);
 		}
 		
 		else 
@@ -251,6 +244,14 @@ static void udp_receiver(struct simple_udp_connection *c,
 			/*Проверяем счетчик пакетов на валидность данного пакета*/
 			if(packet_counter_root.u16 >= header_down_pack->counter.u16)
 			{	
+				printf("COUNTER ERROR!!!\n");
+				return;
+			}
+			
+			/*CRC16 проверка*/ 
+			if(header_down_pack->crc.u16 != crc16_arc((uint8_t*)&data[PAYLOAD_OFFSET], header_down_pack->length))
+			{
+				printf("CRC16 ERROR!!!\n");
 				return;
 			}
 			
@@ -258,6 +259,23 @@ static void udp_receiver(struct simple_udp_connection *c,
 			packet_counter_root.u16 = header_down_pack->counter.u16;	
 			
 			/*Проверяем ID модуля*/ 
+			/*UNWDS-6LOWPAN_SYSTEM*/
+			if(header_up_pack->device_id == UNWDS_6LOWPAN_SYSTEM_MODULE_ID)
+			{
+				if(header_up_pack->data_type == PONG)
+				{
+					pong_handler(sender_addr, (pong_t*)&data[PAYLOAD_OFFSET]);
+					led_off(LED_A);		/*Выключаем светодиод*/
+					return;
+				}
+
+				else
+				{
+					return;
+				}
+					
+			}
+			
 			/*UMDK-6FET*/ 
 			if(header_up_pack->device_id == UNWDS_6FET_MODULE_ID)
 			{
@@ -303,6 +321,7 @@ static void udp_receiver(struct simple_udp_connection *c,
 				return;
 			}
 		}
+		
 	}
 	
 	else
@@ -356,6 +375,9 @@ void pack_sender(uint8_t device_id,
 			udp_buffer[PAYLOAD_OFFSET + i] = 0x00;
 	}
 	
+	/*CRC16*/ 
+	header_pack->crc.u16 = crc16_arc((uint8_t*)&udp_buffer[PAYLOAD_OFFSET], header_pack->length);
+	
 	/*Зашифровываем данные*/
 	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)(&udp_buffer[HEADER_DOWN_OFFSET]), (uint32_t*)(&udp_buffer[HEADER_DOWN_OFFSET]), crypto_length);
 	
@@ -408,11 +430,6 @@ static void join_stage_1_sender(const uip_ipaddr_t *dest_addr)
 	/*CRC16*/ 
 	header_pack->crc.u16 = 0;
 	
-	/*Для отладки. Выводит содержимое пакета*/ 
-	printf("Join_stage_1_sender:\n");
-	hexraw_print((HEADER_LENGTH + JOIN_STAGE_1_PAYLOAD_LENGTH), udp_buffer);
-	printf("\n");
-	
 	/*Отправляем пакет*/ 
 	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_LENGTH + JOIN_STAGE_1_PAYLOAD_LENGTH), &addr);
 }
@@ -462,10 +479,7 @@ static void join_stage_3_sender(const uip_ipaddr_t *dest_addr,
 	/*Расшифровываем блок*/ 
 	aes_ecb_decrypt((uint32_t*)aes_key, (uint32_t*)&data[HEADER_DOWN_OFFSET], (uint32_t*)&data[HEADER_DOWN_OFFSET]);
 	
-	/*Для отладки. Выводит содержимое пакета*/ 
-	printf("Join_stage_2_sender:\n");
-	hexraw_print(datalen, (uint8_t*)data);
-	printf("\n");
+	//CRC16
 	
 	/*Копируем полученный nonce и используем его в качестве сессионного ключа (AES128-CBC)*/
 	for(int i = 0; i < 16; i += 2)
@@ -481,26 +495,11 @@ static void join_stage_3_sender(const uip_ipaddr_t *dest_addr,
 	for(uint8_t i = JOIN_STAGE_3_LENGTH; i < (JOIN_STAGE_3_PAYLOAD_LENGTH - HEADER_DOWN_LENGTH); i++)
 		udp_buffer[PAYLOAD_OFFSET + i] = 0x00;
 	
-	/*Для отладки. Выводит содержимое пакета*/ 
-	printf("Join_stage_3_sender nonce: %i\n", join_stage_3_pack->nonce.u16);
-	hexraw_print(16, nonce_key);
-	printf("\n");
-	
 	/*CRC16*/ 
 	header_pack->crc.u16 = crc16_arc((uint8_t*)&join_stage_3_pack, sizeof(join_stage_3_pack));
 	
-	/*Для отладки. Выводит содержимое пакета*/ 
-	printf("Join_stage_3_sender:\n");
-	hexraw_print((HEADER_UP_LENGTH + JOIN_STAGE_3_PAYLOAD_LENGTH), udp_buffer);
-	printf("\n");
-	
 	/*Зашифровываем данные*/
 	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&udp_buffer[HEADER_DOWN_OFFSET], (uint32_t*)&udp_buffer[HEADER_DOWN_OFFSET], CRYPTO_1_BLOCK_LENGTH);		
-
-	/*Для отладки. Выводит содержимое пакета*/ 
-	// printf("Join_stage_3_sender pack:\n");
-	// hexraw_print((HEADER_LENGTH + JOIN_STAGE_3_PAYLOAD_LENGTH), udp_buffer);
-	// printf("\n");
 	
 	/*Отправляем пакет*/ 
 	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_DOWN_OFFSET + JOIN_STAGE_3_PAYLOAD_LENGTH), &addr);
@@ -522,13 +521,6 @@ static void join_stage_4_handler(const uip_ipaddr_t *sender_addr,
 	
 	/*Расшифровываем данные*/
 	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[HEADER_DOWN_OFFSET], (uint32_t*)&data[HEADER_DOWN_OFFSET], CRYPTO_1_BLOCK_LENGTH);
-		
-	/*Для отладки. Выводит содержимое пакета*/ 
-	printf("Join_stage_4_handler:\n");
-	hexraw_print(datalen, (uint8_t*)data);
-	printf("\n");
-	
-	printf("%i == %i\n", join_stage_4_pack->status_code, STATUS_OK);
 	
 	/*Проверяем массив. Если все нули, то авториция прошла успешно*/
 	if(join_stage_4_pack->status_code)
@@ -553,8 +545,8 @@ static void ping_sender(void)
 	/*Заполняем payload*/
 	ping_t ping_pack;							/*Создаем структуру*/
 	
-	for (uint8_t i = 0; i < 16; i++)
-		ping_pack.array_of_zeros[i] = 0x00;		/*Заполняем нулями*/
+	ping_pack.nonce.u8[1] = nonce_key[0];		/*Заполняем nonce*/
+	ping_pack.nonce.u8[0] = nonce_key[1];		/*Заполняем nonce*/
 	
 	/*Отправляем пакет*/	
 	pack_sender(UNWDS_6LOWPAN_SYSTEM_MODULE_ID,
@@ -566,42 +558,28 @@ static void ping_sender(void)
 /*---------------------------------------------------------------------------*/
 /*Pong*/
 static void pong_handler(const uip_ipaddr_t *sender_addr,
-						const uint8_t *data,
-						uint16_t datalen)
-{
-	/*Проверка на то что передан существующий адрес*/
-	if (sender_addr == NULL)
-		return;
-
-	/*Отражаем структуры на массивы*/ 
-	pong_t *pong_pack = (pong_t*)&data[PAYLOAD_OFFSET];
+						pong_t *pong_pack)
+{	
+	printf("PONG_HANDLER: \n");
 	
-	if(pong_pack->status_code != STATUS_OK)
+	if(pong_pack->status_code)
 	{
+		printf("%i", non_answered_ping);
+		non_answered_ping = 0;
+		printf("%i\n", non_answered_ping);
+		return;
+	}
+	
+	else
+	{
+		/*Выводим: Ошибка авторизации*/
+		printf("[DAG Node] Crypto Error. Reboot\n");
 		watchdog_reboot();
 		
 		// node_mode = MODE_JOIN_PROGRESS; 	/*Установка режима работы устройства*/
 		// process_exit(&maintenance_process);
 		// process_start(&maintenance_process, NULL);
 	}
-	
-	/*Расшифровываем данные*/
-	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[PAYLOAD_OFFSET + STATUS_CODE_LENGTH], (uint32_t*)(aes_buffer), CRYPTO_1_BLOCK_LENGTH);
-		
-	/*Проверяем массив. Если все нули, то авториция прошла успешно*/ 	
-	if(is_array_zero(aes_buffer))
-	{
-		non_answered_ping = 0;
-		return;
-	}
-	
-	/*Выводим: Ошибка авторизации*/
-	printf("[DAG Node] Crypto Error. Reboot\n");
-	watchdog_reboot();
-	
-	// node_mode = MODE_JOIN_PROGRESS; 	/*Установка режима работы устройства*/
-	// process_exit(&maintenance_process);
-	// process_start(&maintenance_process, NULL);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -669,7 +647,7 @@ static void dag_lit_measure_sender()
 	printf("[UMDK-LIT] Luminocity: %lu lux\n", lit_measure_pack.lit_measure);
 	
 	/*Отправляем пакет*/	
-	pack_sender(UNWDS_MODULE_ID,
+	pack_sender(UNWDS_LIT_MODULE_ID,
 				LIT_MEASURE, 							/*Команда включения канала ШИМ'а*/
 				(uint8_t*)&lit_measure_pack, 			/*Payload*/
 				sizeof(lit_measure_pack));				/*Размер payload'а*/
@@ -691,8 +669,11 @@ void button_status_sender ( uint8_t button_number,
 	else if (click_type == LONG_CLICK)
 		button_status_pack.button_status |= LONG_CLICK;
 	
+	/*Вывод информационного сообщения в консоль*/
+	// printf("[DAG Node] Send button status packet to DAG-root node\n");
+	
 	/*Отправляем пакет*/
-	pack_sender(UNWDS_MODULE_ID,
+	pack_sender(UNWDS_4BTN_MODULE_ID,
 				BUTTON_STATUS, 						/*Команда включения канала ШИМ'а*/
 				(uint8_t*)&button_status_pack, 		/*Payload*/
 				sizeof(button_status_pack));		/*Размер payload'а*/
@@ -731,11 +712,15 @@ PROCESS_THREAD(ping_process, ev, data)
 		etimer_set(&ping_timer, (CLOCK_SECOND * 10));			/*Устанавливаем таймер на 10 минут*/
 		
 		if(non_answered_ping > 3)								/*Перезагрузить если больше трех неотвеченных пингов*/
+		{
+			printf("Ping error!");
 			watchdog_reboot();
+		}
 		
 		PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&ping_timer));	/*Засыпаем до срабатывания таймера*/
 		
 		non_answered_ping++;									/*Увеличиваем на еденицу. При ответе в pong_handler() должно обнулиться*/		
+		printf("non_answered_ping: %i\n", non_answered_ping);
 		ping_sender();											/*Отправляем ping*/
 	}
 	

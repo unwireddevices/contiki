@@ -115,21 +115,21 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 	rpl_initialize();
 	root_node_initialize();
 
-	static struct etimer shell_off;
-	etimer_set(&shell_off, CLOCK_SECOND * 5);
-	PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&shell_off));
+	// static struct etimer shell_off;
+	// etimer_set(&shell_off, CLOCK_SECOND * 5);
+	// PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&shell_off));
    
-	if (BOARD_IOID_UART_TX != BOARD_IOID_ALT_UART_TX || BOARD_IOID_UART_RX != BOARD_IOID_ALT_UART_RX)
-	{
-		if(uart_status_r() == 0)
-		{
-			printf("UDM: UART change to alt(RX: %"PRIu16", TX: %"PRIu16")\n", BOARD_IOID_ALT_UART_RX, BOARD_IOID_ALT_UART_TX);
-		}
-		off_uart(BOARD_IOID_UART_RX, BOARD_IOID_UART_TX);
-		on_uart(BOARD_IOID_ALT_UART_RX, BOARD_IOID_ALT_UART_TX, 115200);
-		set_uart();	
-		set_uart_r();
-	}
+	// if (BOARD_IOID_UART_TX != BOARD_IOID_ALT_UART_TX || BOARD_IOID_UART_RX != BOARD_IOID_ALT_UART_RX)
+	// {
+		// if(uart_status_r() == 0)
+		// {
+			// printf("UDM: UART change to alt(RX: %"PRIu16", TX: %"PRIu16")\n", BOARD_IOID_ALT_UART_RX, BOARD_IOID_ALT_UART_TX);
+		// }
+		// off_uart(BOARD_IOID_UART_RX, BOARD_IOID_UART_TX);
+		// on_uart(BOARD_IOID_ALT_UART_RX, BOARD_IOID_ALT_UART_TX, 115200);
+		// set_uart();	
+		// set_uart_r();
+	// }
 
 	while (1)
 	{

@@ -156,29 +156,28 @@ void udp_data_receiver(struct simple_udp_connection *connection,
 	// printf("Recive pack: %x\n", header_up_pack->data_type);
 	
 	/*Вывод информационного сообщения в консоль*/
-	// if(uart_status_r() == 0)
-	// {
-		// printf("Packet crypto received(%"PRIu8"): ", datalen);
-		// for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
-			// printf("%"PRIXX8, data[i]);
-		// printf("\n");
-	// }
+	if(uart_status_r() == 0)
+	{
+		printf("Packet crypto received(%"PRIu8"): ", datalen);
+		for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
+			printf("%"PRIXX8, data[i]);
+		printf("\n");
+	}
 
 	/*Проверяем версию протокола*/ 
 	if(header_up_pack->protocol_version == UDBP_PROTOCOL_VERSION)
 	{
-		/*Проверяем тип пакета*/ 
-		if (header_up_pack->data_type == DATA_TYPE_JOIN_STAGE_1)
+		/*Проверяем ID модуля и тип пакета*/ 
+		if((header_up_pack->device_id == UNWDS_6LOWPAN_SYSTEM_MODULE_ID) && (header_up_pack->data_type == DATA_TYPE_JOIN_STAGE_1))
 		{
-			/*Вторая стадия авторизации*/
-			
+			/*Вторая стадия авторизации*/		
 			/*Выдача сообщения CR*/			
 			join_stage_2_sender((uip_ip6addr_t*)sender_addr, data, datalen);
 			led_off(LED_A);		/*Выключаем светодиод*/
 			return;
 		}
 		
-		else if(header_up_pack->data_type == DATA_TYPE_JOIN_STAGE_3)
+		else if((header_up_pack->device_id == UNWDS_6LOWPAN_SYSTEM_MODULE_ID) && (header_up_pack->data_type == DATA_TYPE_JOIN_STAGE_3))
 		{
 			/*Четвертая стадия авторизации*/
 			join_stage_4_sender((uip_ip6addr_t*)sender_addr, data, datalen);
@@ -203,14 +202,13 @@ void udp_data_receiver(struct simple_udp_connection *connection,
 			aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[HEADER_DOWN_OFFSET], (uint32_t*)&data[HEADER_DOWN_OFFSET], iterator_to_byte(datalen - HEADER_UP_LENGTH));
 			
 			/*Вывод информационного сообщения в консоль*/
-			// if(uart_status_r() == 0)
-			// {
-				// printf("Packet no crypto received(%"PRIu8"): ", datalen);
-				// for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
-					// printf("%"PRIXX8, data[i]);
-				// printf("\n");
-			// 
-			
+			if(uart_status_r() == 0)
+			{
+				printf("Packet no crypto received(%"PRIu8"): ", datalen);
+				for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
+					printf("%"PRIXX8, data[i]);
+				printf("\n");
+			}
 			
 			/*Отражаем структуру на массив*/ 
 			header_down_t *header_down_pack = (header_down_t*)&data[HEADER_DOWN_OFFSET];
@@ -218,6 +216,14 @@ void udp_data_receiver(struct simple_udp_connection *connection,
 			/*Защита от атаки повтором*/
 			if(!valid_counter((uip_ip6addr_t*)sender_addr, header_down_pack->counter.u16))
 			{
+				printf("COUNTER ERROR!!!\n");
+				return;
+			}
+			
+			/*CRC16 проверка*/ 
+			if(header_down_pack->crc.u16 != crc16_arc((uint8_t*)&data[PAYLOAD_OFFSET], header_down_pack->length))
+			{
+				printf("CRC16 ERROR!!!\n");
 				return;
 			}
 			
@@ -230,8 +236,8 @@ void udp_data_receiver(struct simple_udp_connection *connection,
 			}
 		
 			/*Выдача сообщения CR*/
-			for (uint8_t i = 0; i < (HEADER_LENGTH + header_down_pack->length); i++)	/*Выводим принятый пакет*/ 
-				UARTCharPut(UART0_BASE, data[i]);
+			// for (uint8_t i = 0; i < (HEADER_LENGTH + header_down_pack->length); i++)	/*Выводим принятый пакет*/ 
+				// UARTCharPut(UART0_BASE, data[i]);
 				
 			/*Проверяем ID модуля*/ 
 			if(header_up_pack->device_id == UNWDS_4BTN_MODULE_ID)
@@ -276,11 +282,6 @@ static void join_stage_2_sender(const uip_ip6addr_t *dest_addr, const uint8_t *d
 	uip_ipaddr_t addr;					/*Выделяем память для адреса на который отправится пакет*/
 	uip_ip6addr_copy(&addr, dest_addr);	/*Копируем адрес*/
 	
-	/*Для отладки. Выводит содержимое пакета*/ 
-	printf("Join_stage_1_sender:\n");
-	hexraw_print(length, (uint8_t*)data);
-	printf("\n");
-	
 	/*Выделяем память под пакет. Общий размер пакета (header + payload)*/
 	uint8_t udp_buffer[HEADER_UP_LENGTH + JOIN_STAGE_2_PAYLOAD_LENGTH];
 	
@@ -302,9 +303,6 @@ static void join_stage_2_sender(const uip_ip6addr_t *dest_addr, const uint8_t *d
 	/*Payload*/ 
 	join_stage_2_pack->nonce.u16 = random_rand();				/*Генерируем сессионный ключ*/ 
 	
-	/*Для отладки. Выводим nonce*/ 
-	printf("Join_stage_2_sender nonce: %i\n", join_stage_2_pack->nonce.u16);
-	
 	/*Добавляем маршрут*/ 
 	add_route ( &addr,										/*Address*/ 
 				join_stage_2_pack->nonce.u16);				/*Nonce*/ 
@@ -316,18 +314,8 @@ static void join_stage_2_sender(const uip_ip6addr_t *dest_addr, const uint8_t *d
 	/*CRC16*/ 
 	header_pack->crc.u16 = crc16_arc((uint8_t*)&join_stage_2_pack, sizeof(join_stage_2_pack));
 	
-	/*Для отладки. Выводит содержимое пакета*/ 
-	printf("Join_stage_2_sender:\n");
-	hexraw_print((HEADER_UP_LENGTH + JOIN_STAGE_2_PAYLOAD_LENGTH), (uint8_t*)udp_buffer);
-	printf("\n");
-	
 	/*Зашифровываем блок*/ 
 	aes_ecb_encrypt((uint32_t*)aes_key, (uint32_t*)(&udp_buffer[HEADER_DOWN_OFFSET]), (uint32_t*)(&udp_buffer[HEADER_DOWN_OFFSET]));
-
-	/*Для отладки. Выводит содержимое пакета*/ 
-	// printf("Join_stage_2_sender pack:\n");
-	// hexraw_print((HEADER_LENGTH + JOIN_STAGE_2_PAYLOAD_LENGTH), udp_buffer);
-	// printf("\n");
 	
 	/*Отправляем пакет*/ 
 	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_UP_LENGTH + JOIN_STAGE_2_PAYLOAD_LENGTH), &addr);
@@ -352,11 +340,6 @@ static void join_stage_4_sender(const uip_ip6addr_t *dest_addr, const uint8_t *d
 
 	/*Расшифровываем данные*/
 		aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[HEADER_DOWN_OFFSET], (uint32_t*)&data[HEADER_DOWN_OFFSET], CRYPTO_1_BLOCK_LENGTH);
-
-	/*Для отладки. Выводит содержимое пакета*/ 
-	printf("Join_stage_3_sender:\n");
-	hexraw_print(length, (uint8_t*)data);
-	printf("\n");
 	
 	/*Отражаем структуры на массивы*/ 
 	join_stage_3_t *join_stage_3_pack = (join_stage_3_t*)&data[PAYLOAD_OFFSET];
@@ -368,7 +351,6 @@ static void join_stage_4_sender(const uip_ip6addr_t *dest_addr, const uint8_t *d
 	if((get_nonce((uip_ip6addr_t*)dest_addr) + 1) != join_stage_3_pack->nonce.u16)
 	{
 		join_stage_4_pack.status_code = false;
-		printf("Nonce error: %i != %i", (get_nonce((uip_ip6addr_t*)dest_addr) + 1) , join_stage_3_pack->nonce.u16);
 	}
 	
 	/*Если nonce'ы совпадают, то авторизация прошла успешно, шифрование настроенно правильно*/ 
@@ -376,7 +358,6 @@ static void join_stage_4_sender(const uip_ip6addr_t *dest_addr, const uint8_t *d
 	{
 		join_stage_4_pack.status_code = true;		/*Статус код*/
 		unlock_addr((uip_ip6addr_t*)dest_addr);		/*Разрешаем обрабатывать пакеты принятые с авторизированного устройства*/
-		printf("ok: %i == %i", (get_nonce((uip_ip6addr_t*)dest_addr) + 1) , join_stage_3_pack->nonce.u16);
 	}
 			
 	/*Отправляем пакет*/
@@ -397,11 +378,16 @@ static void pong_sender(const uip_ip6addr_t *dest_addr, ping_t *ping_pack)
 	pong_pack.status_code = STATUS_OK;			/*Статус код*/
 	
 	/*Проверяем массив. Если все нули, то настройки шифрования верны*/ 
-	if(!is_array_zero((uint8_t*)ping_pack))
+	if(ping_pack->nonce.u16 == get_nonce((uip_ip6addr_t*)dest_addr))
+	{
+		pong_pack.status_code = STATUS_OK;
+	}
+	
+	else
 	{
 		pong_pack.status_code = STATUS_ERROR;
 	}
-			
+		
 	/*Отправляем пакет*/
 	pack_sender(dest_addr, 						/*Адрес модуля UMDK-6FET*/
 				UNWDS_6LOWPAN_SYSTEM_MODULE_ID, /*Индентификатор модуля*/
@@ -559,14 +545,17 @@ void pack_sender(const uip_ip6addr_t *dest_addr,
 			udp_buffer[PAYLOAD_OFFSET + i] = 0x00;
 	}
 	
+	/*CRC16*/ 
+	header_pack->crc.u16 = crc16_arc((uint8_t*)&udp_buffer[PAYLOAD_OFFSET], header_pack->length);
+	
 	/*Для отладки. Выводит содержимое пакета*/ 
 	// printf("Pack:\n");
 	// hexraw_print(payload_len, (uint8_t*)payload);
 	// printf("\n");
 	
-	printf("Pack:\n");
-	hexraw_print((HEADER_UP_LENGTH + crypto_length), (uint8_t*)udp_buffer);
-	printf("\n");
+	// printf("Pack:\n");
+	// hexraw_print((HEADER_UP_LENGTH + crypto_length), (uint8_t*)udp_buffer);
+	// printf("\n");
 	
 	/*Зашифровываем данные*/
 	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)(&udp_buffer[HEADER_DOWN_OFFSET]), (uint32_t*)(&udp_buffer[HEADER_DOWN_OFFSET]), crypto_length);
