@@ -134,57 +134,35 @@ output PWM signal.*/
 be adjusted at any time by writing the GPT:TnILR register, and the change takes effect at the next cycle
 after the write.*/
 
-uip_ip6addr_t dest_addr; 
-uint8_t device_id; 
-uint8_t data_type; 
-uint8_t payload_len;
-
-
-
-dest_addr:
-0xFD 
-0x00 
-0x00
-0x00 
-0x00
-0x00 
-0x00
-0x00
-0x02
-0x12 
-0x4B
-0x00
-0x0C
-0x46 
-0x8D
-0x03
-
-device_id:
-0x0F			//UNWDS_LIT_MODULE_ID
-
-data_type:
-0x26			//LIT_MEASURE
-
-payload_len:
-0x00
-
-			test.dest_addr = dest_addr;
-			test.device_id = 0x01;
-			test.data_type = 0x02;
-			test.payload_len = 0x03;
-
-0xFD 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x02 0x12 0x4B 0x00 0x0C 0x46 0x8D 0x03 0x0E 0x25 0x01 0x80    
+01 7F 03 FF 32 D8 81 EC DF E4 8E4563BC59961CAEB96521EC
 
 
 
 
 
+[BTN] Button D click
+[DAG Node]: UDP crypto packet received(22): 017F01FF32D81469853D7C6B2B751BA2B48D32A97243
+[DAG Node] Send join packet stage 3 to DAG-root node:FD00::0212:4B00:0C46:8A86
+[DAG Node]: UDP crypto packet received(22): 017F03FF32D860223FBF02E23AB5D0A184B7854CE238
 
 
+[DAG Node] Send button status packet to DAG-root node
+[DAG Node]: UDP crypto packet received(22): 017F01FF32D8441BC3938E1ED3C9F8C248A2222D0D70
+[DAG Node] Send join packet stage 3 to DAG-root node:FD00::0212:4B00:0C46:8A86
+[DAG Node]: UDP crypto packet received(22): 017F03FF32D88638740FB3A85D713DB3541CEA0BE5A9
 
 
+[BTN] Button D click
+[DAG Node] Send button status packet to DAG-root node
+[DAG Node]: UDP crypto packet received(22): 017F01FF32D82BD0C3699E8C461A3831CEEB99F61A55
+[DAG Node] Send join packet stage 3 to DAG-root node:FD00::0212:4B00:0C46:8A86
+[DAG Node]: UDP crypto packet received(22): 017F03FF32D8D2D3C4F091EB863810CEF75DCA17A7E1
 
+Packet crypto received(22): 010200934C1A5BE8225268DD2E311444D846CB3F61E8
+Packet crypto received(22): 017F02934C1A1D6BB65296FE30640957638996D4D8E6
 
+Packet crypto received(22): 010200934C1A3C5EB225D7FE9B34C8ABE5FCB27E6B44
+Packet crypto received(22): 017F02934C1ABE049CE003B87A4AD79304672C500D4C
 
 
 	

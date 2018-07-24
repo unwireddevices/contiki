@@ -560,13 +560,9 @@ static void ping_sender(void)
 static void pong_handler(const uip_ipaddr_t *sender_addr,
 						pong_t *pong_pack)
 {	
-	printf("PONG_HANDLER: \n");
-	
 	if(pong_pack->status_code)
 	{
-		printf("%i", non_answered_ping);
 		non_answered_ping = 0;
-		printf("%i\n", non_answered_ping);
 		return;
 	}
 	
@@ -720,7 +716,6 @@ PROCESS_THREAD(ping_process, ev, data)
 		PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&ping_timer));	/*Засыпаем до срабатывания таймера*/
 		
 		non_answered_ping++;									/*Увеличиваем на еденицу. При ответе в pong_handler() должно обнулиться*/		
-		printf("non_answered_ping: %i\n", non_answered_ping);
 		ping_sender();											/*Отправляем ping*/
 	}
 	
