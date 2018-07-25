@@ -3,9 +3,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-#define INTERFACE_RS485 0
-#define INTERFACE_CAN 	1
-
 FILE *eeprom_bin; 
 
 typedef  struct {

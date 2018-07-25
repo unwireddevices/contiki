@@ -121,14 +121,10 @@ PROCESS_THREAD(rpl_root_process, ev, data)
    
 	// if (BOARD_IOID_UART_TX != BOARD_IOID_ALT_UART_TX || BOARD_IOID_UART_RX != BOARD_IOID_ALT_UART_RX)
 	// {
-		// if(uart_status_r() == 0)
-		// {
-			// printf("UDM: UART change to alt(RX: %"PRIu16", TX: %"PRIu16")\n", BOARD_IOID_ALT_UART_RX, BOARD_IOID_ALT_UART_TX);
-		// }
+		// printf("UDM: UART change to alt(RX: %"PRIu16", TX: %"PRIu16")\n", BOARD_IOID_ALT_UART_RX, BOARD_IOID_ALT_UART_TX);
 		// off_uart(BOARD_IOID_UART_RX, BOARD_IOID_UART_TX);
 		// on_uart(BOARD_IOID_ALT_UART_RX, BOARD_IOID_ALT_UART_TX, 115200);
 		// set_uart();	
-		// set_uart_r();
 	// }
 
 	while (1)
@@ -138,10 +134,10 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 		if (ev == sensors_event && data == &button_e_sensor_long_click)
 		{
 			led_on(LED_A);
-			if(uart_status_r() == 0)
-				printf("UDM: Button E long click, reboot\n");
+			printf("UDM: Button E long click, reboot\n");
 			watchdog_reboot();
 		}
+		
 		if (ev == sensors_event && data == &button_e_sensor_click)
 		{	
 			/*Включаем светодиод*/
@@ -194,8 +190,7 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 			
 
 			
-			if(uart_status_r() == 0)
-				printf("UDM: SENT\n");
+			printf("UDM: SENT\n");
 			
 			/*Выключаем светодиод*/
 			led_off(LED_A);

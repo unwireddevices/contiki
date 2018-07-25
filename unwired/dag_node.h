@@ -50,9 +50,6 @@
 #define LED_SLOW_BLINK			0x03
 #define LED_FAST_BLINK			0x04
 
-#define INTERFACE_RS485			0x00 
-#define INTERFACE_CAN			0x01 
-
 #define CLICK					0x80
 #define LONG_CLICK				0xC0
 

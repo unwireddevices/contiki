@@ -40,9 +40,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#define INTERFACE_RS485 			0 
-#define INTERFACE_CAN 				1 
-
 /*---------------------------------------------------------------------------*/
 /* main UPD connection */
 struct simple_udp_connection udp_connection;
@@ -85,18 +82,6 @@ void rpl_initialize();
 
 /*Иннициализация ноды*/
 void root_node_initialize();
-
-/*Обработчик прерывания UART*/
-int uart_data_receiver(unsigned char uart_char);
-
-/*Устанавливает режим работы UART. Работает в режиме UART*/
-void set_uart_r(void);
-
-/*Устанавливает режим работы UART. Работает в режиме консоли*/
-void unset_uart_r(void);
-
-/*Возвращает режим работы UART*/
-uint8_t uart_status_r(void);
 
 /*---------------------------------------------------------------------------*/
 /*ИМЕНА ПРОЦЕССОВ*/
