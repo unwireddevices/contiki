@@ -77,6 +77,12 @@
 #define CLICK					0x80
 #define LONG_CLICK				0xC0
 
+#define IOC_OUTPUT_PULL_UP	(IOC_CURRENT_2MA	| IOC_STRENGTH_AUTO	| \
+							IOC_IOPULL_UP		| IOC_SLEW_DISABLE	| \
+							IOC_HYST_DISABLE	| IOC_NO_EDGE		| \
+							IOC_INT_DISABLE		| IOC_IOMODE_NORMAL	| \
+							IOC_NO_WAKE_UP		| IOC_INPUT_DISABLE	)	
+
 /*---------------------------------------------------------------------------*/
 
 #define UART_DATA_POLL_INTERVAL 5	//in main timer ticks, one tick ~8ms
@@ -128,6 +134,10 @@ static void lit_measure_handler(const uip_ip6addr_t *dest_addr, lit_measure_t *l
 /**/
 static void send_pack_from_cr(uint8_t* data);
 
+/**/
+static void print_cr(const uip_ip6addr_t *dest_addr, uint8_t* data, uint8_t length);
+
+
 /*---------------------------------------------------------------------------*/
 /*ПРОТОТИПЫ ПРОЦЕССОВ*/
 
@@ -156,13 +166,13 @@ void udp_data_receiver(struct simple_udp_connection *connection,
 	// printf("Recive pack: %x\n", header_up_pack->data_type);
 	
 	/*Вывод информационного сообщения в консоль*/
-	if(uart_status_r() == 0)
-	{
-		printf("Packet crypto received(%"PRIu8"): ", datalen);
-		for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
-			printf("%"PRIXX8, data[i]);
-		printf("\n");
-	}
+	// if(uart_status_r() == 0)
+	// {
+		// printf("Packet crypto received(%"PRIu8"): ", datalen);
+		// for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
+			// printf("%"PRIXX8, data[i]);
+		// printf("\n");
+	// }
 
 	/*Проверяем версию протокола*/ 
 	if(header_up_pack->protocol_version == UDBP_PROTOCOL_VERSION)
@@ -202,13 +212,13 @@ void udp_data_receiver(struct simple_udp_connection *connection,
 			aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[HEADER_DOWN_OFFSET], (uint32_t*)&data[HEADER_DOWN_OFFSET], iterator_to_byte(datalen - HEADER_UP_LENGTH));
 			
 			/*Вывод информационного сообщения в консоль*/
-			if(uart_status_r() == 0)
-			{
-				printf("Packet no crypto received(%"PRIu8"): ", datalen);
-				for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
-					printf("%"PRIXX8, data[i]);
-				printf("\n");
-			}
+			// if(uart_status_r() == 0)
+			// {
+				// printf("Packet no crypto received(%"PRIu8"): ", datalen);
+				// for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
+					// printf("%"PRIXX8, data[i]);
+				// printf("\n");
+			// }
 			
 			/*Отражаем структуру на массив*/ 
 			header_down_t *header_down_pack = (header_down_t*)&data[HEADER_DOWN_OFFSET];
@@ -236,8 +246,7 @@ void udp_data_receiver(struct simple_udp_connection *connection,
 			}
 		
 			/*Выдача сообщения CR*/
-			// for (uint8_t i = 0; i < (HEADER_LENGTH + header_down_pack->length); i++)	/*Выводим принятый пакет*/ 
-				// UARTCharPut(UART0_BASE, data[i]);
+			print_cr((uip_ip6addr_t*)sender_addr, (uint8_t*)data, (HEADER_LENGTH + header_down_pack->length));
 				
 			/*Проверяем ID модуля*/ 
 			if(header_up_pack->device_id == UNWDS_4BTN_MODULE_ID)
@@ -582,6 +591,43 @@ static void send_pack_from_cr(uint8_t* data)
 }
 
 /*---------------------------------------------------------------------------*/
+/**/
+static void print_cr(const uip_ip6addr_t *dest_addr, uint8_t* data, uint8_t length)
+{
+	/*Ожидаем завершения передачи*/
+	while(ti_lib_uart_busy(UART0_BASE));
+
+	/*Отсоединяем пин от UART'а*/ 
+	ti_lib_gpio_set_dio(BOARD_IOID_UART_TX);
+	ti_lib_ioc_port_configure_set(BOARD_IOID_UART_TX, IOC_PORT_GPIO, IOC_OUTPUT_PULL_UP);
+
+	/*Присоединяем пин к UART'у*/ 
+	ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_TX, IOC_PORT_MCU_UART0_TX, IOC_STD_OUTPUT);
+
+	/*Выводим адрес отправителя*/
+	for (uint8_t i = 0; i < sizeof(uip_ip6addr_t); i++)	
+	{
+		while(!ti_lib_uart_char_put_non_blocking(UART0_BASE, dest_addr->u8[i]));
+	}
+	
+	/*Выводим принятый пакет*/
+	for (uint8_t i = 0; i < length; i++)	
+	{
+		while(!ti_lib_uart_char_put_non_blocking(UART0_BASE, data[i]));
+	}
+	
+	/*Ожидаем завершения передачи*/
+	while(ti_lib_uart_busy(UART0_BASE));
+	
+	/*Отсоединяем пин от UART'а*/ 
+	ti_lib_gpio_set_dio(BOARD_IOID_ALT_UART_TX);
+	ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_TX, IOC_PORT_GPIO, IOC_OUTPUT_PULL_UP);
+
+	/*Присоединяем пин к UART'у*/ 
+	ti_lib_ioc_port_configure_set(BOARD_IOID_UART_TX, IOC_PORT_MCU_UART0_TX, IOC_STD_OUTPUT);
+}
+
+/*---------------------------------------------------------------------------*/
 /*Иннициализация RPL*/
 void rpl_initialize()
 {
@@ -695,10 +741,16 @@ PROCESS_THREAD(settings_root_init, ev, data)
 			eeprom_settings.panid = 0xAABB;
 			write_eeprom((uint8_t*)&eeprom_settings, sizeof(eeprom_settings));
 		}
+		
+		printf("AES-128 key not declared\n");
+		while(eeprom_settings.aes_key_configured)
+		{
+			PROCESS_YIELD();
+		}
 	}
 	
 	/*Если ключа шифрования нет, то информируем об этом*/
-	if(!eeprom_settings.aes_key_configured) 
+	else
 	{
 		printf("AES-128 key:");
 		for (uint8_t i = 0; i < 16; i++)
@@ -706,15 +758,7 @@ PROCESS_THREAD(settings_root_init, ev, data)
 			aes_key[i] = eeprom_settings.aes_key[i];
 			printf(" %"PRIXX8, aes_key[i]);
 		}
-		printf("\n");
-	}
-	else
-	{
-		printf("AES-128 key not declared\n");
-		while(eeprom_settings.aes_key_configured)
-		{
-			PROCESS_YIELD();
-		}		
+		printf("\n");		
 	}
 	
 	radio_value_t channel;										/*Выделяем память под переменную channel*/

@@ -198,13 +198,13 @@ static void udp_receiver(struct simple_udp_connection *c,
 	header_up_t *header_up_pack = (header_up_t*)&data[HEADER_OFFSET];
 
 	/*Вывод информационного сообщения в консоль*/
-	if(uart_status() == 0)
-	{
-		printf("[DAG Node]: UDP crypto packet received(%"PRIu8"): ", datalen);
-		for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
-			printf("%"PRIXX8, data[i]);
-		printf("\n");
-	}
+	// if(uart_status() == 0)
+	// {
+		// printf("[DAG Node]: UDP crypto packet received(%"PRIu8"): ", datalen);
+		// for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
+			// printf("%"PRIXX8, data[i]);
+		// printf("\n");
+	// }
 	
 	/*Проверяем версию протокола*/ 
 	if(header_up_pack->protocol_version == UDBP_PROTOCOL_VERSION)
@@ -229,13 +229,13 @@ static void udp_receiver(struct simple_udp_connection *c,
 			aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[HEADER_DOWN_OFFSET], (uint32_t*)&data[HEADER_DOWN_OFFSET], iterator_to_byte(datalen - HEADER_UP_LENGTH));
 
 			/*Вывод информационного сообщения в консоль*/
-			if(uart_status() == 0)
-			{
-				printf("DAG Node: UDP no crypto packet received(%"PRIu8"): ", datalen);
-				for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
-					printf("%"PRIXX8, data[i]);
-				printf("\n");
-			}
+			// if(uart_status() == 0)
+			// {
+				// printf("DAG Node: UDP no crypto packet received(%"PRIu8"): ", datalen);
+				// for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
+					// printf("%"PRIXX8, data[i]);
+				// printf("\n");
+			// }
 			
 			/*Отражаем структуру на массив*/ 
 			header_down_t *header_down_pack = (header_down_t*)&data[HEADER_DOWN_OFFSET];
