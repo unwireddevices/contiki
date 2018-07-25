@@ -41,7 +41,7 @@
 #include <string.h>
 
 /*---------------------------------------------------------------------------*/
-/* main UPD connection */
+/*Структура UDP подключения*/
 struct simple_udp_connection udp_connection;
 
 /*---------------------------------------------------------------------------*/
@@ -70,7 +70,7 @@ void pwm_power_channel_sender ( const uip_ip6addr_t *dest_addr,
 /*Совершить замер освещенности*/
 void lit_measurement_sender(const uip_ip6addr_t *dest_addr);
 	
-/**/	
+/*Конструктор пакета*/
 void pack_sender(const uip_ip6addr_t *dest_addr, 
 				uint8_t device_id, 
 				uint8_t data_type, 

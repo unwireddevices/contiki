@@ -533,7 +533,7 @@ void lit_measurement_sender(const uip_ip6addr_t *dest_addr)
 }
 
 /*---------------------------------------------------------------------------*/
-/**/
+/*Конструктор пакета*/
 void pack_sender(const uip_ip6addr_t *dest_addr, 
 				uint8_t device_id, 
 				uint8_t data_type, 
@@ -591,9 +591,13 @@ void pack_sender(const uip_ip6addr_t *dest_addr,
 	header_pack->crc.u16 = crc16_arc((uint8_t*)&udp_buffer[PAYLOAD_OFFSET], header_pack->length);
 	
 	/*Для отладки. Выводит содержимое пакета*/ 
-	// printf("Pack:\n");
-	// hexraw_print(payload_len, (uint8_t*)payload);
-	// printf("\n");
+	printf("Pack: \n");
+	hexraw_print(16, (uint8_t*)dest_addr);
+	hexraw_print(1, (uint8_t*)&(header_pack->device_id));
+	hexraw_print(1, (uint8_t*)&(header_pack->data_type));
+	hexraw_print(1, (uint8_t*)&(header_pack->length));	
+	hexraw_print(payload_len, (uint8_t*)payload);
+	printf("\n");
 	
 	// printf("Pack:\n");
 	// hexraw_print((HEADER_UP_LENGTH + crypto_length), (uint8_t*)udp_buffer);
@@ -614,6 +618,9 @@ static void send_pack_from_cr(uint8_t* data)
 	/*Отражаем структуры на массивы*/ 
 	uart_header_t *uart_header_pack = (uart_header_t*)&data[1];
 	
+	hexraw_print(data[0], (uint8_t*)&data[1]);
+	printf("\n");
+	
 	/*Отправляем пакет*/ 
 	pack_sender(&(uart_header_pack->dest_addr), 
 				uart_header_pack->device_id, 
@@ -631,6 +638,7 @@ static void print_cr(const uip_ip6addr_t *dest_addr, uint8_t* data, uint8_t leng
 
 	/*Отсоединяем пин от UART'а*/ 
 	ti_lib_gpio_set_dio(BOARD_IOID_UART_TX);
+	ti_lib_gpio_set_output_enable_dio(BOARD_IOID_UART_TX, GPIO_OUTPUT_ENABLE);
 	ti_lib_ioc_port_configure_set(BOARD_IOID_UART_TX, IOC_PORT_GPIO, IOC_OUTPUT_PULL_UP);
 
 	/*Присоединяем пин к UART'у*/ 
@@ -653,6 +661,7 @@ static void print_cr(const uip_ip6addr_t *dest_addr, uint8_t* data, uint8_t leng
 	
 	/*Отсоединяем пин от UART'а*/ 
 	ti_lib_gpio_set_dio(BOARD_IOID_ALT_UART_TX);
+	ti_lib_gpio_set_output_enable_dio(BOARD_IOID_ALT_UART_TX, GPIO_OUTPUT_ENABLE);
 	ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_TX, IOC_PORT_GPIO, IOC_OUTPUT_PULL_UP);
 
 	/*Присоединяем пин к UART'у*/ 
@@ -808,6 +817,7 @@ PROCESS_THREAD(main_root_process, ev, data)
 		if(ev == uart_event_message) 
 		{
 			/**/ 
+			printf("uart_event_message: ");
 			send_pack_from_cr(data);
 		} 
 	}

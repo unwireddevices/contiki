@@ -14,14 +14,14 @@ typedef  struct {
 	uint8_t aes_key_configured;		
 } eeprom_t;
 
-//generate-eeprom.exe [panid] [channel] [aes_key]
-//generate-eeprom.exe 0xAABB 26 11223344556677889900AABBCCDDEEFF
+/*generate-eeprom.exe [panid] [channel] [aes_key]*/
+/*generate-eeprom.exe 0xAABB 26 11223344556677889900AABBCCDDEEFF*/
 
 int main(int argc, char *argv[]) 
 {
 	if (argc != 4) 
 	{
-		puts("Wrong number of arguments");
+		puts("Wrong number of arguments\n");
 		return -1;
 	}
 	

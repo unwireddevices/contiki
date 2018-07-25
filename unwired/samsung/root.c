@@ -72,6 +72,12 @@
 #define CC26XX_UART_INTERRUPT_ALL ( UART_INT_OE | UART_INT_BE | UART_INT_PE | \
 									UART_INT_FE | UART_INT_RT | UART_INT_TX | \
 									UART_INT_RX | UART_INT_CTS)
+								
+#define IOC_INPUT_PULL_UP	(IOC_CURRENT_2MA	| IOC_STRENGTH_AUTO	| \
+							IOC_IOPULL_UP		| IOC_SLEW_DISABLE	| \
+							IOC_HYST_DISABLE	| IOC_NO_EDGE		| \
+							IOC_INT_DISABLE		| IOC_IOMODE_NORMAL	| \
+							IOC_NO_WAKE_UP		| IOC_INPUT_ENABLE	)
 
 /*---------------------------------------------------------------------------*/
 
@@ -115,9 +121,14 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 	rpl_initialize();
 	root_node_initialize();
 
-	// static struct etimer shell_off;
-	// etimer_set(&shell_off, CLOCK_SECOND * 5);
-	// PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&shell_off));
+	static struct etimer shell_off;
+	etimer_set(&shell_off, CLOCK_SECOND * 5);
+	PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&shell_off));
+	
+	printf("\nCommand line is disabled\n");
+	ti_lib_ioc_port_configure_set(BOARD_IOID_UART_RX, IOC_PORT_GPIO, IOC_INPUT_PULL_UP);
+	ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_RX, IOC_PORT_MCU_UART0_RX, IOC_INPUT_PULL_UP);
+	set_uart();	
    
 	// if (BOARD_IOID_UART_TX != BOARD_IOID_ALT_UART_TX || BOARD_IOID_UART_RX != BOARD_IOID_ALT_UART_RX)
 	// {
