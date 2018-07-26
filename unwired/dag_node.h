@@ -50,8 +50,7 @@
 #define LED_SLOW_BLINK			0x03
 #define LED_FAST_BLINK			0x04
 
-#define CLICK					0x80
-#define LONG_CLICK				0xC0
+#define LONG_CLICK				0x80
 
 /*---------------------------------------------------------------------------*/
 
@@ -79,8 +78,8 @@ void led_mode_set(uint8_t mode);
 /*Конструктор пакета*/
 void pack_sender(uint8_t device_id, 
 				uint8_t data_type, 
-				uint8_t *payload, 
-				uint8_t payload_len);
+				uint8_t payload_len, 
+				uint8_t *payload);
 
 
 /*---------------------------------------------------------------------------*/

@@ -59,10 +59,10 @@ bool settings_OPT3001 = 0;
  * @param[out] dev device structure pointer
  * @param[in] param OPT3001 driver parameters, data will be copied into device parameters
  *
- * @return 0 if initialization succeeded
- * @return <0 in case of an error
+ * @return true if initialization succeeded
+ * @return false in case of an error
  */
-int opt3001_init(void)
+bool opt3001_init(void)
 {
 	board_i2c_select(BOARD_I2C_INTERFACE_0, OPT3001_ADDRESS);
 	
@@ -72,19 +72,19 @@ int opt3001_init(void)
 	{
         puts("[OPT3001 driver] Error: sensor not found");
         board_i2c_shutdown();
-        return -1;
+        return false;
     }
 	
     if(chipid != OPT3001_CHIP_ID) 
 	{
         puts("[OPT3001 driver] Error: ID mismatch");
         board_i2c_shutdown();
-        return -1;
+        return false;
     }
 	
 	settings_OPT3001 = 1;
 	
-    return 0;
+    return true;
 }
 
 /*---------------------------------------------------------------------------*/

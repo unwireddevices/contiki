@@ -72,9 +72,8 @@
 
 #include "uart/root.h"
 
-#define DIO_MASK				0x3F
-#define STATUS_MASK				0xC0
-#define CLICK					0x80
+#define DIO_MASK				0x7F
+#define STATUS_MASK				0x80
 #define LONG_CLICK				0xC0
 
 #define IOC_OUTPUT_PULL_UP	(IOC_CURRENT_2MA	| IOC_STRENGTH_AUTO	| \
@@ -128,7 +127,7 @@ static void nack_handler(const uip_ip6addr_t *dest_addr, nack_t *nack_pack);
 static void button_status_handler(const uip_ip6addr_t *dest_addr, button_status_t *button_status_pack);
 
 /*Обработчик пакета с измерением освещенности*/
-static void lit_measure_handler(const uip_ip6addr_t *dest_addr, lit_measure_t *lit_measure_pack);
+static void lit_measure_status_handler(const uip_ip6addr_t *dest_addr, lit_measure_status_t *lit_measure_status_pack);
 
 /*Конструктор пакета из UART*/
 static void send_pack_from_cr(uint8_t* data);
@@ -247,6 +246,7 @@ void udp_data_receiver(struct simple_udp_connection *connection,
 			print_cr((uip_ip6addr_t*)sender_addr, (uint8_t*)data, (HEADER_LENGTH + header_down_pack->length));
 				
 			/*Проверяем ID модуля*/ 
+			/*UNWDS-6LOWPAN_SYSTEM*/
 			if(header_up_pack->device_id == UNWDS_6LOWPAN_SYSTEM_MODULE_ID)
 			{
 				if(header_up_pack->data_type == PING)
@@ -288,6 +288,7 @@ void udp_data_receiver(struct simple_udp_connection *connection,
 				}
 			}
 			
+			/*UMDK-4BTN*/
 			if(header_up_pack->device_id == UNWDS_4BTN_MODULE_ID)
 			{
 				if(header_up_pack->data_type == BUTTON_STATUS)
@@ -311,12 +312,13 @@ void udp_data_receiver(struct simple_udp_connection *connection,
 				}
 			}
 		
+			/*UMDK-LIT*/
 			else if(header_up_pack->device_id == UNWDS_LIT_MODULE_ID)
 			{
-				if(header_up_pack->data_type == LIT_MEASURE)
+				if(header_up_pack->data_type == LIT_MEASURE_STATUS)
 				{
 					/*Обработчик пакета замера освещенности*/
-					lit_measure_handler((uip_ip6addr_t*)sender_addr, (lit_measure_t*)&data[PAYLOAD_OFFSET]);
+					lit_measure_status_handler((uip_ip6addr_t*)sender_addr, (lit_measure_status_t*)&data[PAYLOAD_OFFSET]);
 					
 					led_off(LED_A);		/*Выключаем светодиод*/
 					return;
@@ -459,11 +461,11 @@ static void join_stage_4_sender(const uip_ip6addr_t *dest_addr, const uint8_t *d
 	}
 			
 	/*Отправляем пакет*/
-	pack_sender(dest_addr, 						/*Адрес модуля UMDK-6FET*/
+	pack_sender(dest_addr, 						/*Адрес модуля*/
 				UNWDS_6LOWPAN_SYSTEM_MODULE_ID, /*Индентификатор модуля*/
 				DATA_TYPE_JOIN_STAGE_4, 		/*Команда 4 стадии авторизации*/
-				(uint8_t*)&join_stage_4_pack, 	/*Payload*/
-				sizeof(join_stage_4_pack));		/*Размер payload'а*/
+				JOIN_STAGE_4_LENGTH, 			/*Размер payload'а*/
+				(uint8_t*)&join_stage_4_pack);	/*Payload*/
 }
 
 /*---------------------------------------------------------------------------*/
@@ -473,12 +475,12 @@ static void pong_sender(const uip_ip6addr_t *dest_addr, ping_t *ping_pack)
 	/*Заполняем payload*/
 	pong_t pong_pack;							/*Создаем структуру*/
 	
-	pong_pack.status_code = STATUS_OK;			/*Статус код*/
+	pong_pack.status_code = true;				/*Статус код*/
 	
 	/*Проверяем массив. Если nonce совпали, то настройки шифрования верны*/ 
 	if(ping_pack->nonce.u16 == get_nonce((uip_ip6addr_t*)dest_addr))
 	{
-		pong_pack.status_code = STATUS_OK;
+		pong_pack.status_code = true;
 		
 		/*Вывод сообщения об успешной авторизации*/
 		printf("[");
@@ -488,15 +490,15 @@ static void pong_sender(const uip_ip6addr_t *dest_addr, ping_t *ping_pack)
 	
 	else
 	{
-		pong_pack.status_code = STATUS_ERROR;
+		pong_pack.status_code = false;
 	}
 		
 	/*Отправляем пакет*/
-	pack_sender(dest_addr, 						/*Адрес модуля UMDK-6FET*/
+	pack_sender(dest_addr, 						/*Адрес модуля*/
 				UNWDS_6LOWPAN_SYSTEM_MODULE_ID, /*Индентификатор модуля*/
 				PONG, 							/*Команда ответа на PING*/
-				(uint8_t*)&pong_pack, 			/*Payload*/
-				sizeof(pong_pack));				/*Размер payload'а*/
+				PONG_LENGTH, 					/*Размер payload'а*/
+				(uint8_t*)&pong_pack);			/*Payload*/
 }
 
 /*---------------------------------------------------------------------------*/
@@ -531,27 +533,27 @@ static void button_status_handler(const uip_ip6addr_t *dest_addr, button_status_
 	uip_debug_ipaddr_print((uip_ip6addr_t*)dest_addr);
 	printf("] ");
 	
-	if((dio == BOARD_IOID_KEY_A) && (status == CLICK))
+	if((dio == BOARD_IOID_KEY_A))
 		printf("Button A click\n");
 	else if((dio == BOARD_IOID_KEY_A) && (status == LONG_CLICK))
 		printf("Button A long click\n");
 	
-	else if((dio == BOARD_IOID_KEY_B) && (status == CLICK))
+	else if((dio == BOARD_IOID_KEY_B))
 		printf("Button B click\n");
 	else if((dio == BOARD_IOID_KEY_B) && (status == LONG_CLICK))
 		printf("Button B long click\n");
 	
-	else if((dio == BOARD_IOID_KEY_C) && (status == CLICK))
+	else if((dio == BOARD_IOID_KEY_C))
 		printf("Button C click\n");
 	else if((dio == BOARD_IOID_KEY_C) && (status == LONG_CLICK))
 		printf("Button C long click\n");
 	
-	else if((dio == BOARD_IOID_KEY_D) && (status == CLICK))
+	else if((dio == BOARD_IOID_KEY_D))
 		printf("Button D click\n");
 	else if((dio == BOARD_IOID_KEY_D) && (status == LONG_CLICK))
 		printf("Button D long click\n");
 	
-	else if((dio == BOARD_IOID_KEY_E) && (status == CLICK))
+	else if((dio == BOARD_IOID_KEY_E))
 		printf("Button E click\n");
 	else if((dio == BOARD_IOID_KEY_E) && (status == LONG_CLICK))
 		printf("Button E long click\n");
@@ -562,12 +564,12 @@ static void button_status_handler(const uip_ip6addr_t *dest_addr, button_status_
 
 /*---------------------------------------------------------------------------*/
 /*Обработчик пакета с измерением освещенности*/
-static void lit_measure_handler(const uip_ip6addr_t *dest_addr, lit_measure_t *lit_measure_pack)
+static void lit_measure_status_handler(const uip_ip6addr_t *dest_addr, lit_measure_status_t *lit_measure_status_pack)
 {
 	/*Вывод сообщения об успешной авторизации*/
 	printf("[");
 	uip_debug_ipaddr_print((uip_ip6addr_t*)dest_addr);
-	printf("] Luminocity: %lu lux\n", lit_measure_pack->lit_measure);
+	printf("] Luminocity: %lu lux\n", lit_measure_status_pack->lit_measure_status);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -585,8 +587,8 @@ void pwm_settings_sender(const uip_ip6addr_t *dest_addr, uint8_t channel, uint32
 	pack_sender(dest_addr, 							/*Адрес модуля UMDK-6FET*/
 				UNWDS_6FET_MODULE_ID, 				/*Индентификатор модуля UMDK-6FET*/
 				PWM_SETTINGS, 						/*Команда настройки канала ШИМ'а*/
-				(uint8_t*)&pwm_settings_pack, 		/*Payload*/
-				sizeof(pwm_settings_pack));			/*Размер payload'а*/
+				PWM_SETTINGS_LENGTH, 				/*Размер payload'а*/
+				(uint8_t*)&pwm_settings_pack);		/*Payload*/
 }
 
 /*---------------------------------------------------------------------------*/
@@ -605,8 +607,8 @@ void pwm_power_channel_sender(const uip_ip6addr_t *dest_addr, uint8_t channel, u
 	pack_sender(dest_addr, 						/*Адрес модуля UMDK-6FET*/
 				UNWDS_6FET_MODULE_ID, 			/*Индентификатор модуля UMDK-6FET*/
 				PWM_POWER, 						/*Команда включения канала ШИМ'а*/
-				(uint8_t*)&pwm_power_pack, 		/*Payload*/
-				sizeof(pwm_power_pack));		/*Размер payload'а*/
+				PWM_POWER_LENGTH, 				/*Размер payload'а*/
+				(uint8_t*)&pwm_power_pack);		/*Payload*/
 }
 /*---------------------------------------------------------------------------*/
 /*Совершить замер освещенности*/
@@ -616,8 +618,8 @@ void lit_measurement_sender(const uip_ip6addr_t *dest_addr)
 	pack_sender(dest_addr, 				/*Адрес модуля UMDK-6FET*/
 				UNWDS_LIT_MODULE_ID, 	/*Индентификатор модуля UMDK-LIT*/
 				LIT_MEASURE, 			/*Команда измерения освещенности*/
-				NULL, 					/*Payload'а нет*/
-				0);						/*Размер payload'а*/
+				LIT_MEASURE_LENGTH, 	/*Размер payload'а*/
+				NULL);					/*Payload'а нет*/ 
 }
 
 /*---------------------------------------------------------------------------*/
@@ -625,8 +627,8 @@ void lit_measurement_sender(const uip_ip6addr_t *dest_addr)
 void pack_sender(const uip_ip6addr_t *dest_addr, 
 				uint8_t device_id, 
 				uint8_t data_type, 
-				uint8_t *payload, 
-				uint8_t payload_len)
+				uint8_t payload_len, 
+				uint8_t *payload)
 {
 	/*Проверка на то что передан существующий адрес*/
 	if (dest_addr == NULL)
@@ -712,11 +714,11 @@ static void send_pack_from_cr(uint8_t* data)
 	// printf("\n");
 	
 	/*Отправляем пакет*/ 
-	pack_sender(&(uart_header_pack->dest_addr), 
-				uart_header_pack->device_id, 
-				uart_header_pack->data_type, 
-				(uint8_t*)&data[20], 
-				uart_header_pack->payload_len);
+	pack_sender(&(uart_header_pack->dest_addr), 	/*Адрес модуля*/
+				uart_header_pack->device_id, 		/*Индентификатор модуля*/
+				uart_header_pack->data_type, 		/*Команда*/
+				uart_header_pack->payload_len, 		/*Размер payload'а*/
+				(uint8_t*)&data[20] );				/*Payload*/
 }
 
 /*---------------------------------------------------------------------------*/
@@ -826,7 +828,7 @@ PROCESS_THREAD(settings_root_init, ev, data)
 			write_eeprom((uint8_t*)&eeprom_settings, sizeof(eeprom_settings));
 		}
 		
-		printf("[ROOT Node] AES-128 key not declared\n");
+		printf("[ROOT Node] AES-128 key not declared\n[DAG Node] ***PLEASE SET AES KEY***\n");
 		while(eeprom_settings.aes_key_configured)
 		{
 			PROCESS_YIELD();

@@ -74,8 +74,8 @@ void lit_measurement_sender(const uip_ip6addr_t *dest_addr);
 void pack_sender(const uip_ip6addr_t *dest_addr, 
 				uint8_t device_id, 
 				uint8_t data_type, 
-				uint8_t *payload, 
-				uint8_t payload_len);
+				uint8_t payload_len, 
+				uint8_t *payload);
 				
 /*Иннициализация RPL*/
 void rpl_initialize();

@@ -95,7 +95,7 @@ bool pwm_config(uint8_t channel, uint32_t frequency, uint8_t duty, uint32_t pin)
 	}
 	
 	/*Вычисляем количество тиков за период*/
-	uint32_t frequency_tick = 48000000 / frequency; 
+	uint32_t frequency_tick = GET_MCU_CLOCK / frequency; 
 	uint32_t duty_tick = frequency_tick / 100 * duty; 
 	
 	if(ti_lib_prcm_power_domain_status(PRCM_DOMAIN_PERIPH) != PRCM_DOMAIN_POWER_ON) 

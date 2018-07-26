@@ -87,9 +87,6 @@
 #define ROOT_FIND_INTERVAL				(2 * CLOCK_SECOND)
 #define ROOT_FIND_LIMIT_TIME			(2 * 60 * CLOCK_SECOND)
 
-#define FALSE							0x00
-#define TRUE							0x01
-
 #define CC26XX_UART_INTERRUPT_ALL ( UART_INT_OE | UART_INT_BE | UART_INT_PE | \
 									UART_INT_FE | UART_INT_RT | UART_INT_TX | \
 									UART_INT_RX | UART_INT_CTS)
@@ -164,7 +161,7 @@ static bool dag_pwm_power (	const uip_ipaddr_t *sender_addr,
 							pwm_power_t *pwm_power_pack);
 							
 /*Совершить замер освещенности*/
-static void dag_lit_measure_sender();
+static bool dag_lit_measure_sender();
 
 /*---------------------------------------------------------------------------*/
 /*ПРОТОТИПЫ ПРОЦЕССОВ*/
@@ -295,6 +292,9 @@ static void udp_receiver(struct simple_udp_connection *c,
 					uip_debug_ipaddr_print((uip_ip6addr_t*)sender_addr);
 					printf("] Unknown command for system!\n");
 			
+					/*Отправляем пакет об ошибке*/
+					nack_sender(header_down_pack->counter.u16);
+					
 					led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
 					return;
 				}
@@ -308,9 +308,9 @@ static void udp_receiver(struct simple_udp_connection *c,
 				{
 					/*Инициализация с заданными настройками канала ШИМ'а*/
 					if(dag_pwm_settings(sender_addr, (pwm_settings_t*)&data[PAYLOAD_OFFSET]))
-						ack_sender(header_down_pack->counter.u16);
+						ack_sender(header_down_pack->counter.u16);		/*Отправляем пакет о подтверждении*/
 					else
-						nack_sender(header_down_pack->counter.u16);
+						nack_sender(header_down_pack->counter.u16);		/*Отправляем пакет об ошибке*/
 					
 					led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
 					return;
@@ -320,9 +320,9 @@ static void udp_receiver(struct simple_udp_connection *c,
 				{
 					/*Включение/выключение канала ШИМ'а*/
 					if(dag_pwm_power(sender_addr, (pwm_power_t*)&data[PAYLOAD_OFFSET]))
-						ack_sender(header_down_pack->counter.u16);
+						ack_sender(header_down_pack->counter.u16);		/*Отправляем пакет о подтверждении*/
 					else
-						nack_sender(header_down_pack->counter.u16);
+						nack_sender(header_down_pack->counter.u16);		/*Отправляем пакет об ошибке*/
 					
 					led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
 					return;
@@ -334,6 +334,9 @@ static void udp_receiver(struct simple_udp_connection *c,
 					printf("[");
 					uip_debug_ipaddr_print((uip_ip6addr_t*)sender_addr);
 					printf("] Unknown command for UMDK-6FET!\n");
+					
+					/*Отправляем пакет об ошибке*/
+					nack_sender(header_down_pack->counter.u16);
 					
 					led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
 					return;
@@ -347,7 +350,10 @@ static void udp_receiver(struct simple_udp_connection *c,
 				if(header_up_pack->data_type == LIT_MEASURE)
 				{
 					/*Совершить замер освещенности*/
-					dag_lit_measure_sender();
+					if(dag_lit_measure_sender())
+						ack_sender(header_down_pack->counter.u16);		/*Отправляем пакет о подтверждении*/
+					else
+						nack_sender(header_down_pack->counter.u16);		/*Отправляем пакет об ошибке*/
 					
 					led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
 					return;
@@ -360,6 +366,9 @@ static void udp_receiver(struct simple_udp_connection *c,
 					uip_debug_ipaddr_print((uip_ip6addr_t*)sender_addr);
 					printf("] Unknown command for UMDK-LIT!\n");
 					
+					/*Отправляем пакет об ошибке*/
+					nack_sender(header_down_pack->counter.u16);
+					
 					led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
 					return;
 				}	
@@ -367,11 +376,18 @@ static void udp_receiver(struct simple_udp_connection *c,
 
 			else
 			{
+				/*Вывод сообщения о неизвестном модуле*/
+				printf("[");
+				uip_debug_ipaddr_print((uip_ip6addr_t*)sender_addr);
+				printf("] Unknown module!\n");
+				
+				/*Отправляем пакет об ошибке*/
+				nack_sender(header_down_pack->counter.u16);
+				
 				led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
 				return;
 			}
 		}
-		
 	}
 	
 	else
@@ -390,8 +406,8 @@ static void udp_receiver(struct simple_udp_connection *c,
 /*Конструктор пакета*/
 void pack_sender(uint8_t device_id, 
 				uint8_t data_type, 
-				uint8_t *payload, 
-				uint8_t payload_len)
+				uint8_t payload_len, 
+				uint8_t *payload)
 {	
 	/*Проверка на то что передан не нулевой адрес буфера*/
 	if ((payload == NULL) && (payload_len != 0))
@@ -594,10 +610,10 @@ static void ping_sender(void)
 	ping_pack.nonce.u8[0] = nonce_key[1];		/*Заполняем nonce*/
 	
 	/*Отправляем пакет*/	
-	pack_sender(UNWDS_6LOWPAN_SYSTEM_MODULE_ID,
+	pack_sender(UNWDS_6LOWPAN_SYSTEM_MODULE_ID,	/*ID модуля*/
 				PING, 							/*Команда ping*/
-				(uint8_t*)&ping_pack, 			/*Payload*/
-				sizeof(ping_pack));				/*Размер payload'а*/
+				PING_LENGTH,					/*Размер payload'а*/
+				(uint8_t*)&ping_pack); 			/*Payload*/
 }
 
 /*---------------------------------------------------------------------------*/
@@ -614,7 +630,7 @@ static void pong_handler(const uip_ipaddr_t *sender_addr,
 	else
 	{
 		/*Выводим: Ошибка авторизации*/
-		printf("[DAG Node] Crypto Error. Reboot\n");
+		printf("[DAG Node] Crypto Error\n Reboot...\n");
 		watchdog_reboot();
 		
 		// node_mode = MODE_JOIN_PROGRESS; 	/*Установка режима работы устройства*/
@@ -628,15 +644,15 @@ static void pong_handler(const uip_ipaddr_t *sender_addr,
 static void ack_sender(uint16_t counter)
 {
 	/*Заполняем payload*/
-	ack_t ack_pack;							/*Создаем структуру*/
+	ack_t ack_pack;								/*Создаем структуру*/
 	
-	ack_pack.counter.u16 = counter;			/*Заполняем counter*/
+	ack_pack.counter.u16 = counter;				/*Заполняем counter*/
 	
 	/*Отправляем пакет*/	
-	pack_sender(UNWDS_6LOWPAN_SYSTEM_MODULE_ID,
+	pack_sender(UNWDS_6LOWPAN_SYSTEM_MODULE_ID, /*ID модуля*/
 				ACK, 							/*Команда ACK*/
-				(uint8_t*)&ack_pack, 			/*Payload*/
-				sizeof(ack_pack));				/*Размер payload'а*/
+				ACK_LENGTH, 					/*Размер payload'а*/
+				(uint8_t*)&ack_pack);			/*Payload*/			
 }
 
 /*---------------------------------------------------------------------------*/					
@@ -649,10 +665,10 @@ static void nack_sender(uint16_t counter)
 	nack_pack.counter.u16 = counter;			/*Заполняем counter*/
 	
 	/*Отправляем пакет*/	
-	pack_sender(UNWDS_6LOWPAN_SYSTEM_MODULE_ID,
+	pack_sender(UNWDS_6LOWPAN_SYSTEM_MODULE_ID,	/*ID модуля*/
 				NACK, 							/*Команда ACK*/
-				(uint8_t*)&nack_pack, 			/*Payload*/
-				sizeof(nack_pack));				/*Размер payload'а*/
+				NACK_LENGTH, 					/*Размер payload'а*/
+				(uint8_t*)&nack_pack);			/*Payload*/		
 }
 
 /*---------------------------------------------------------------------------*/
@@ -710,7 +726,7 @@ static bool dag_pwm_power (	const uip_ipaddr_t *sender_addr,
 
 /*---------------------------------------------------------------------------*/
 /*Совершить замер освещенности*/
-static void dag_lit_measure_sender()
+static bool dag_lit_measure_sender()
 {
 	/*Заполняем payload*/
 	lit_measure_t lit_measure_pack;						/*Создаем структуру*/
@@ -722,10 +738,12 @@ static void dag_lit_measure_sender()
 	printf("[UMDK-LIT] Luminocity: %lu lux\n", lit_measure_pack.lit_measure);
 	
 	/*Отправляем пакет*/	
-	pack_sender(UNWDS_LIT_MODULE_ID,
-				LIT_MEASURE, 							/*Команда включения канала ШИМ'а*/
-				(uint8_t*)&lit_measure_pack, 			/*Payload*/
-				sizeof(lit_measure_pack));				/*Размер payload'а*/
+	pack_sender(UNWDS_LIT_MODULE_ID,					/*ID модуля*/
+				LIT_MEASURE_STATUS, 					/*Команда включения канала ШИМ'а*/
+				LIT_MEASURE_STATUS_LENGTH, 				/*Размер payload'а*/
+				(uint8_t*)&lit_measure_pack);			/*Payload*/		
+				
+	return lit_measure_pack.lit_measure;
 }
 
 /*---------------------------------------------------------------------------*/
@@ -738,20 +756,17 @@ void button_status_sender ( uint8_t button_number,
 	
 	button_status_pack.button_status = button_number;
 
-	if(click_type == CLICK)
-		button_status_pack.button_status |= CLICK;
-
-	else if (click_type == LONG_CLICK)
+	if (click_type == LONG_CLICK)
 		button_status_pack.button_status |= LONG_CLICK;
 	
 	/*Вывод информационного сообщения в консоль*/
 	// printf("[DAG Node] Send button status packet to DAG-root node\n");
 	
 	/*Отправляем пакет*/
-	pack_sender(UNWDS_4BTN_MODULE_ID,
+	pack_sender(UNWDS_4BTN_MODULE_ID,				/*ID модуля*/
 				BUTTON_STATUS, 						/*Команда включения канала ШИМ'а*/
-				(uint8_t*)&button_status_pack, 		/*Payload*/
-				sizeof(button_status_pack));		/*Размер payload'а*/
+				BUTTON_STATUS_LENGTH, 				/*Размер payload'а*/
+				(uint8_t*)&button_status_pack );	/*Payload*/		
 }
 
 /*---------------------------------------------------------------------------*/
@@ -788,7 +803,7 @@ PROCESS_THREAD(ping_process, ev, data)
 		
 		if(non_answered_ping > 3)								/*Перезагрузить если больше трех неотвеченных пингов*/
 		{
-			printf("Ping error!");
+			printf("[DAG Node] Ping error!\nReboot...");
 			watchdog_reboot();
 		}
 		
@@ -812,7 +827,7 @@ PROCESS_THREAD(settings_dag_init, ev, data)
 
 	read_eeprom((uint8_t*)&eeprom_settings, sizeof(eeprom_settings));
 	
-	if(eeprom_settings.aes_key_configured == true)
+	if(eeprom_settings.aes_key_configured)
 	{
 		if((eeprom_settings.channel != 26) && (eeprom_settings.panid != 0xAABB))
 		{
@@ -820,28 +835,26 @@ PROCESS_THREAD(settings_dag_init, ev, data)
 			eeprom_settings.panid = 0xAABB;
 			write_eeprom((uint8_t*)&eeprom_settings, sizeof(eeprom_settings));
 		}
+		
+		printf("[DAG Node] AES-128 key not declared\n[DAG Node] ***PLEASE SET AES KEY***\n");
+		led_mode_set(LED_FAST_BLINK);	/*Мигаем светодиодом*/
+		while(eeprom_settings.aes_key_configured)
+		{
+			PROCESS_YIELD();
+		}	
 	}
 	
-	if(!eeprom_settings.aes_key_configured) 
+	else
 	{
-		printf("AES-128 key:");
+		printf("[DAG Node] AES-128 key:");
 		for (uint8_t i = 0; i < 16; i++)
 		{
 			aes_key[i] = eeprom_settings.aes_key[i];
 			printf(" %"PRIXX8, aes_key[i]);
 		}
 		printf("\n");
-		;
 	}
-	else
-	{
-		printf("AES-128 key not declared\n***PLEASE SET AES KEY***\n");
-		led_mode_set(LED_FAST_BLINK);	/*Мигаем светодиодом*/
-		while(eeprom_settings.aes_key_configured)
-		{
-			PROCESS_YIELD();
-		}		
-	}
+
 	
 	radio_value_t channel = 0;
 	NETSTACK_RADIO.get_value(RADIO_PARAM_CHANNEL, &channel);
@@ -853,13 +866,13 @@ PROCESS_THREAD(settings_dag_init, ev, data)
 		if (ti_lib_chipinfo_chip_family_is_cc26xx())
 		{
 			uint32_t freq_mhz = (2405 + 5 * (eeprom_settings.channel - 11));
-			printf("Changed the radio-channel to: %"PRIint" (%"PRIu32" MHz)\n", (int)eeprom_settings.channel, freq_mhz);
+			printf("[DAG Node] Changed the radio-channel to: %"PRIint" (%"PRIu32" MHz)\n", (int)eeprom_settings.channel, freq_mhz);
 		}
 
 		if (ti_lib_chipinfo_chip_family_is_cc13xx())
 		{
 			uint32_t freq_khz = 863125 + (eeprom_settings.channel * 200);
-			printf("Changed the radio-channel to: %"PRIint" (%"PRIu32" kHz)\n", (int)eeprom_settings.channel, freq_khz);
+			printf("[DAG Node] Changed the radio-channel to: %"PRIint" (%"PRIu32" kHz)\n", (int)eeprom_settings.channel, freq_khz);
 		}
 	}
 	
@@ -871,7 +884,7 @@ PROCESS_THREAD(settings_dag_init, ev, data)
 		if(panid != eeprom_settings.panid)
 		{
 			NETSTACK_RADIO.set_value(RADIO_PARAM_PAN_ID, eeprom_settings.panid);
-			printf("PAN ID changed to: %"PRIXX16"\n", eeprom_settings.panid);
+			printf("[DAG Node] PAN ID changed to: %"PRIXX16"\n", eeprom_settings.panid);
 		}
 	}
 	
@@ -948,7 +961,7 @@ PROCESS_THREAD(dag_node_button_process, ev, data)
 				led_mode_set(LED_ON);	
 				
 				/*Вывод информационного сообщения в консоль*/
-				printf("[SYSTEM] Button E long click, reboot\n");
+				printf("[DAG Node] Button E long click, reboot\n");
 				
 				watchdog_reboot();
 			}
@@ -1020,7 +1033,7 @@ PROCESS_THREAD(maintenance_process, ev, data)
 				led_mode_set(LED_FAST_BLINK);
 				
 				/*Вывод информационного сообщения в консоль*/
-				printf("[DAG Node] Root not found, reboot\n"); //почему-то не перезагружается!
+				printf("[DAG Node] Root not found\n Reboot...\n"); //почему-то не перезагружается!
 				
 				watchdog_reboot();
 			}
@@ -1115,8 +1128,6 @@ PROCESS_THREAD(dag_node_process, ev, data)
 	
 	node_mode = MODE_JOIN_PROGRESS; 	/*Установка начального режима работы устройства*/
 	packet_counter_node.u16 = 1;		/*Инициализация счетчика*/
-
-	printf("%lu\n", CLOCK_SECOND);
 	
 	/*Вывод информационного сообщения в консоль*/
 	printf("Node started, %s mode, %s class, version %"PRIu8".%"PRIu8"\n",

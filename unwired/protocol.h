@@ -176,12 +176,20 @@ typedef struct {
 /*UNWDS-LIT*/
 
 /*Command*/
-#define LIT_MEASURE			0x00 /*Команда замера освещенности*/
+#define LIT_MEASURE					0x00 /*Команда замера освещенности*/
+
+/*Struct*/
+/*NULL*/
+
+/*-----------------------------------*/
+/*Command*/
+#define LIT_MEASURE_STATUS			0x01 /*Результаты замера освещенности*/
 
 /*Struct*/
 typedef struct {		
-	uint32_t lit_measure;
-} pack lit_measure_t;
+	uint32_t lit_measure_status;
+} pack lit_measure_status_t;
+
 
 /*---------------------------------------------------------------------------*/
 /*UNWDS-6LOWPAN_SYSTEM*/
@@ -264,30 +272,20 @@ typedef struct {
 
 #define UDBP_PROTOCOL_VERSION			1
 
-#define STATUS_CODE_LENGTH				1
 #define HEADER_UP_LENGTH				sizeof(header_up_t)
 #define HEADER_DOWN_LENGTH				sizeof(header_down_t)
+#define HEADER_LENGTH 					HEADER_UP_LENGTH + HEADER_DOWN_LENGTH
 
 #define HEADER_OFFSET 					0
-#define HEADER_DOWN_OFFSET 				HEADER_UP_LENGTH
-#define PAYLOAD_OFFSET 					HEADER_UP_LENGTH + HEADER_DOWN_LENGTH
+#define HEADER_DOWN_OFFSET 				HEADER_OFFSET + HEADER_UP_LENGTH
+#define PAYLOAD_OFFSET 					HEADER_OFFSET + HEADER_UP_LENGTH + HEADER_DOWN_LENGTH
 
 #define CRYPTO_1_BLOCK_LENGTH 			sizeof(crypto_1_block_t)
 
 #define JOIN_STAGE_1_PAYLOAD_LENGTH 	JOIN_STAGE_1_LENGTH
 #define JOIN_STAGE_2_PAYLOAD_LENGTH 	CRYPTO_1_BLOCK_LENGTH
 #define JOIN_STAGE_3_PAYLOAD_LENGTH 	CRYPTO_1_BLOCK_LENGTH
-#define JOIN_STAGE_4_PAYLOAD_LENGTH 	CRYPTO_1_BLOCK_LENGTH
-#define PING_PAYLOAD_LENGTH 			CRYPTO_1_BLOCK_LENGTH
-#define PONG_PAYLOAD_LENGTH 			CRYPTO_1_BLOCK_LENGTH
-#define ACK_PAYLOAD_LENGTH 				CRYPTO_1_BLOCK_LENGTH
-#define NACK_PAYLOAD_LENGTH 			CRYPTO_1_BLOCK_LENGTH
-#define BUTTON_STATUS_PAYLOAD_LENGTH	CRYPTO_1_BLOCK_LENGTH
-#define PWM_SETTINGS_PAYLOAD_LENGTH		CRYPTO_1_BLOCK_LENGTH
-#define PWM_POWER_PAYLOAD_LENGTH		CRYPTO_1_BLOCK_LENGTH
-#define LIT_MEASURE_PAYLOAD_LENGTH		CRYPTO_1_BLOCK_LENGTH
 
-#define HEADER_LENGTH 					HEADER_UP_LENGTH + HEADER_DOWN_LENGTH
 #define JOIN_STAGE_1_LENGTH 			sizeof(join_stage_1_t)
 #define JOIN_STAGE_2_LENGTH 			sizeof(join_stage_2_t)
 #define JOIN_STAGE_3_LENGTH 			sizeof(join_stage_3_t)
@@ -299,26 +297,11 @@ typedef struct {
 #define BUTTON_STATUS_LENGTH 			sizeof(button_status_t)
 #define PWM_SETTINGS_LENGTH 			sizeof(pwm_settings_t)
 #define PWM_POWER_LENGTH 				sizeof(pwm_power_t)
-#define LIT_MEASURE_LENGTH				sizeof(lit_measure_t)
-
-#define OFFSET_0_BYTE 					0
-#define OFFSET_1_BYTE 					1
-#define OFFSET_2_BYTE 					2
-#define OFFSET_3_BYTE 					3
-#define OFFSET_4_BYTE 					4
-#define OFFSET_5_BYTE 					5
-#define OFFSET_6_BYTE 					6
-#define OFFSET_7_BYTE 					7
-#define OFFSET_8_BYTE 					8
-#define OFFSET_9_BYTE 					9
-
-#define STATUS_OK	 					0x01
-#define STATUS_ERROR	 				0x00
+#define LIT_MEASURE_LENGTH				0
+#define LIT_MEASURE_STATUS_LENGTH		sizeof(lit_measure_status_t)
 
 /*---------------------------------------------------------------------------*/
 #endif
 /*---------------------------------------------------------------------------*/
-
-
 
 

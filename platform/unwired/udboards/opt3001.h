@@ -92,7 +92,7 @@
 /**
  * \brief Initialize the OPT3001 Ambient Light Sensor
  */
-int opt3001_init(void);
+bool opt3001_init(void);
 /*---------------------------------------------------------------------------*/
 /**
  * \brief Measure SHT21 OPT3001 Ambient Light Sensor
