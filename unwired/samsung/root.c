@@ -68,10 +68,6 @@
 #include "../protocol.h"//
 
 #include "sys/etimer.h"
-
-#define CC26XX_UART_INTERRUPT_ALL ( UART_INT_OE | UART_INT_BE | UART_INT_PE | \
-									UART_INT_FE | UART_INT_RT | UART_INT_TX | \
-									UART_INT_RX | UART_INT_CTS)
 								
 #define IOC_INPUT_PULL_UP	(IOC_CURRENT_2MA	| IOC_STRENGTH_AUTO	| \
 							IOC_IOPULL_UP		| IOC_SLEW_DISABLE	| \
@@ -98,7 +94,7 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 	
 	if (BOARD_IOID_UART_RX == IOID_UNUSED)
 	{
-		printf("[DAG Node] Shell not active, uart RX set to IOID_UNUSED\n");
+		printf("[ROOT Node] Shell not active, uart RX set to IOID_UNUSED\n");
 		cc26xx_uart_set_input(NULL);
 	}
 	else
@@ -107,7 +103,7 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 		shell_reboot_init();
 		shell_time_init();
 		unwired_shell_init();
-		printf("[DAG Node] Shell activated, type \"help\" for command list\n");
+		printf("[ROOT Node] Shell activated, type \"help\" for command list\n");
 	}
 	
 	process_start(&settings_root_init, NULL);
@@ -115,52 +111,60 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 	process_exit(&settings_root_init);
 	
 	/* if you do not execute "cleanall" target, rpl-root can build in "leaf" configuration. Diagnostic message */
-	if (RPL_CONF_LEAF_ONLY == 1)
-		printf("\nWARNING: leaf mode on rpl-root!\n");
+	if(RPL_CONF_LEAF_ONLY == 1)
+		printf("\n[ROOT Node] WARNING: leaf mode on rpl-root!\n");
 
 	rpl_initialize();
 	root_node_initialize();
 
-	static struct etimer shell_off;
-	etimer_set(&shell_off, CLOCK_SECOND * 5);
-	PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&shell_off));
-	
-	printf("\nCommand line is disabled\n");
+	static struct etimer shell_off;	
+	printf("[ROOT Node] Command line is lock. For unlock, press the button E\n");
 	ti_lib_ioc_port_configure_set(BOARD_IOID_UART_RX, IOC_PORT_GPIO, IOC_INPUT_PULL_UP);
 	ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_RX, IOC_PORT_MCU_UART0_RX, IOC_INPUT_PULL_UP);
 	set_uart();	
-   
-	// if (BOARD_IOID_UART_TX != BOARD_IOID_ALT_UART_TX || BOARD_IOID_UART_RX != BOARD_IOID_ALT_UART_RX)
-	// {
-		// printf("UDM: UART change to alt(RX: %"PRIu16", TX: %"PRIu16")\n", BOARD_IOID_ALT_UART_RX, BOARD_IOID_ALT_UART_TX);
-		// off_uart(BOARD_IOID_UART_RX, BOARD_IOID_UART_TX);
-		// on_uart(BOARD_IOID_ALT_UART_RX, BOARD_IOID_ALT_UART_TX, 115200);
-		// set_uart();	
-	// }
 
 	while (1)
 	{
 		PROCESS_WAIT_EVENT();
 		
-		if (ev == sensors_event && data == &button_e_sensor_long_click)
+		/*Перезагрузка*/
+		if(ev == sensors_event && data == &button_e_sensor_long_click)
 		{
 			led_on(LED_A);
-			printf("UDM: Button E long click, reboot\n");
+			printf("[ROOT Node] Button E long click, reboot\n");
 			watchdog_reboot();
 		}
 		
-		if (ev == sensors_event && data == &button_e_sensor_click)
+		/*Разблокировка командной строки на 15 секунд.*/
+		if(ev == sensors_event && data == &button_e_sensor_click)
 		{	
-			/*Включаем светодиод*/
-			led_on(LED_A); 
+			printf("[ROOT Node] Command line is unlocked for 15 seconds\n");
+			ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_RX, IOC_PORT_GPIO, IOC_INPUT_PULL_UP);
+			ti_lib_ioc_port_configure_set(BOARD_IOID_UART_RX , IOC_PORT_MCU_UART0_RX, IOC_INPUT_PULL_UP);
+			unset_uart();		
+	
+			etimer_set(&shell_off, CLOCK_SECOND * 15);
+			PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&shell_off));
 			
-			/*Адрес DAG'а*/
-			static uip_ipaddr_t dest_addr;
-			uip_ip6addr(&dest_addr, 0xFD00, 0x0, 0x0, 0x0, 0x0212, 0x4B00, 0x0C46, 0x8D03);			
+			printf("[ROOT Node] Command line is lock\n");
+			ti_lib_ioc_port_configure_set(BOARD_IOID_UART_RX, IOC_PORT_GPIO, IOC_INPUT_PULL_UP);
+			ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_RX, IOC_PORT_MCU_UART0_RX, IOC_INPUT_PULL_UP);
+			set_uart();	
+	
+	
+	
+	
+	
+			// /*Включаем светодиод*/
+			// led_on(LED_A); 
+			
+			// /*Адрес DAG'а*/
+			// static uip_ipaddr_t dest_addr;
+			// uip_ip6addr(&dest_addr, 0xFD00, 0x0, 0x0, 0x0, 0x0212, 0x4B00, 0x0C46, 0x8D03);			
 			
 			// hexraw_print(16, &dest_addr);
 			
-			lit_measurement_sender(&dest_addr);
+			// lit_measurement_sender(&dest_addr);
 			
 			
 			// pack_sender(&dest_addr, 
@@ -201,10 +205,10 @@ PROCESS_THREAD(rpl_root_process, ev, data)
 			
 
 			
-			printf("UDM: SENT\n");
+			// printf("UDM: SENT\n");
 			
-			/*Выключаем светодиод*/
-			led_off(LED_A);
+			// /*Выключаем светодиод*/
+			// led_off(LED_A);
 		}
 	}
 

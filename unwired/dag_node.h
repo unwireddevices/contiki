@@ -76,7 +76,7 @@ void button_status_sender ( uint8_t button_number,
 /*Функция управления светодиодами*/
 void led_mode_set(uint8_t mode);
 
-/**/
+/*Конструктор пакета*/
 void pack_sender(uint8_t device_id, 
 				uint8_t data_type, 
 				uint8_t *payload, 

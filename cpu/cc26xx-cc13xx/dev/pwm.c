@@ -65,26 +65,36 @@ LPM_MODULE(pwm_module, NULL, NULL, NULL, LPM_DOMAIN_PERIPH);
 
 /*---------------------------------------------------------------------------*/
 /*Конфигурироавание канала ШИМ*/
-void pwm_config(uint8_t channel, uint32_t frequency, uint8_t duty, uint32_t pin)
+bool pwm_config(uint8_t channel, uint32_t frequency, uint8_t duty, uint32_t pin)
 {
+	/*Проверяем на количество существующих каналов ШИМ'а*/
 	if(channel > 5)
 	{
+		/*Вывод информационного сообщения в консоль*/
 		printf("[PWM] Invalid channel number\n");
-		return;
+		
+		return false;
 	}
 	
+	/*Проверяем на то что частота от 100 Hz до 100 kHz*/
 	if((frequency < 100) || (frequency > 100000))
 	{
+		/*Вывод информационного сообщения в консоль*/
 		printf("[PWM] The frequency should be in the range from 100 Hz to 100 kHz\n");
-		return;
+		
+		return false;
 	}
 	
+	/*Коэффицент заполнения не может быть больше 100 процентов*/
 	if(duty > 100)
 	{
+		/*Вывод информационного сообщения в консоль*/
 		printf("[PWM] Duty cycle cannot be more than 100 percent\n");
-		return;		
+		
+		return false;		
 	}
 	
+	/*Вычисляем количество тиков за период*/
 	uint32_t frequency_tick = 48000000 / frequency; 
 	uint32_t duty_tick = frequency_tick / 100 * duty; 
 	
@@ -159,6 +169,7 @@ void pwm_config(uint8_t channel, uint32_t frequency, uint8_t duty, uint32_t pin)
 		HWREG(GPT_Base + GPT_O_TBMATCHR) = (duty_tick & 0x0000FFFF);
 	}
 	
+	/*Подключаем ножку микроконтроллера к таймеру*/
 	if(channel == 0)
 		ti_lib_ioc_port_configure_set(pin, IOC_PORT_MCU_PORT_EVENT2, IOC_OUTPUT);
 	else if(channel == 1)
@@ -172,32 +183,44 @@ void pwm_config(uint8_t channel, uint32_t frequency, uint8_t duty, uint32_t pin)
 	else if(channel == 5)
 		ti_lib_ioc_port_configure_set(pin, IOC_PORT_MCU_PORT_EVENT7, IOC_OUTPUT);
 	
+	/*Отмечаем то что этот канал ШИМ'а настроен*/
 	settings_pwm |= (1 << channel);
 	
+	/*Вывод информационного сообщения в консоль*/
 	printf("[PWM] Channel %i is configured: %lu Hz, duty %i percent, %lu pin\n", channel, frequency, duty, pin);
+	
+	return true;
 }
 
 /*---------------------------------------------------------------------------*/
 /*Включение канала ШИМ'а*/
-void pwm_start(uint8_t channel)
+bool pwm_start(uint8_t channel)
 {
+	/*Проверяем на количество существующих каналов ШИМ'а*/
 	if(channel > 5)
 	{
+		/*Вывод информационного сообщения в консоль*/
 		printf("[PWM] Invalid channel number\n");
-		return;
+		
+		return false;
 	}
 	
+	/*Проверяем настроен ли канал*/
 	if(((settings_pwm >> channel) & 0x01) != 0x01)
 	{
-		printf("[PWM] The channel is not configured.\n");
-		return;	
+		/*Вывод информационного сообщения в консоль*/
+		printf("[PWM] The channel %i is not configured.\n", channel);
+		
+		return false;	
 	}
 	
 	if(power_pwm == 0)
 		lpm_register_module(&pwm_module);
 	
+	/*Отмечаем то что этот канал ШИМ'а запущен*/
 	power_pwm |= (1 << channel);
 	
+	/*Запускаем канал ШИМ'а*/
 	if(channel == 0)
 		ti_lib_timer_enable(GPT1_BASE, TIMER_A);
 	else if(channel == 1)
@@ -211,25 +234,35 @@ void pwm_start(uint8_t channel)
 	else if(channel == 5)
 		ti_lib_timer_enable(GPT3_BASE, TIMER_B);
 	
+	/*Вывод информационного сообщения в консоль*/
 	printf("[PWM] Channel %i is running\n", channel);
+	
+	return true;
 }
 
 /*---------------------------------------------------------------------------*/
 /*Выключение канала ШИМ'а*/
-void pwm_stop(uint8_t channel)
+bool pwm_stop(uint8_t channel)
 {
+	/*Проверяем на количество существующих каналов ШИМ'а*/
 	if(channel > 5)
 	{
+		/*Вывод информационного сообщения в консоль*/
 		printf("[PWM] Invalid channel number\n");
-		return;
+		
+		return false;
 	}
 	
+	/*Проверяем настроен ли канал*/
 	if(((settings_pwm >> channel) & 0x01) != 0x01)
 	{
+		/*Вывод информационного сообщения в консоль*/
 		printf("[PWM] The channel is not configured.\n");
-		return;	
+		
+		return false;	
 	}
 	
+	/*Останавливаем канал ШИМ'а*/
 	if(channel == 0)
 		ti_lib_timer_disable(GPT1_BASE, TIMER_A);
 	else if(channel == 1)
@@ -243,12 +276,16 @@ void pwm_stop(uint8_t channel)
 	else if(channel == 5)
 		ti_lib_timer_disable(GPT3_BASE, TIMER_B);
 	
+	/*Отмечаем то что этот канал ШИМ'а остановлен*/
 	power_pwm &= ~(1 << channel);
 	
 	if(power_pwm == 0)
 		lpm_unregister_module(&pwm_module);
 	
+	/*Вывод информационного сообщения в консоль*/
 	printf("[PWM] Channel %i is stopped\n", channel);
+	
+	return true;
 }
 
 /*---------------------------------------------------------------------------*/

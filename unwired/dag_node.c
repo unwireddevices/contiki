@@ -148,13 +148,19 @@ static void ping_sender(void);
 /*Pong*/
 static void pong_handler(const uip_ipaddr_t *sender_addr,
 						pong_t *pong_pack);
+						
+/*ACK*/
+static void ack_sender(uint16_t counter);
+						
+/*NACK*/
+static void nack_sender(uint16_t counter);
 								
 /*Инициализация с заданными настройками канала ШИМ'а*/
-static void dag_pwm_settings(const uip_ipaddr_t *sender_addr,
+static bool dag_pwm_settings(const uip_ipaddr_t *sender_addr,
 							pwm_settings_t *pwm_settings_pack);
 
 /*Включение/выключение канала ШИМ'а*/
-static void dag_pwm_power (	const uip_ipaddr_t *sender_addr,
+static bool dag_pwm_power (	const uip_ipaddr_t *sender_addr,
 							pwm_power_t *pwm_power_pack);
 							
 /*Совершить замер освещенности*/
@@ -198,13 +204,10 @@ static void udp_receiver(struct simple_udp_connection *c,
 	header_up_t *header_up_pack = (header_up_t*)&data[HEADER_OFFSET];
 
 	/*Вывод информационного сообщения в консоль*/
-	// if(uart_status() == 0)
-	// {
-		// printf("[DAG Node]: UDP crypto packet received(%"PRIu8"): ", datalen);
-		// for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
-			// printf("%"PRIXX8, data[i]);
-		// printf("\n");
-	// }
+	// printf("[DAG Node]: UDP crypto packet received(%"PRIu8"): ", datalen);
+	// for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
+		// printf("%"PRIXX8, data[i]);
+	// printf("\n");
 	
 	/*Проверяем версию протокола*/ 
 	if(header_up_pack->protocol_version == UDBP_PROTOCOL_VERSION)
@@ -215,12 +218,18 @@ static void udp_receiver(struct simple_udp_connection *c,
 		{
 			/*Третья стадия авторизации*/
 			join_stage_3_sender(sender_addr, data, datalen);
+			
+			led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
+			return;
 		}
 		
 		else if((header_up_pack->device_id == UNWDS_6LOWPAN_SYSTEM_MODULE_ID) && (header_up_pack->data_type == DATA_TYPE_JOIN_STAGE_4))
 		{
 			/*Обработчик четвертой стадии авторизации*/
 			join_stage_4_handler(sender_addr, data, datalen);
+			
+			led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
+			return;
 		}
 		
 		else 
@@ -229,29 +238,37 @@ static void udp_receiver(struct simple_udp_connection *c,
 			aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[HEADER_DOWN_OFFSET], (uint32_t*)&data[HEADER_DOWN_OFFSET], iterator_to_byte(datalen - HEADER_UP_LENGTH));
 
 			/*Вывод информационного сообщения в консоль*/
-			// if(uart_status() == 0)
-			// {
-				// printf("DAG Node: UDP no crypto packet received(%"PRIu8"): ", datalen);
-				// for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
-					// printf("%"PRIXX8, data[i]);
-				// printf("\n");
-			// }
+			// printf("DAG Node: UDP no crypto packet received(%"PRIu8"): ", datalen);
+			// for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
+				// printf("%"PRIXX8, data[i]);
+			// printf("\n");
 			
 			/*Отражаем структуру на массив*/ 
 			header_down_t *header_down_pack = (header_down_t*)&data[HEADER_DOWN_OFFSET];
+			
+			
+			/*CRC16 проверка*/ 
+			if(header_down_pack->crc.u16 != crc16_arc((uint8_t*)&data[PAYLOAD_OFFSET], header_down_pack->length))
+			{
+				/*Вывод сообщения об ошибке целостности пакета*/
+				printf("[");
+				uip_debug_ipaddr_print((uip_ip6addr_t*)sender_addr);
+				printf("] CRC16 Error!\n");
+				
+				led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
+				return;
+			}
 			
 			/*Защита от атаки повтором*/
 			/*Проверяем счетчик пакетов на валидность данного пакета*/
 			if(packet_counter_root.u16 >= header_down_pack->counter.u16)
 			{	
-				printf("COUNTER ERROR!!!\n");
-				return;
-			}
-			
-			/*CRC16 проверка*/ 
-			if(header_down_pack->crc.u16 != crc16_arc((uint8_t*)&data[PAYLOAD_OFFSET], header_down_pack->length))
-			{
-				printf("CRC16 ERROR!!!\n");
+				/*Вывод сообщения об ошибке счетчика пакетов*/
+				printf("[");
+				uip_debug_ipaddr_print((uip_ip6addr_t*)sender_addr);
+				printf("] Counter error!\n");
+				
+				led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
 				return;
 			}
 			
@@ -264,13 +281,21 @@ static void udp_receiver(struct simple_udp_connection *c,
 			{
 				if(header_up_pack->data_type == PONG)
 				{
+					/*Pong*/
 					pong_handler(sender_addr, (pong_t*)&data[PAYLOAD_OFFSET]);
-					led_off(LED_A);		/*Выключаем светодиод*/
+					
+					led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
 					return;
 				}
 
 				else
 				{
+					/*Вывод сообщения об неизвестной команде*/
+					printf("[");
+					uip_debug_ipaddr_print((uip_ip6addr_t*)sender_addr);
+					printf("] Unknown command for system!\n");
+			
+					led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
 					return;
 				}
 					
@@ -281,20 +306,36 @@ static void udp_receiver(struct simple_udp_connection *c,
 			{
 				if(header_up_pack->data_type == PWM_SETTINGS)
 				{
-					dag_pwm_settings(sender_addr, (pwm_settings_t*)&data[PAYLOAD_OFFSET]);
-					led_off(LED_A);		/*Выключаем светодиод*/
+					/*Инициализация с заданными настройками канала ШИМ'а*/
+					if(dag_pwm_settings(sender_addr, (pwm_settings_t*)&data[PAYLOAD_OFFSET]))
+						ack_sender(header_down_pack->counter.u16);
+					else
+						nack_sender(header_down_pack->counter.u16);
+					
+					led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
 					return;
 				}
 				
 				else if(header_up_pack->data_type == PWM_POWER)
 				{
-					dag_pwm_power(sender_addr, (pwm_power_t*)&data[PAYLOAD_OFFSET]);
-					led_off(LED_A);		/*Выключаем светодиод*/
+					/*Включение/выключение канала ШИМ'а*/
+					if(dag_pwm_power(sender_addr, (pwm_power_t*)&data[PAYLOAD_OFFSET]))
+						ack_sender(header_down_pack->counter.u16);
+					else
+						nack_sender(header_down_pack->counter.u16);
+					
+					led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
 					return;
 				}
 				
 				else
 				{
+					/*Вывод сообщения об неизвестной команде*/
+					printf("[");
+					uip_debug_ipaddr_print((uip_ip6addr_t*)sender_addr);
+					printf("] Unknown command for UMDK-6FET!\n");
+					
+					led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
 					return;
 				}
 					
@@ -305,19 +346,28 @@ static void udp_receiver(struct simple_udp_connection *c,
 			{
 				if(header_up_pack->data_type == LIT_MEASURE)
 				{
+					/*Совершить замер освещенности*/
 					dag_lit_measure_sender();
-					led_off(LED_A);		/*Выключаем светодиод*/
+					
+					led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
 					return;
 				}
 				
 				else
 				{
+					/*Вывод сообщения об неизвестной команде*/
+					printf("[");
+					uip_debug_ipaddr_print((uip_ip6addr_t*)sender_addr);
+					printf("] Unknown command for UMDK-LIT!\n");
+					
+					led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
 					return;
 				}	
 			}
 
 			else
 			{
+				led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
 				return;
 			}
 		}
@@ -326,18 +376,18 @@ static void udp_receiver(struct simple_udp_connection *c,
 	
 	else
 	{
-		/*Вывод информационного сообщения в консоль*/
-		if(uart_status() == 0)
-			printf("[DAG Node] Incompatible protocol version: %"PRIXX8"\n", header_up_pack->protocol_version);
+		/*Вывод сообщения о неизвестном протоколе*/
+		printf("[");
+		uip_debug_ipaddr_print((uip_ip6addr_t*)sender_addr);
+		printf("] Unknown protocol version!\n");
+		
+		led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
 		return;
 	}
-
-	/*Мигаем светодиодом*/
-	led_mode_set(LED_FLASH);
 }
 
 /*---------------------------------------------------------------------------*/
-/**/
+/*Конструктор пакета*/
 void pack_sender(uint8_t device_id, 
 				uint8_t data_type, 
 				uint8_t *payload, 
@@ -399,12 +449,9 @@ static void join_stage_1_sender(const uip_ipaddr_t *dest_addr)
 	uip_ip6addr_copy(&addr, dest_addr);		/*Копируем адрес*/
 	
 	/*Вывод информационного сообщения в консоль*/
-	if(uart_status() == 0)
-	{
-		printf("[DAG Node] Send join packet to DAG-root node: ");
-		uip_debug_ipaddr_print(&addr);
-		printf("\n");
-	}
+	printf("[DAG Node] Send join packet to DAG-root node: ");
+	uip_debug_ipaddr_print(&addr);
+	printf("\n");
 
 	/*Выделяем память под пакет. Общий размер пакета (header + payload)*/	
 	uint8_t udp_buffer[HEADER_LENGTH + JOIN_STAGE_1_PAYLOAD_LENGTH];
@@ -449,12 +496,10 @@ static void join_stage_3_sender(const uip_ipaddr_t *dest_addr,
 	uip_ip6addr_copy(&addr, dest_addr);		/*Копируем адрес*/
 	
 	/*Вывод информационного сообщения в консоль*/
-	if(uart_status() == 0)
-	{
-		printf("[DAG Node] Send join packet stage 3 to DAG-root node:");
-		uip_debug_ipaddr_print(&addr);
-		printf("\n");
-	}
+	printf("[DAG Node] Send join packet stage 3 to DAG-root node:");
+	uip_debug_ipaddr_print(&addr);
+	printf("\n");
+
 	
 	/*Выделяем память под пакет. Общий размер пакета (header + payload)*/
 	uint8_t udp_buffer[HEADER_UP_LENGTH + JOIN_STAGE_3_PAYLOAD_LENGTH];	
@@ -579,40 +624,74 @@ static void pong_handler(const uip_ipaddr_t *sender_addr,
 }
 
 /*---------------------------------------------------------------------------*/
+/*ACK*/
+static void ack_sender(uint16_t counter)
+{
+	/*Заполняем payload*/
+	ack_t ack_pack;							/*Создаем структуру*/
+	
+	ack_pack.counter.u16 = counter;			/*Заполняем counter*/
+	
+	/*Отправляем пакет*/	
+	pack_sender(UNWDS_6LOWPAN_SYSTEM_MODULE_ID,
+				ACK, 							/*Команда ACK*/
+				(uint8_t*)&ack_pack, 			/*Payload*/
+				sizeof(ack_pack));				/*Размер payload'а*/
+}
+
+/*---------------------------------------------------------------------------*/					
+/*NACK*/
+static void nack_sender(uint16_t counter)
+{
+	/*Заполняем payload*/
+	nack_t nack_pack;							/*Создаем структуру*/
+	
+	nack_pack.counter.u16 = counter;			/*Заполняем counter*/
+	
+	/*Отправляем пакет*/	
+	pack_sender(UNWDS_6LOWPAN_SYSTEM_MODULE_ID,
+				NACK, 							/*Команда ACK*/
+				(uint8_t*)&nack_pack, 			/*Payload*/
+				sizeof(nack_pack));				/*Размер payload'а*/
+}
+
+/*---------------------------------------------------------------------------*/
 /*Инициализация с заданными настройками канала ШИМ'а*/
-static void dag_pwm_settings(const uip_ipaddr_t *sender_addr,
+static bool dag_pwm_settings(const uip_ipaddr_t *sender_addr,
 							pwm_settings_t *pwm_settings_pack)
 {	
+	/*Инициализация 0 канала ШИМ'а*/
 	if(pwm_settings_pack->channel == 0)
-	{
-		pwm_config(pwm_settings_pack->channel, pwm_settings_pack->frequency, pwm_settings_pack->duty, IOID_5);
-	}
+		return pwm_config(pwm_settings_pack->channel, pwm_settings_pack->frequency, pwm_settings_pack->duty, IOID_5);
 	
+	/*Инициализация 1 канала ШИМ'а*/
 	else if(pwm_settings_pack->channel == 1)
-	{
-		pwm_config(pwm_settings_pack->channel, pwm_settings_pack->frequency, pwm_settings_pack->duty, IOID_6);
-	}
+		return pwm_config(pwm_settings_pack->channel, pwm_settings_pack->frequency, pwm_settings_pack->duty, IOID_6);
+	
+	/*Инициализация 2 канала ШИМ'а*/
 	else if(pwm_settings_pack->channel == 2)
-	{
-		pwm_config(pwm_settings_pack->channel, pwm_settings_pack->frequency, pwm_settings_pack->duty, IOID_7);
-	}
+		return pwm_config(pwm_settings_pack->channel, pwm_settings_pack->frequency, pwm_settings_pack->duty, IOID_7);
+	
+	/*Инициализация 3 канала ШИМ'а*/
 	else if(pwm_settings_pack->channel == 3)
-	{
-		pwm_config(pwm_settings_pack->channel, pwm_settings_pack->frequency, pwm_settings_pack->duty, IOID_24);
-	}
+		return pwm_config(pwm_settings_pack->channel, pwm_settings_pack->frequency, pwm_settings_pack->duty, IOID_24);
+	
+	/*Инициализация 4 канала ШИМ'а*/
 	else if(pwm_settings_pack->channel == 4)
-	{
-		pwm_config(pwm_settings_pack->channel, pwm_settings_pack->frequency, pwm_settings_pack->duty, IOID_25);
-	}
+		return pwm_config(pwm_settings_pack->channel, pwm_settings_pack->frequency, pwm_settings_pack->duty, IOID_25);
+	
+	/*Инициализация 5 канала ШИМ'а*/
 	else if(pwm_settings_pack->channel == 5)
-	{
-		pwm_config(pwm_settings_pack->channel, pwm_settings_pack->frequency, pwm_settings_pack->duty, IOID_26);
-	}
+		return pwm_config(pwm_settings_pack->channel, pwm_settings_pack->frequency, pwm_settings_pack->duty, IOID_26);
+	
+	/*Нет такого канала ШИМ'а*/
+	else
+		return false;
 }
 
 /*---------------------------------------------------------------------------*/
 /*Включение/выключение канала ШИМ'а*/
-static void dag_pwm_power (	const uip_ipaddr_t *sender_addr,
+static bool dag_pwm_power (	const uip_ipaddr_t *sender_addr,
 							pwm_power_t *pwm_power_pack)
 {
 	uint8_t pwm_channel = pwm_power_pack->pwm_power & 0x7F;
@@ -620,12 +699,12 @@ static void dag_pwm_power (	const uip_ipaddr_t *sender_addr,
 	
 	if(pwm_power)
 	{
-		pwm_start(pwm_channel);
+		return pwm_start(pwm_channel);
 	}
 	
 	else
 	{
-		pwm_stop(pwm_channel);
+		return pwm_stop(pwm_channel);
 	}
 }
 
@@ -869,8 +948,7 @@ PROCESS_THREAD(dag_node_button_process, ev, data)
 				led_mode_set(LED_ON);	
 				
 				/*Вывод информационного сообщения в консоль*/
-				if(uart_status() == 0)
-					printf("[SYSTEM] Button E long click, reboot\n");
+				printf("[SYSTEM] Button E long click, reboot\n");
 				
 				watchdog_reboot();
 			}
@@ -916,8 +994,7 @@ PROCESS_THREAD(maintenance_process, ev, data)
 				led_mode_set(LED_OFF);
 				
 				/*Вывод информационного сообщения в консоль*/
-				if(uart_status() == 0)
-					printf("[DAG Node] Root not found, sleep\n");
+				printf("[DAG Node] Root not found, sleep\n");
 				
 				if(process_is_running(&dag_node_button_process) == 1)
 					process_exit(&dag_node_button_process);
@@ -943,8 +1020,7 @@ PROCESS_THREAD(maintenance_process, ev, data)
 				led_mode_set(LED_FAST_BLINK);
 				
 				/*Вывод информационного сообщения в консоль*/
-				if(uart_status() == 0)
-					printf("[DAG Node] Root not found, reboot\n"); //почему-то не перезагружается!
+				printf("[DAG Node] Root not found, reboot\n"); //почему-то не перезагружается!
 				
 				watchdog_reboot();
 			}
@@ -1007,8 +1083,7 @@ PROCESS_THREAD(root_find_process, ev, data)
 				node_mode = MODE_NOTROOT;
 				
 				/*Вывод информационного сообщения в консоль*/
-				if(uart_status() == 0)
-					printf("[DAG Node] mode set to MODE_NOTROOT\n");
+				printf("[DAG Node] mode set to MODE_NOTROOT\n");
 				
 				process_exit(&maintenance_process);
 				process_start(&maintenance_process, NULL);
@@ -1041,13 +1116,14 @@ PROCESS_THREAD(dag_node_process, ev, data)
 	node_mode = MODE_JOIN_PROGRESS; 	/*Установка начального режима работы устройства*/
 	packet_counter_node.u16 = 1;		/*Инициализация счетчика*/
 
+	printf("%lu\n", CLOCK_SECOND);
+	
 	/*Вывод информационного сообщения в консоль*/
-	if(uart_status() == 0)
-		printf("Node started, %s mode, %s class, version %"PRIu8".%"PRIu8"\n",
-				rpl_get_mode() == RPL_MODE_LEAF ? "leaf" : "no-leaf",
-				CLASS == CLASS_B ? "B(sleep)" : "C(non-sleep)",
-				BIG_VERSION, 
-				LITTLE_VERSION);
+	printf("Node started, %s mode, %s class, version %"PRIu8".%"PRIu8"\n",
+			rpl_get_mode() == RPL_MODE_LEAF ? "leaf" : "no-leaf",
+			CLASS == CLASS_B ? "B(sleep)" : "C(non-sleep)",
+			BIG_VERSION, 
+			LITTLE_VERSION);
 
 	process_start(&dag_node_button_process, NULL);		/*Запускаем процес который отслеживает нажатие кнопок*/
 	process_start(&maintenance_process, NULL);			/*Запускаем процес управления нодой*/
@@ -1057,8 +1133,7 @@ PROCESS_THREAD(dag_node_process, ev, data)
 	PROCESS_YIELD_UNTIL(ev == PROCESS_EVENT_CONTINUE);	/*Ожидаем пока нода авторизируется в сети*/
 
 	/*Вывод информационного сообщения в консоль*/
-	if(uart_status() == 0)
-		printf("[DAG Node] DAG active, join stage 4 packet received, mode set to MODE_NORMAL\n");
+	printf("[DAG Node] DAG active, join stage 4 packet received, mode set to MODE_NORMAL\n");
 	
 	led_mode_set(LED_SLOW_BLINK);	/*Включаем медленное мигание светодиодами*/
 	node_mode = MODE_NORMAL;		/*Изменение режима работы ноды. Нода работает в нормальном режиме*/

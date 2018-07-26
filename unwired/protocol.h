@@ -240,6 +240,25 @@ typedef struct {
 	uint8_t status_code;
 } pack pong_t;
 
+/*-----------------------------------*/
+/*Command*/
+#define ACK							0x07 /*ACK*/
+
+/*Struct*/
+typedef struct {		
+	u8_u16_t counter;
+} pack ack_t;
+
+/*-----------------------------------*/
+/*Command*/
+#define NACK						0x08 /*NACK*/
+
+/*Struct*/
+typedef struct {		
+	u8_u16_t counter;
+} pack nack_t;
+
+
 /*---------------------------------------------------------------------------*/
 #define UDP_DATA_PORT					4004
 
@@ -261,6 +280,8 @@ typedef struct {
 #define JOIN_STAGE_4_PAYLOAD_LENGTH 	CRYPTO_1_BLOCK_LENGTH
 #define PING_PAYLOAD_LENGTH 			CRYPTO_1_BLOCK_LENGTH
 #define PONG_PAYLOAD_LENGTH 			CRYPTO_1_BLOCK_LENGTH
+#define ACK_PAYLOAD_LENGTH 				CRYPTO_1_BLOCK_LENGTH
+#define NACK_PAYLOAD_LENGTH 			CRYPTO_1_BLOCK_LENGTH
 #define BUTTON_STATUS_PAYLOAD_LENGTH	CRYPTO_1_BLOCK_LENGTH
 #define PWM_SETTINGS_PAYLOAD_LENGTH		CRYPTO_1_BLOCK_LENGTH
 #define PWM_POWER_PAYLOAD_LENGTH		CRYPTO_1_BLOCK_LENGTH
@@ -273,6 +294,8 @@ typedef struct {
 #define JOIN_STAGE_4_LENGTH 			sizeof(join_stage_4_t)
 #define PING_LENGTH 					sizeof(ping_t)
 #define PONG_LENGTH 					sizeof(pong_t)
+#define ACK_LENGTH 						sizeof(ack_t)
+#define NACK_LENGTH 					sizeof(nack_t)
 #define BUTTON_STATUS_LENGTH 			sizeof(button_status_t)
 #define PWM_SETTINGS_LENGTH 			sizeof(pwm_settings_t)
 #define PWM_POWER_LENGTH 				sizeof(pwm_power_t)

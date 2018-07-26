@@ -53,13 +53,13 @@
 /*Прототипы функций*/
 
 /*Конфигурироавание канала ШИМ*/
-void pwm_config(uint8_t channel, uint32_t frequency, uint8_t duty, uint32_t pin); 
+bool pwm_config(uint8_t channel, uint32_t frequency, uint8_t duty, uint32_t pin); 
 
 /*Включение канала ШИМ'а*/
-void pwm_start(uint8_t channel);
+bool pwm_start(uint8_t channel);
 
 /*Выключение канала ШИМ'а*/
-void pwm_stop(uint8_t channel);
+bool pwm_stop(uint8_t channel);
 
 #endif /* PWM_H_ */
 /*---------------------------------------------------------------------------*/
