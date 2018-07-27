@@ -4,8 +4,7 @@ PROJECTDIRS += ..
 APPS = serial-shell
 PROJECT_SOURCEFILES += dag_node.c int-flash-common.c ota-main.c ota-common.c crypto-common.c system-common.c rtc-common.c
 DEFINES+=PROJECT_CONF_H=\"project-conf-class-c.h\"
-DEFINES+=IF_UD_BUTTON=1
-DEFINES+=FAKEDEFINE=1
+DEFINES+=UMDK_4BTN=1
 DEFINES+=CLASS=0x0C
 DEFINES+=UNWDS_MODULE_ID=2
 CONTIKI = ../..

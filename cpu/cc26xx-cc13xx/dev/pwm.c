@@ -257,7 +257,7 @@ bool pwm_stop(uint8_t channel)
 	if(((settings_pwm >> channel) & 0x01) != 0x01)
 	{
 		/*Вывод информационного сообщения в консоль*/
-		printf("[PWM] The channel is not configured.\n");
+		printf("[PWM] The channel %i is not configured.\n", channel);
 		
 		return false;	
 	}

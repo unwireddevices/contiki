@@ -22,6 +22,7 @@ $(1):
 	../bootloader/generate-metadata/generate-metadata $$@.bin 0x0 $(2) 1 > /dev/null
 	srec_cat firmware-metadata.bin -binary $$@.bin -binary -offset 0x100 -o $$@-ota-image.bin -binary
 	srec_cat ../bootloader/bootloader.hex -intel -crop 0x0 0x3000 0x1FFA8 0x20000 $$@-ota-image.bin -binary -offset 0x3000 -crop 0x3000 0x1B000 -o $$@-firmware.hex -intel
+	cp $$@-firmware.hex ../../unwired_tools/UNWDS_FLASHER/
 	rm $(1).hex
 
 $(1)-CLEAN: $(1)

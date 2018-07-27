@@ -117,55 +117,55 @@ PROCESS_THREAD(main_process, ev, data)
 		{
 			if (data == &button_a_sensor_click)
 			{
-				printf("[BTN] Button A click\n");
+				printf("[UMDK-4BTN] Button A click\n");
 				button_status_sender(BOARD_IOID_KEY_A, CLICK);
 			}
 			
 			if (data == &button_a_sensor_long_click)
 			{
-				printf("[BTN] Button A long click\n");
+				printf("[UMDK-4BTN] Button A long click\n");
 				button_status_sender(BOARD_IOID_KEY_A, LONG_CLICK);
 			}
 			
 			if (data == &button_b_sensor_click)
 			{
-				printf("[BTN] Button B click\n");
+				printf("[UMDK-4BTN] Button B click\n");
 				button_status_sender(BOARD_IOID_KEY_B, CLICK);
 			}
 			
 			if (data == &button_b_sensor_long_click)
 			{
-				printf("[BTN] Button B long click\n");
+				printf("[UMDK-4BTN] Button B long click\n");
 				button_status_sender(BOARD_IOID_KEY_B, LONG_CLICK);
 			}
 			
 			if (data == &button_c_sensor_click)
 			{
-				printf("[BTN] Button C click\n");
+				printf("[UMDK-4BTN] Button C click\n");
 				button_status_sender(BOARD_IOID_KEY_C, CLICK);
 			}
 			
 			if (data == &button_c_sensor_long_click)
 			{
-				printf("[BTN] Button C long click\n");
+				printf("[UMDK-4BTN] Button C long click\n");
 				button_status_sender(BOARD_IOID_KEY_C, LONG_CLICK);
 			}
 			
 			if (data == &button_d_sensor_click)
 			{
-				printf("[BTN] Button D click\n");
+				printf("[UMDK-4BTN] Button D click\n");
 				button_status_sender(BOARD_IOID_KEY_D, CLICK);
 			}
 			
 			if (data == &button_d_sensor_long_click)
 			{
-				printf("[BTN] Button D long click\n");
+				printf("[UMDK-4BTN] Button D long click\n");
 				button_status_sender(BOARD_IOID_KEY_D, LONG_CLICK);
 			}
 			
 			if (data == &button_e_sensor_click)
 			{
-				printf("[BTN] Button E click\n");
+				printf("[UMDK-4BTN] Button E click\n");
 				button_status_sender(BOARD_IOID_KEY_E, CLICK);
 			}
 

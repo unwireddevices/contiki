@@ -108,8 +108,11 @@ uint32_t opt3001_measure(void)
 {
 	if(!settings_OPT3001)
 	{
-		puts("[OPT3001 driver] The driver is not initialized");
-		return 0;
+		if(!opt3001_init())
+		{
+			puts("[OPT3001 driver] The driver is not initialized");
+			return 0;
+		}
 	}
 	
     uint16_t data;

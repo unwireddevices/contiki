@@ -50,6 +50,7 @@
 #define LED_SLOW_BLINK			0x03
 #define LED_FAST_BLINK			0x04
 
+#define CLICK					0x00
 #define LONG_CLICK				0x80
 
 /*---------------------------------------------------------------------------*/

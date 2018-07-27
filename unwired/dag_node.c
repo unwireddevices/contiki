@@ -151,17 +151,22 @@ static void ack_sender(uint16_t counter);
 						
 /*NACK*/
 static void nack_sender(uint16_t counter);
-								
-/*Инициализация с заданными настройками канала ШИМ'а*/
-static bool dag_pwm_settings(const uip_ipaddr_t *sender_addr,
-							pwm_settings_t *pwm_settings_pack);
+		
+#ifdef UMDK_6FET	
+	/*Инициализация с заданными настройками канала ШИМ'а*/
+	static bool dag_pwm_settings(const uip_ipaddr_t *sender_addr,
+								pwm_settings_t *pwm_settings_pack);
 
-/*Включение/выключение канала ШИМ'а*/
-static bool dag_pwm_power (	const uip_ipaddr_t *sender_addr,
-							pwm_power_t *pwm_power_pack);
-							
-/*Совершить замер освещенности*/
-static bool dag_lit_measure_sender();
+	/*Включение/выключение канала ШИМ'а*/
+	static bool dag_pwm_power (	const uip_ipaddr_t *sender_addr,
+								pwm_power_t *pwm_power_pack);
+#endif				
+
+
+#ifdef UMDK_LIT 				
+	/*Совершить замер освещенности*/
+	static bool dag_lit_measure_sender();
+#endif
 
 /*---------------------------------------------------------------------------*/
 /*ПРОТОТИПЫ ПРОЦЕССОВ*/
@@ -248,9 +253,7 @@ static void udp_receiver(struct simple_udp_connection *c,
 			if(header_down_pack->crc.u16 != crc16_arc((uint8_t*)&data[PAYLOAD_OFFSET], header_down_pack->length))
 			{
 				/*Вывод сообщения об ошибке целостности пакета*/
-				printf("[");
-				uip_debug_ipaddr_print((uip_ip6addr_t*)sender_addr);
-				printf("] CRC16 Error!\n");
+				printf("[DAG Node] CRC16 Error!\n");
 				
 				led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
 				return;
@@ -261,9 +264,7 @@ static void udp_receiver(struct simple_udp_connection *c,
 			if(packet_counter_root.u16 >= header_down_pack->counter.u16)
 			{	
 				/*Вывод сообщения об ошибке счетчика пакетов*/
-				printf("[");
-				uip_debug_ipaddr_print((uip_ip6addr_t*)sender_addr);
-				printf("] Counter error!\n");
+				printf("[DAG Node] Counter error!\n");
 				
 				led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
 				return;
@@ -288,9 +289,7 @@ static void udp_receiver(struct simple_udp_connection *c,
 				else
 				{
 					/*Вывод сообщения об неизвестной команде*/
-					printf("[");
-					uip_debug_ipaddr_print((uip_ip6addr_t*)sender_addr);
-					printf("] Unknown command for system!\n");
+					printf("[DAG Node] Unknown command for system!\n");
 			
 					/*Отправляем пакет об ошибке*/
 					nack_sender(header_down_pack->counter.u16);
@@ -301,6 +300,7 @@ static void udp_receiver(struct simple_udp_connection *c,
 					
 			}
 			
+#ifdef UMDK_6FET 			
 			/*UMDK-6FET*/ 
 			if(header_up_pack->device_id == UNWDS_6FET_MODULE_ID)
 			{
@@ -331,9 +331,7 @@ static void udp_receiver(struct simple_udp_connection *c,
 				else
 				{
 					/*Вывод сообщения об неизвестной команде*/
-					printf("[");
-					uip_debug_ipaddr_print((uip_ip6addr_t*)sender_addr);
-					printf("] Unknown command for UMDK-6FET!\n");
+					printf("[DAG Node] Unknown command for UMDK-6FET!\n");
 					
 					/*Отправляем пакет об ошибке*/
 					nack_sender(header_down_pack->counter.u16);
@@ -343,7 +341,9 @@ static void udp_receiver(struct simple_udp_connection *c,
 				}
 					
 			}
-		
+#endif
+
+#ifdef UMDK_LIT
 			/*UMDK-LIT*/ 
 			else if(header_up_pack->device_id == UNWDS_LIT_MODULE_ID)
 			{
@@ -362,9 +362,7 @@ static void udp_receiver(struct simple_udp_connection *c,
 				else
 				{
 					/*Вывод сообщения об неизвестной команде*/
-					printf("[");
-					uip_debug_ipaddr_print((uip_ip6addr_t*)sender_addr);
-					printf("] Unknown command for UMDK-LIT!\n");
+					printf("[DAG Node] Unknown command for UMDK-LIT!\n");
 					
 					/*Отправляем пакет об ошибке*/
 					nack_sender(header_down_pack->counter.u16);
@@ -373,13 +371,11 @@ static void udp_receiver(struct simple_udp_connection *c,
 					return;
 				}	
 			}
-
+#endif
 			else
 			{
 				/*Вывод сообщения о неизвестном модуле*/
-				printf("[");
-				uip_debug_ipaddr_print((uip_ip6addr_t*)sender_addr);
-				printf("] Unknown module!\n");
+				printf("[DAG Node] Unknown module!\n");
 				
 				/*Отправляем пакет об ошибке*/
 				nack_sender(header_down_pack->counter.u16);
@@ -393,9 +389,7 @@ static void udp_receiver(struct simple_udp_connection *c,
 	else
 	{
 		/*Вывод сообщения о неизвестном протоколе*/
-		printf("[");
-		uip_debug_ipaddr_print((uip_ip6addr_t*)sender_addr);
-		printf("] Unknown protocol version!\n");
+		printf("[DAG Node] Unknown protocol version!\n");
 		
 		led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
 		return;
@@ -609,6 +603,9 @@ static void ping_sender(void)
 	ping_pack.nonce.u8[1] = nonce_key[0];		/*Заполняем nonce*/
 	ping_pack.nonce.u8[0] = nonce_key[1];		/*Заполняем nonce*/
 	
+	/*Вывод информационного сообщения в консоль*/
+	printf("[DAG Node] Send ping packet\n");
+	
 	/*Отправляем пакет*/	
 	pack_sender(UNWDS_6LOWPAN_SYSTEM_MODULE_ID,	/*ID модуля*/
 				PING, 							/*Команда ping*/
@@ -647,6 +644,9 @@ static void ack_sender(uint16_t counter)
 	ack_t ack_pack;								/*Создаем структуру*/
 	
 	ack_pack.counter.u16 = counter;				/*Заполняем counter*/
+		
+	/*Вывод информационного сообщения в консоль*/
+	printf("[DAG Node] Send ACK packet\n");
 	
 	/*Отправляем пакет*/	
 	pack_sender(UNWDS_6LOWPAN_SYSTEM_MODULE_ID, /*ID модуля*/
@@ -663,6 +663,9 @@ static void nack_sender(uint16_t counter)
 	nack_t nack_pack;							/*Создаем структуру*/
 	
 	nack_pack.counter.u16 = counter;			/*Заполняем counter*/
+	
+	/*Вывод информационного сообщения в консоль*/
+	printf("[DAG Node] Send NACK packet\n");
 	
 	/*Отправляем пакет*/	
 	pack_sender(UNWDS_6LOWPAN_SYSTEM_MODULE_ID,	/*ID модуля*/
@@ -729,21 +732,21 @@ static bool dag_pwm_power (	const uip_ipaddr_t *sender_addr,
 static bool dag_lit_measure_sender()
 {
 	/*Заполняем payload*/
-	lit_measure_t lit_measure_pack;						/*Создаем структуру*/
+	lit_measure_status_t lit_measure_status_pack;						/*Создаем структуру*/
 	
-	lit_measure_pack.lit_measure = opt3001_measure();	/*Измеряем освещенность*/
+	lit_measure_status_pack.lit_measure_status = opt3001_measure();		/*Измеряем освещенность*/
 	
 	/*Вывод информационного сообщения в консоль*/
-	printf("[DAG Node] Send LIT measure packet to DAG-root node\n");
-	printf("[UMDK-LIT] Luminocity: %lu lux\n", lit_measure_pack.lit_measure);
+	printf("[DAG Node] Send LIT measure status packet\n");
+	printf("[UMDK-LIT] Luminocity: %lu lux\n", lit_measure_status_pack.lit_measure_status);
 	
 	/*Отправляем пакет*/	
 	pack_sender(UNWDS_LIT_MODULE_ID,					/*ID модуля*/
 				LIT_MEASURE_STATUS, 					/*Команда включения канала ШИМ'а*/
 				LIT_MEASURE_STATUS_LENGTH, 				/*Размер payload'а*/
-				(uint8_t*)&lit_measure_pack);			/*Payload*/		
+				(uint8_t*)&lit_measure_status_pack);	/*Payload*/		
 				
-	return lit_measure_pack.lit_measure;
+	return lit_measure_status_pack.lit_measure_status;
 }
 
 /*---------------------------------------------------------------------------*/
@@ -756,11 +759,11 @@ void button_status_sender ( uint8_t button_number,
 	
 	button_status_pack.button_status = button_number;
 
-	if (click_type == LONG_CLICK)
+	if(click_type == LONG_CLICK)
 		button_status_pack.button_status |= LONG_CLICK;
 	
 	/*Вывод информационного сообщения в консоль*/
-	// printf("[DAG Node] Send button status packet to DAG-root node\n");
+	printf("[DAG Node] Send button status packet\n");
 	
 	/*Отправляем пакет*/
 	pack_sender(UNWDS_4BTN_MODULE_ID,				/*ID модуля*/
@@ -1130,7 +1133,7 @@ PROCESS_THREAD(dag_node_process, ev, data)
 	packet_counter_node.u16 = 1;		/*Инициализация счетчика*/
 	
 	/*Вывод информационного сообщения в консоль*/
-	printf("Node started, %s mode, %s class, version %"PRIu8".%"PRIu8"\n",
+	printf("[DAG Node]Node started, %s mode, %s class, version %"PRIu8".%"PRIu8"\n",
 			rpl_get_mode() == RPL_MODE_LEAF ? "leaf" : "no-leaf",
 			CLASS == CLASS_B ? "B(sleep)" : "C(non-sleep)",
 			BIG_VERSION, 

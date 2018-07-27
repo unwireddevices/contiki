@@ -73,8 +73,7 @@
 #include "uart/root.h"
 
 #define DIO_MASK				0x7F
-#define STATUS_MASK				0x80
-#define LONG_CLICK				0xC0
+#define LONG_CLICK				0x80
 
 #define IOC_OUTPUT_PULL_UP	(IOC_CURRENT_2MA	| IOC_STRENGTH_AUTO	| \
 							IOC_IOPULL_UP		| IOC_SLEW_DISABLE	| \
@@ -525,7 +524,7 @@ static void nack_handler(const uip_ip6addr_t *dest_addr, nack_t *nack_pack)
 /*Обработчик нажатой кнопки*/
 static void button_status_handler(const uip_ip6addr_t *dest_addr, button_status_t *button_status_pack)
 {
-	uint8_t status = button_status_pack->button_status & STATUS_MASK;
+	bool long_click = ((button_status_pack->button_status & LONG_CLICK) >> 7);
 	uint8_t dio = button_status_pack->button_status & DIO_MASK;
 
 	/*Вывод сообщения об успешной авторизации*/
@@ -533,29 +532,29 @@ static void button_status_handler(const uip_ip6addr_t *dest_addr, button_status_
 	uip_debug_ipaddr_print((uip_ip6addr_t*)dest_addr);
 	printf("] ");
 	
-	if((dio == BOARD_IOID_KEY_A))
+	if((dio == BOARD_IOID_KEY_A) && (!long_click))
 		printf("Button A click\n");
-	else if((dio == BOARD_IOID_KEY_A) && (status == LONG_CLICK))
+	else if((dio == BOARD_IOID_KEY_A) && long_click)
 		printf("Button A long click\n");
 	
-	else if((dio == BOARD_IOID_KEY_B))
+	else if((dio == BOARD_IOID_KEY_B) && (!long_click))
 		printf("Button B click\n");
-	else if((dio == BOARD_IOID_KEY_B) && (status == LONG_CLICK))
+	else if((dio == BOARD_IOID_KEY_B) && long_click)
 		printf("Button B long click\n");
 	
-	else if((dio == BOARD_IOID_KEY_C))
+	else if((dio == BOARD_IOID_KEY_C) && (!long_click))
 		printf("Button C click\n");
-	else if((dio == BOARD_IOID_KEY_C) && (status == LONG_CLICK))
+	else if((dio == BOARD_IOID_KEY_C) && long_click)
 		printf("Button C long click\n");
 	
-	else if((dio == BOARD_IOID_KEY_D))
+	else if((dio == BOARD_IOID_KEY_D) && (!long_click))
 		printf("Button D click\n");
-	else if((dio == BOARD_IOID_KEY_D) && (status == LONG_CLICK))
+	else if((dio == BOARD_IOID_KEY_D) && long_click)
 		printf("Button D long click\n");
 	
-	else if((dio == BOARD_IOID_KEY_E))
+	else if((dio == BOARD_IOID_KEY_E) && (!long_click))
 		printf("Button E click\n");
-	else if((dio == BOARD_IOID_KEY_E) && (status == LONG_CLICK))
+	else if((dio == BOARD_IOID_KEY_E) && long_click)
 		printf("Button E long click\n");
 	
 	else

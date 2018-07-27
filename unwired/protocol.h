@@ -96,41 +96,40 @@ typedef enum
 
 /*---------------------------------------------------------------------------*/
 /*CR->ROOT*/
-//0xFD 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x02 0x12 0x4B 0x00 0x0C 0x46 0x8D 0x03 0x0F 0x26 0x00 //test lum
 typedef struct {		
-	uip_ip6addr_t dest_addr; 
-	uint8_t device_id; 
-	uint8_t data_type; 
-	uint8_t payload_len;
+	uip_ip6addr_t dest_addr; 	/*Адрес модуля*/
+	uint8_t device_id; 			/*Индентификатор модуля*/
+	uint8_t data_type; 			/*Команда*/
+	uint8_t payload_len;		/*Размер payload'а*/
 } pack uart_header_t;
 
 /*---------------------------------------------------------------------------*/
 /*HEADER*/
 typedef struct {
-	uint8_t protocol_version;
-    uint8_t device_id;
-	uint8_t data_type;
-	uint8_t rssi;
-	uint8_t temperature;
-	uint8_t voltage;
+	uint8_t protocol_version;	/*Текущая версия протокола*/ 
+    uint8_t device_id;			/*ID устройства*/
+	uint8_t data_type;			/*Тип пакета*/ 
+	uint8_t rssi;				/*RSSI*/ 
+	uint8_t temperature;		/*Температура*/ 
+	uint8_t voltage;			/*Напряжение*/ 
 } pack header_up_t;
 
 typedef struct {		
-    u8_u16_t counter;
-	u8_u16_t crc;
-	uint8_t length;
+    u8_u16_t counter;			/*Счетчик пакетов*/ 
+	u8_u16_t crc;				/*CRC16*/ 
+	uint8_t length;				/*Размер пакета*/
 } pack header_down_t;
 
 typedef struct {		
-	uint8_t protocol_version;
-    uint8_t device_id;
-	uint8_t data_type;
-	uint8_t rssi;
-	uint8_t temperature;
-	uint8_t voltage;
-	u8_u16_t counter;
-	u8_u16_t crc;
-	uint8_t length;
+	uint8_t protocol_version;	/*Текущая версия протокола*/ 
+    uint8_t device_id;			/*ID устройства*/
+	uint8_t data_type;			/*Тип пакета*/ 
+	uint8_t rssi;				/*RSSI*/ 
+	uint8_t temperature;		/*Температура*/ 
+	uint8_t voltage;			/*Напряжение*/ 
+	u8_u16_t counter;			/*Счетчик пакетов*/ 
+	u8_u16_t crc;				/*CRC16*/ 
+	uint8_t length;				/*Размер пакета*/
 } pack header_t; 
 
 /*---------------------------------------------------------------------------*/
@@ -142,143 +141,95 @@ typedef struct {
 /*---------------------------------------------------------------------------*/
 /*UNWDS-4BTN*/
 
-/*Command*/
-#define BUTTON_STATUS		0x00 /*Пакет статусом нажатой кнопки*/
-
-/*Struct*/
+/*Struct for BUTTON_STATUS*/
 typedef struct {		
-	uint8_t button_status;
+	uint8_t button_status;	/*Номер нажатой кнопки. Если долгое нажатие: button_status |= (1<<7) */
 } pack button_status_t;
 
 /*---------------------------------------------------------------------------*/
 /*UNWDS-6FET*/
 
-/*Command*/
-#define PWM_SETTINGS		0x00 /*Пакет с настройкоами ШИМ канала*/
-
-/*Struct*/
+/*Struct for PWM_SETTINGS*/
 typedef struct {
-	uint32_t frequency;
-	uint8_t channel;
-	uint8_t duty;
+	uint32_t frequency;		/*Частота ШИМ'а от 100 Hz до 100 kHz*/
+	uint8_t channel;		/*Номер канала от 0 до 5*/
+	uint8_t duty;			/*Коэффицент заполнения от 0% до 100%*/
 } pack pwm_settings_t;
 
-/*-----------------------------------*/
-/*Command*/
-#define PWM_POWER			0x01 /*Команда включения/выключения канала ШИМ'а*/
-
-/*Struct*/
+/*Struct for PWM_POWER*/
 typedef struct {		
-	uint8_t pwm_power;
+	uint8_t pwm_power;		/*Номер канала от 0 до 5. Для включения: номер канала |= (1<<7)*/
 } pack pwm_power_t;
 
 /*---------------------------------------------------------------------------*/
 /*UNWDS-LIT*/
 
-/*Command*/
-#define LIT_MEASURE					0x00 /*Команда замера освещенности*/
-
-/*Struct*/
-/*NULL*/
-
-/*-----------------------------------*/
-/*Command*/
-#define LIT_MEASURE_STATUS			0x01 /*Результаты замера освещенности*/
-
-/*Struct*/
+/*Struct for LIT_MEASURE_STATUS*/
 typedef struct {		
-	uint32_t lit_measure_status;
+	uint32_t lit_measure_status;	/*Значение освещенности в люксах*/
 } pack lit_measure_status_t;
 
 
 /*---------------------------------------------------------------------------*/
 /*UNWDS-6LOWPAN_SYSTEM*/
 
-/*Command*/
-#define DATA_TYPE_JOIN_STAGE_1		0x00 /*Нода посылает запрос координатору*/
-
-/*Struct*/
+/*Struct for DATA_TYPE_JOIN_STAGE_1*/
 typedef struct {		
 	uint8_t module_id;
 } pack join_stage_1_t;
 
-/*-----------------------------------*/
-/*Command*/
-#define DATA_TYPE_JOIN_STAGE_2		0x01 /*Координатор отправляет ecb_encrypt(nonce=rand())*/
-
-/*Struct*/
+/*Struct for DATA_TYPE_JOIN_STAGE_2*/
 typedef struct {		
 	u8_u16_t nonce;
 } pack join_stage_2_t;
 
-/*-----------------------------------*/
-/*Command*/
-#define DATA_TYPE_JOIN_STAGE_3		0x02 /*Нода удостоверяет, что она знает ключ отправляя cbc_encrypt(nonce)*/
-
-/*Struct*/
+/*Struct for DATA_TYPE_JOIN_STAGE_3*/
 typedef struct {		
 	u8_u16_t nonce;
 } pack join_stage_3_t;
 
-
-/*-----------------------------------*/
-/*Command*/
-#define DATA_TYPE_JOIN_STAGE_4		0x03 /*Координатор отвечает ноде что она имеет право быть в сети*/
-
-/*Struct*/
+/*Struct for DATA_TYPE_JOIN_STAGE_4*/
 typedef struct {		
 	uint8_t status_code;
 } pack join_stage_4_t;
 
-/*-----------------------------------*/
-/*Command*/
-#define PING						0x04 /*Ping*/
-
-/*Struct*/
+/*Struct for PING*/
 typedef struct {		
-	u8_u16_t nonce;
+	u8_u16_t nonce;			/*Отправляем ROOT'у nonce. Если 3 раза не ответит, то перезагружаемся и переавторизируемся*/
 } pack ping_t;
 
-/*-----------------------------------*/
-/*Command*/
-#define PONG						0x05 /*Pong*/
-
-/*Struct*/
+/*Struct for PONG*/
 typedef struct {		
-	uint8_t status_code;
+	uint8_t status_code;	/*status_code = true если настройки шифрования совпадают*/
 } pack pong_t;
 
-/*-----------------------------------*/
-/*Command*/
-#define ACK							0x07 /*ACK*/
-
-/*Struct*/
+/*Struct for ACK*/
 typedef struct {		
-	u8_u16_t counter;
+	u8_u16_t counter;		/*Номер подтвержденного пакета*/
 } pack ack_t;
 
-/*-----------------------------------*/
-/*Command*/
-#define NACK						0x08 /*NACK*/
-
-/*Struct*/
+/*Struct for NACK*/
 typedef struct {		
-	u8_u16_t counter;
+	u8_u16_t counter;		/*Номер неподтвержденного пакета*/
 } pack nack_t;
 
 
 /*---------------------------------------------------------------------------*/
+/**/
 #define UDP_DATA_PORT					4004
-
 #define UDBP_PROTOCOL_VERSION			1
 
-#define HEADER_UP_LENGTH				sizeof(header_up_t)
-#define HEADER_DOWN_LENGTH				sizeof(header_down_t)
-#define HEADER_LENGTH 					HEADER_UP_LENGTH + HEADER_DOWN_LENGTH
-
+/*---------------------------------------------------------------------------*/
+/*OFFSET*/
 #define HEADER_OFFSET 					0
 #define HEADER_DOWN_OFFSET 				HEADER_OFFSET + HEADER_UP_LENGTH
 #define PAYLOAD_OFFSET 					HEADER_OFFSET + HEADER_UP_LENGTH + HEADER_DOWN_LENGTH
+
+/*---------------------------------------------------------------------------*/
+/*LENGTH*/
+#define HEADER_UP_LENGTH				sizeof(header_up_t)
+#define HEADER_DOWN_LENGTH				sizeof(header_down_t)
+#define HEADER_LENGTH 					HEADER_UP_LENGTH + HEADER_DOWN_LENGTH
 
 #define CRYPTO_1_BLOCK_LENGTH 			sizeof(crypto_1_block_t)
 
@@ -301,7 +252,46 @@ typedef struct {
 #define LIT_MEASURE_STATUS_LENGTH		sizeof(lit_measure_status_t)
 
 /*---------------------------------------------------------------------------*/
+/*COMMAND*/
+
+/*UNWDS-6LOWPAN_SYSTEM*/
+#define DATA_TYPE_JOIN_STAGE_1		0x00 /*Нода посылает запрос координатору*/
+#define DATA_TYPE_JOIN_STAGE_2		0x01 /*Координатор отправляет ecb_encrypt(nonce=rand())*/
+#define DATA_TYPE_JOIN_STAGE_3		0x02 /*Нода удостоверяет, что она знает ключ отправляя cbc_encrypt(nonce+1)*/
+#define DATA_TYPE_JOIN_STAGE_4		0x03 /*Координатор отвечает ноде что она имеет право быть в сети*/
+#define PING						0x04 /*Ping*/
+#define PONG						0x05 /*Pong*/
+#define ACK							0x07 /*ACK*/
+#define NACK						0x08 /*NACK*/
+
+/*UNWDS-4BTN*/
+#define BUTTON_STATUS				0x00 /*Пакет статусом нажатой кнопки*/
+
+/*UNWDS-6FET*/
+#define PWM_SETTINGS				0x00 /*Пакет с настройкоами ШИМ канала*/
+#define PWM_POWER					0x01 /*Команда включения/выключения канала ШИМ'а*/
+
+/*UNWDS-LIT*/
+#define LIT_MEASURE					0x00 /*Команда запроса замера освещенности*/
+#define LIT_MEASURE_STATUS			0x01 /*Результаты замера освещенности*/
+
+/*---------------------------------------------------------------------------*/
 #endif
 /*---------------------------------------------------------------------------*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
