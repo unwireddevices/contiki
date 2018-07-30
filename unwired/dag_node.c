@@ -544,7 +544,7 @@ static void join_stage_3_sender(const uip_ipaddr_t *dest_addr,
 	}
 	
 	/*Отправляем ROOT'у nonce на еденицу больше для того что бы он был уверен что у нас одинаковое шифрование*/ 
-	join_stage_3_pack->nonce.u16 = join_stage_2_pack->nonce.u16 + 1;
+	join_stage_3_pack->nonce.u16 = join_stage_2_pack->nonce.u16 + 1; /*Увеличиваем nonce на единицу: nonce += 1*/	
 	
 	/*Дозаполняем блок для шифрования нулями*/ 
 	for(uint8_t i = JOIN_STAGE_3_LENGTH; i < (JOIN_STAGE_3_PAYLOAD_LENGTH - HEADER_DOWN_LENGTH); i++)

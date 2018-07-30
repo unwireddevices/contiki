@@ -56,7 +56,7 @@ typedef union u8_u32_t {
 } u8_u32_t;
 
 /*---------------------------------------------------------------------------*/
-/**/
+/*ID устройства*/
 typedef enum 
 {
 	UNWDS_GPIO_MODULE_ID = 1,
@@ -175,22 +175,22 @@ typedef struct {
 
 /*Struct for DATA_TYPE_JOIN_STAGE_1*/
 typedef struct {		
-	uint8_t module_id;
+	uint8_t module_id;		/*ID устройства: module_id = UNWDS_MODULE_ID*/	
 } pack join_stage_1_t;
 
 /*Struct for DATA_TYPE_JOIN_STAGE_2*/
 typedef struct {		
-	u8_u16_t nonce;
+	u8_u16_t nonce;			/*Генерируем сессионный ключ nonce = random_rand()*/			
 } pack join_stage_2_t;
 
 /*Struct for DATA_TYPE_JOIN_STAGE_3*/
 typedef struct {		
-	u8_u16_t nonce;
+	u8_u16_t nonce;			/*Увеличиваем nonce на единицу: nonce += 1*/	
 } pack join_stage_3_t;
 
 /*Struct for DATA_TYPE_JOIN_STAGE_4*/
 typedef struct {		
-	uint8_t status_code;
+	uint8_t status_code;	/*status_code = true если авторизация прошла успешно, иначе status_code = false*/	
 } pack join_stage_4_t;
 
 /*Struct for PING*/
