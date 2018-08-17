@@ -73,6 +73,11 @@ volatile union
 void button_status_sender ( uint8_t button_number,
 							uint8_t click_type);
 
+#ifdef UMDK_LIT 				
+	/*Совершить замер освещенности*/
+	bool dag_lit_measure_sender();
+#endif
+
 /*Функция управления светодиодами*/
 void led_mode_set(uint8_t mode);
 

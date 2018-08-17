@@ -162,12 +162,6 @@ static void nack_sender(uint16_t counter);
 								pwm_power_t *pwm_power_pack);
 #endif				
 
-
-#ifdef UMDK_LIT 				
-	/*Совершить замер освещенности*/
-	static bool dag_lit_measure_sender();
-#endif
-
 /*---------------------------------------------------------------------------*/
 /*ПРОТОТИПЫ ПРОЦЕССОВ*/
 
@@ -216,7 +210,7 @@ static void udp_receiver(struct simple_udp_connection *c,
 	{
 
 		/*Проверяем ID модуля и тип пакета*/ 
-		if((header_up_pack->device_id == UNWDS_6LOWPAN_SYSTEM_MODULE_ID) && (header_up_pack->data_type == DATA_TYPE_JOIN_STAGE_2))
+		if((header_up_pack->device_id == UNWDS_6LOWPAN_SYSTEM_MODULE_ID) && (header_up_pack->data_type == JOIN_STAGE_2))
 		{
 			/*Третья стадия авторизации*/
 			join_stage_3_sender(sender_addr, data, datalen);
@@ -225,7 +219,7 @@ static void udp_receiver(struct simple_udp_connection *c,
 			return;
 		}
 		
-		else if((header_up_pack->device_id == UNWDS_6LOWPAN_SYSTEM_MODULE_ID) && (header_up_pack->data_type == DATA_TYPE_JOIN_STAGE_4))
+		else if((header_up_pack->device_id == UNWDS_6LOWPAN_SYSTEM_MODULE_ID) && (header_up_pack->data_type == JOIN_STAGE_4))
 		{
 			/*Обработчик четвертой стадии авторизации*/
 			join_stage_4_handler(sender_addr, data, datalen);
@@ -474,7 +468,7 @@ static void join_stage_1_sender(const uip_ipaddr_t *dest_addr)
 	/*Header*/ 
 	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
 	header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
-	header_pack->data_type = DATA_TYPE_JOIN_STAGE_1;			/*Тип пакета*/  
+	header_pack->data_type = JOIN_STAGE_1;						/*Тип пакета*/  
 	header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
 	header_pack->temperature = get_temperature();				/*Температура*/ 
 	header_pack->voltage = get_voltage();						/*Напряжение*/ 
@@ -523,7 +517,7 @@ static void join_stage_3_sender(const uip_ipaddr_t *dest_addr,
 	/*Header*/ 
 	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
 	header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
-	header_pack->data_type = DATA_TYPE_JOIN_STAGE_3;			/*Тип пакета*/  
+	header_pack->data_type = JOIN_STAGE_3;						/*Тип пакета*/  
 	header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
 	header_pack->temperature = get_temperature();				/*Температура*/ 
 	header_pack->voltage = get_voltage();						/*Напряжение*/ 
@@ -559,6 +553,7 @@ static void join_stage_3_sender(const uip_ipaddr_t *dest_addr,
 	/*Отправляем пакет*/ 
 	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_DOWN_OFFSET + JOIN_STAGE_3_PAYLOAD_LENGTH), &addr);
 }
+
 /*---------------------------------------------------------------------------*/
 /*Обработчик четвертой стадии авторизации*/
 /*Сравниваем данные пришедшие от root'а для того что бы удостоверится в том что используются правильные настройки шифрования*/
@@ -675,6 +670,7 @@ static void nack_sender(uint16_t counter)
 }
 
 /*---------------------------------------------------------------------------*/
+#ifdef UMDK_6FET
 /*Инициализация с заданными настройками канала ШИМ'а*/
 static bool dag_pwm_settings(const uip_ipaddr_t *sender_addr,
 							pwm_settings_t *pwm_settings_pack)
@@ -726,10 +722,12 @@ static bool dag_pwm_power (	const uip_ipaddr_t *sender_addr,
 		return pwm_stop(pwm_channel);
 	}
 }
+#endif
 
 /*---------------------------------------------------------------------------*/
-/*Совершить замер освещенности*/
-static bool dag_lit_measure_sender()
+#ifdef UMDK_LIT
+/*Совершить замер освещенности*/			
+bool dag_lit_measure_sender()
 {
 	/*Заполняем payload*/
 	lit_measure_status_t lit_measure_status_pack;						/*Создаем структуру*/
@@ -737,7 +735,8 @@ static bool dag_lit_measure_sender()
 	lit_measure_status_pack.lit_measure_status = opt3001_measure();		/*Измеряем освещенность*/
 	
 	/*Вывод информационного сообщения в консоль*/
-	printf("[DAG Node] Send LIT measure status packet\n");
+	if(node_mode == MODE_NORMAL)
+		printf("[DAG Node] Send LIT measure status packet\n");
 	printf("[UMDK-LIT] Luminocity: %lu lux\n", lit_measure_status_pack.lit_measure_status);
 	
 	/*Отправляем пакет*/	
@@ -748,6 +747,7 @@ static bool dag_lit_measure_sender()
 				
 	return lit_measure_status_pack.lit_measure_status;
 }
+#endif
 
 /*---------------------------------------------------------------------------*/
 /*Функция отправки состояния кнопок*/
@@ -763,7 +763,8 @@ void button_status_sender ( uint8_t button_number,
 		button_status_pack.button_status |= LONG_CLICK;
 	
 	/*Вывод информационного сообщения в консоль*/
-	printf("[DAG Node] Send button status packet\n");
+	if(node_mode == MODE_NORMAL)
+		printf("[DAG Node] Send button status packet\n");
 	
 	/*Отправляем пакет*/
 	pack_sender(UNWDS_4BTN_MODULE_ID,				/*ID модуля*/
@@ -1133,7 +1134,7 @@ PROCESS_THREAD(dag_node_process, ev, data)
 	packet_counter_node.u16 = 1;		/*Инициализация счетчика*/
 	
 	/*Вывод информационного сообщения в консоль*/
-	printf("[DAG Node]Node started, %s mode, %s class, version %"PRIu8".%"PRIu8"\n",
+	printf("[DAG Node] Node started, %s mode, %s class, version %"PRIu8".%"PRIu8"\n",
 			rpl_get_mode() == RPL_MODE_LEAF ? "leaf" : "no-leaf",
 			CLASS == CLASS_B ? "B(sleep)" : "C(non-sleep)",
 			BIG_VERSION, 

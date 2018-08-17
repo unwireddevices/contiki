@@ -126,7 +126,8 @@ PROCESS_THREAD(main_process, ev, data)
 			
 			if (data == &button_e_sensor_click)
 			{
-				printf("[UMDK-LIT] Luminocity: %lu lux\n", opt3001_measure());
+				dag_lit_measure_sender();
+				// printf("[UMDK-LIT] Luminocity: %lu lux\n", opt3001_measure());
 			}
 		}
 	}

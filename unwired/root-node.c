@@ -173,7 +173,7 @@ void udp_data_receiver(struct simple_udp_connection *connection,
 	if(header_up_pack->protocol_version == UDBP_PROTOCOL_VERSION)
 	{
 		/*Проверяем ID модуля и тип пакета*/ 
-		if((header_up_pack->device_id == UNWDS_6LOWPAN_SYSTEM_MODULE_ID) && (header_up_pack->data_type == DATA_TYPE_JOIN_STAGE_1))
+		if((header_up_pack->device_id == UNWDS_6LOWPAN_SYSTEM_MODULE_ID) && (header_up_pack->data_type == JOIN_STAGE_1))
 		{
 			/*Вторая стадия авторизации*/			
 			join_stage_2_sender((uip_ip6addr_t*)sender_addr, data, datalen);
@@ -182,7 +182,7 @@ void udp_data_receiver(struct simple_udp_connection *connection,
 			return;
 		}
 		
-		else if((header_up_pack->device_id == UNWDS_6LOWPAN_SYSTEM_MODULE_ID) && (header_up_pack->data_type == DATA_TYPE_JOIN_STAGE_3))
+		else if((header_up_pack->device_id == UNWDS_6LOWPAN_SYSTEM_MODULE_ID) && (header_up_pack->data_type == JOIN_STAGE_3))
 		{
 			/*Четвертая стадия авторизации*/
 			join_stage_4_sender((uip_ip6addr_t*)sender_addr, data, datalen);
@@ -379,7 +379,7 @@ static void join_stage_2_sender(const uip_ip6addr_t *dest_addr, const uint8_t *d
 	/*Header*/ 
 	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
 	header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
-	header_pack->data_type = DATA_TYPE_JOIN_STAGE_2;			/*Тип пакета*/  
+	header_pack->data_type = JOIN_STAGE_2;						/*Тип пакета*/  
 	header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
 	header_pack->temperature = get_temperature();				/*Температура*/ 
 	header_pack->voltage = get_voltage();						/*Напряжение*/ 
@@ -462,7 +462,7 @@ static void join_stage_4_sender(const uip_ip6addr_t *dest_addr, const uint8_t *d
 	/*Отправляем пакет*/
 	pack_sender(dest_addr, 						/*Адрес модуля*/
 				UNWDS_6LOWPAN_SYSTEM_MODULE_ID, /*Индентификатор модуля*/
-				DATA_TYPE_JOIN_STAGE_4, 		/*Команда 4 стадии авторизации*/
+				JOIN_STAGE_4, 					/*Команда 4 стадии авторизации*/
 				JOIN_STAGE_4_LENGTH, 			/*Размер payload'а*/
 				(uint8_t*)&join_stage_4_pack);	/*Payload*/
 }

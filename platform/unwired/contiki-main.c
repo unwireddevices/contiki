@@ -65,6 +65,7 @@
 #include "button-sensor.h"
 #include "dev/serial-line.h"
 #include "net/mac/frame802154.h"
+#include "net/ip/uip-debug.h"
 
 #include "driverlib/driverlib_release.h"
 
@@ -118,12 +119,12 @@ set_rf_params(void)
   NETSTACK_RADIO.set_object(RADIO_PARAM_64BIT_ADDR, ext_addr, 8);
 
   NETSTACK_RADIO.get_value(RADIO_PARAM_CHANNEL, &val);
-  printf(" Channel: %d\n", val);
+  printf("Channel: %d\n", val);
 
 #if STARTUP_CONF_VERBOSE
   {
     int i;
-    printf(" Link layer addr: ");
+    printf("Link layer addr: ");
     for(i = 0; i < LINKADDR_SIZE - 1; i++) {
       printf("%02x:", linkaddr_node_addr.u8[i]);
     }
@@ -135,18 +136,20 @@ set_rf_params(void)
    uip_ip6addr(&local_ipaddr, UIP_DS6_DEFAULT_PREFIX, 0, 0, 0, 0, 0, 0, 0);
    uip_ds6_set_addr_iid(&local_ipaddr, (uip_lladdr_t *)&linkaddr_node_addr);
  
-   printf(" Node UD address: %02X%02X%02X%02X%02X%02X%02X%02X\n", ((uint8_t *)&local_ipaddr)[8], ((uint8_t *)&local_ipaddr)[9], ((uint8_t *)&local_ipaddr)[10], ((uint8_t *)&local_ipaddr)[11], ((uint8_t *)&local_ipaddr)[12], ((uint8_t *)&local_ipaddr)[13], ((uint8_t *)&local_ipaddr)[14], ((uint8_t *)&local_ipaddr)[15]);
+   printf("Node UD address: ");
+   uip_debug_ipaddr_print(&local_ipaddr);
+   printf("\n");
 
   /* also set the global node id */
   node_id = short_addr;
   //printf(" Node ID: %u\n", node_id);
-  printf(" PAN ID: 0x%04X\n", IEEE802154_PANID);
+  printf("PAN ID: 0x%04X\n", IEEE802154_PANID);
   //printf(" Security level: %u\n", NONCORESEC_CONF_SEC_LVL);
   //printf(" Define leaf: %s\n", RPL_CONF_LEAF_ONLY == 1 ? "Yes" : "No");
-  printf(" RPL probing interval: %uh(%um)\n", RPL_CONF_PROBING_INTERVAL/CLOCK_SECOND/60/60, RPL_CONF_PROBING_INTERVAL/CLOCK_SECOND/60);
+  printf("RPL probing interval: %uh(%um)\n", RPL_CONF_PROBING_INTERVAL/CLOCK_SECOND/60/60, RPL_CONF_PROBING_INTERVAL/CLOCK_SECOND/60);
   //printf(" Min DIO interval(2^x ms): %u\n", RPL_CONF_DIO_INTERVAL_MIN);
   //printf(" Max DIO interval(2^x ms): %u\n", RPL_CONF_DIO_INTERVAL_DOUBLINGS+RPL_CONF_DIO_INTERVAL_MIN);
-  printf(" Max routes: %u\n", UIP_CONF_MAX_ROUTES);
+  printf("Max routes: %u\n", UIP_CONF_MAX_ROUTES);
 
 }
 /*---------------------------------------------------------------------------*/

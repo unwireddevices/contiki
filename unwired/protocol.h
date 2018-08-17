@@ -37,9 +37,11 @@
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
 
+/*Упаковка структуры*/
 #define pack 		__attribute__((packed))
+
 /*---------------------------------------------------------------------------*/
-/**/
+/*Типы объединений*/
 typedef union u8_u16_t {
 	uint16_t u16;
 	uint8_t u8[2];
@@ -173,22 +175,22 @@ typedef struct {
 /*---------------------------------------------------------------------------*/
 /*UNWDS-6LOWPAN_SYSTEM*/
 
-/*Struct for DATA_TYPE_JOIN_STAGE_1*/
+/*Struct for JOIN_STAGE_1*/
 typedef struct {		
 	uint8_t module_id;		/*ID устройства: module_id = UNWDS_MODULE_ID*/	
 } pack join_stage_1_t;
 
-/*Struct for DATA_TYPE_JOIN_STAGE_2*/
+/*Struct for JOIN_STAGE_2*/
 typedef struct {		
 	u8_u16_t nonce;			/*Генерируем сессионный ключ nonce = random_rand()*/			
 } pack join_stage_2_t;
 
-/*Struct for DATA_TYPE_JOIN_STAGE_3*/
+/*Struct for JOIN_STAGE_3*/
 typedef struct {		
 	u8_u16_t nonce;			/*Увеличиваем nonce на единицу: nonce += 1*/	
 } pack join_stage_3_t;
 
-/*Struct for DATA_TYPE_JOIN_STAGE_4*/
+/*Struct for JOIN_STAGE_4*/
 typedef struct {		
 	uint8_t status_code;	/*status_code = true если авторизация прошла успешно, иначе status_code = false*/	
 } pack join_stage_4_t;
@@ -215,7 +217,7 @@ typedef struct {
 
 
 /*---------------------------------------------------------------------------*/
-/**/
+/*Основные*/
 #define UDP_DATA_PORT					4004
 #define UDBP_PROTOCOL_VERSION			1
 
@@ -255,10 +257,10 @@ typedef struct {
 /*COMMAND*/
 
 /*UNWDS-6LOWPAN_SYSTEM*/
-#define DATA_TYPE_JOIN_STAGE_1		0x00 /*Нода посылает запрос координатору*/
-#define DATA_TYPE_JOIN_STAGE_2		0x01 /*Координатор отправляет ecb_encrypt(nonce=rand())*/
-#define DATA_TYPE_JOIN_STAGE_3		0x02 /*Нода удостоверяет, что она знает ключ отправляя cbc_encrypt(nonce+1)*/
-#define DATA_TYPE_JOIN_STAGE_4		0x03 /*Координатор отвечает ноде что она имеет право быть в сети*/
+#define JOIN_STAGE_1				0x00 /*Нода посылает запрос координатору*/
+#define JOIN_STAGE_2				0x01 /*Координатор отправляет ecb_encrypt(nonce=rand())*/
+#define JOIN_STAGE_3				0x02 /*Нода удостоверяет, что она знает ключ отправляя cbc_encrypt(nonce+1)*/
+#define JOIN_STAGE_4				0x03 /*Координатор отвечает ноде что она имеет право быть в сети*/
 #define PING						0x04 /*Ping*/
 #define PONG						0x05 /*Pong*/
 #define ACK							0x07 /*ACK*/
@@ -278,20 +280,3 @@ typedef struct {
 /*---------------------------------------------------------------------------*/
 #endif
 /*---------------------------------------------------------------------------*/
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

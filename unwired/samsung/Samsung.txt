@@ -21,7 +21,8 @@ UMDK-4BTN
 /*ПРОТОКОЛ*/ 
 /*------------------------------------*/
 Пакеты в сети состоят из header'а и payload'а.
-ROOT обрабатывает пакеты только после авторизации. Авторизация проходит в четыри стадии.
+ROOT обрабатывает пакеты с командами и данными только после авторизации. 
+Авторизация проходит в четыри стадии.
 
 /*---------------------------------------------------------------------------*/
 /*HEADER*/
@@ -56,7 +57,7 @@ typedef struct {
 /*UNWDS-6LOWPAN_SYSTEM*/
 /*Авторизация*/ 
 /*------------------------------------*/
-1 Шаг: DATA_TYPE_JOIN_STAGE_1
+1 Шаг: JOIN_STAGE_1
 Направление: DAG->ROOT
 
 typedef struct {		
@@ -64,7 +65,7 @@ typedef struct {
 } pack join_stage_1_t;
 
 /*------------------------------------*/
-2 Шаг: DATA_TYPE_JOIN_STAGE_2
+2 Шаг: JOIN_STAGE_2
 Направление: ROOT->DAG
 
 typedef struct {		
@@ -72,7 +73,7 @@ typedef struct {
 } pack join_stage_2_t;
 
 /*------------------------------------*/
-3 Шаг: DATA_TYPE_JOIN_STAGE_3
+3 Шаг: JOIN_STAGE_3
 Направление: DAG->ROOT
 
 typedef struct {			
@@ -80,7 +81,7 @@ typedef struct {
 } pack join_stage_3_t;
 
 /*------------------------------------*/
-4 Шаг: DATA_TYPE_JOIN_STAGE_4
+4 Шаг: JOIN_STAGE_4
 Направление: ROOT->DAG		
 
 typedef struct {		
@@ -240,7 +241,7 @@ if(header_up_pack->protocol_version == UDBP_PROTOCOL_VERSION)
 	/*UNWDS-6LOWPAN_SYSTEM*/
 	if(header_up_pack->device_id == UNWDS_6LOWPAN_SYSTEM_MODULE_ID)
 	{
-		if(header_up_pack->data_type == DATA_TYPE_JOIN_STAGE_1)
+		if(header_up_pack->data_type == JOIN_STAGE_1)
 		{
 			/*Обработчик 1 стадии авторизации*/			
 			join_stage_1_handler((uip_ip6addr_t*)sender_addr, data, datalen);
@@ -248,7 +249,7 @@ if(header_up_pack->protocol_version == UDBP_PROTOCOL_VERSION)
 			return;
 		}
 		
-		else if(header_up_pack->data_type == DATA_TYPE_JOIN_STAGE_3)
+		else if(header_up_pack->data_type == JOIN_STAGE_3)
 		{
 			/*Обработчик 3 стадии авторизации*/
 			join_stage_3_handler((uip_ip6addr_t*)sender_addr, data, datalen);
