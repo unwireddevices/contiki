@@ -33,6 +33,11 @@
 */
 /*---------------------------------------------------------------------------*/
 
+#ifndef DAG_NODE_H_
+#define DAG_NODE_H_
+
+/*---------------------------------------------------------------------------*/
+
 #include "contiki.h"
 #include "net/ip/uip.h"
 #include "net/ip/simple-udp.h"
@@ -69,13 +74,20 @@ volatile union
 /*---------------------------------------------------------------------------*/
 /*ПРОТОТИПЫ ФУНКЦИЙ*/
 
-/*Функция отправки состояния кнопок*/
-void button_status_sender ( uint8_t button_number,
-							uint8_t click_type);
-
-#ifdef UMDK_LIT 				
+#ifdef UMDK_4BTN
+	/*Функция отправки состояния кнопок*/
+	void button_status_sender ( uint8_t button_number,
+								uint8_t click_type);
+#endif
+							
+#ifdef UMDK_LIT 			
 	/*Совершить замер освещенности*/
 	bool dag_lit_measure_sender();
+#endif
+
+#ifdef UMDK_UART
+	/*Отправка данных по UART'у*/
+	void uart_sender(uint8_t *uart_message);
 #endif
 
 /*Функция управления светодиодами*/
@@ -113,3 +125,4 @@ PROCESS_NAME(maintenance_process);
 PROCESS_NAME(led_process);
 
 /*---------------------------------------------------------------------------*/
+#endif /* DAG_NODE_H_ */

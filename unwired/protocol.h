@@ -140,6 +140,30 @@ typedef struct {
 	uint8_t ciphertext[16];
 } pack crypto_1_block_t;
 
+typedef struct {		
+	uint8_t ciphertext[32];
+} pack crypto_2_block_t;
+
+typedef struct {		
+	uint8_t ciphertext[48];
+} pack crypto_3_block_t;
+
+typedef struct {		
+	uint8_t ciphertext[64];
+} pack crypto_4_block_t;
+
+typedef struct {		
+	uint8_t ciphertext[80];
+} pack crypto_5_block_t;
+
+typedef struct {		
+	uint8_t ciphertext[96];
+} pack crypto_6_block_t;
+
+typedef struct {		
+	uint8_t ciphertext[112];
+} pack crypto_7_block_t;
+
 /*---------------------------------------------------------------------------*/
 /*UNWDS-4BTN*/
 
@@ -170,7 +194,6 @@ typedef struct {
 typedef struct {		
 	uint32_t lit_measure_status;	/*Значение освещенности в люксах*/
 } pack lit_measure_status_t;
-
 
 /*---------------------------------------------------------------------------*/
 /*UNWDS-6LOWPAN_SYSTEM*/
@@ -234,6 +257,12 @@ typedef struct {
 #define HEADER_LENGTH 					HEADER_UP_LENGTH + HEADER_DOWN_LENGTH
 
 #define CRYPTO_1_BLOCK_LENGTH 			sizeof(crypto_1_block_t)
+#define CRYPTO_2_BLOCK_LENGTH 			sizeof(crypto_2_block_t)
+#define CRYPTO_3_BLOCK_LENGTH 			sizeof(crypto_3_block_t)
+#define CRYPTO_4_BLOCK_LENGTH 			sizeof(crypto_4_block_t)
+#define CRYPTO_5_BLOCK_LENGTH 			sizeof(crypto_5_block_t)
+#define CRYPTO_6_BLOCK_LENGTH 			sizeof(crypto_6_block_t)
+#define CRYPTO_7_BLOCK_LENGTH 			sizeof(crypto_7_block_t)
 
 #define JOIN_STAGE_1_PAYLOAD_LENGTH 	JOIN_STAGE_1_LENGTH
 #define JOIN_STAGE_2_PAYLOAD_LENGTH 	CRYPTO_1_BLOCK_LENGTH
@@ -276,6 +305,9 @@ typedef struct {
 /*UNWDS-LIT*/
 #define LIT_MEASURE					0x00 /*Команда запроса замера освещенности*/
 #define LIT_MEASURE_STATUS			0x01 /*Результаты замера освещенности*/
+
+/*UNWDS-UART*/
+#define SEND_BY_UART 				0x00 /*Команда отправки данных по UART'у*/
 
 /*---------------------------------------------------------------------------*/
 #endif

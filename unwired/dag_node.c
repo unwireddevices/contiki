@@ -750,6 +750,7 @@ bool dag_lit_measure_sender()
 #endif
 
 /*---------------------------------------------------------------------------*/
+#ifdef UMDK_4BTN
 /*Функция отправки состояния кнопок*/
 void button_status_sender ( uint8_t button_number,
 							uint8_t click_type)
@@ -772,6 +773,27 @@ void button_status_sender ( uint8_t button_number,
 				BUTTON_STATUS_LENGTH, 				/*Размер payload'а*/
 				(uint8_t*)&button_status_pack );	/*Payload*/		
 }
+#endif
+
+/*---------------------------------------------------------------------------*/
+#ifdef UMDK_UART
+/*Отправка данных по UART'у*/
+void uart_sender(uint8_t *uart_message)
+{
+	// /*Вывод информационного сообщения в консоль*/
+	// if(node_mode == MODE_NORMAL)
+		// printf("[DAG Node] Send UART message\n");
+	
+	/*Отражаем структуры на массив*/ 
+	uint8_t *uart_lenght = (uint8_t*)&uart_message[0];
+	
+	/*Отправляем пакет*/
+	pack_sender(UNWDS_UART_MODULE_ID,				/*ID модуля*/
+				SEND_BY_UART, 						/*Команда отправки данных по UART'у*/
+				*uart_lenght, 						/*Размер payload'а*/
+				(uint8_t*)&uart_message[1]);		/*Payload*/		
+}
+#endif
 
 /*---------------------------------------------------------------------------*/
 /*Функция управления светодиодами*/

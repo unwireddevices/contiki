@@ -128,12 +128,14 @@ static void button_status_handler(const uip_ip6addr_t *dest_addr, button_status_
 /*Обработчик пакета с измерением освещенности*/
 static void lit_measure_status_handler(const uip_ip6addr_t *dest_addr, lit_measure_status_t *lit_measure_status_pack);
 
+/*Обработчик пакета с данными для передачи по UART'*/
+static void send_by_uart_handler(const uip_ip6addr_t *dest_addr, uint8_t uart_lenght, uint8_t *uart_message);
+
 /*Конструктор пакета из UART*/
 static void send_pack_from_cr(uint8_t* data);
 
 /*Вывод принятого пакета микрокомпьютеру*/ 
 static void print_cr(const uip_ip6addr_t *dest_addr, uint8_t* data, uint8_t length);
-
 
 /*---------------------------------------------------------------------------*/
 /*ПРОТОТИПЫ ПРОЦЕССОВ*/
@@ -335,6 +337,30 @@ void udp_data_receiver(struct simple_udp_connection *connection,
 				}
 			}
 			
+			/*UMDK-UART*/
+			if(header_up_pack->device_id == UNWDS_UART_MODULE_ID)
+			{
+				if(header_up_pack->data_type == SEND_BY_UART)
+				{					
+					/*Обработчик пакета с данными для передачи по UART'*/
+					send_by_uart_handler((uip_ip6addr_t*)sender_addr, header_down_pack->length, (uint8_t*)&data[PAYLOAD_OFFSET]);
+					
+					led_off(LED_A);		/*Выключаем светодиод*/
+					return;
+				}
+				
+				else
+				{	
+					/*Вывод сообщения об неизвестной команде*/
+					printf("[");
+					uip_debug_ipaddr_print((uip_ip6addr_t*)sender_addr);
+					printf("] Unknown command for UMDK-UART!\n");
+			
+					led_off(LED_A);		/*Выключаем светодиод*/
+					return;
+				}
+			}
+			
 			else
 			{	
 				/*Вывод сообщения о неизвестном модуле*/
@@ -363,7 +389,9 @@ void udp_data_receiver(struct simple_udp_connection *connection,
 /*---------------------------------------------------------------------------*/
 /*Вторая стадия авторизации*/
 /*Генерирует сессионный ключ (nonce) и отправляет его зашифрованым AES128-ECB, добавляет маршрут в таблицу*/
-static void join_stage_2_sender(const uip_ip6addr_t *dest_addr, const uint8_t *data, const uint16_t length)
+static void join_stage_2_sender(const uip_ip6addr_t *dest_addr, 
+								const uint8_t *data, 
+								const uint16_t length)
 {	
 	/*Вывод принятого пакета микрокомпьютеру*/ 
 	print_cr((uip_ip6addr_t*)dest_addr, (uint8_t*)data, (HEADER_LENGTH + JOIN_STAGE_1_LENGTH));
@@ -411,7 +439,9 @@ static void join_stage_2_sender(const uip_ip6addr_t *dest_addr, const uint8_t *d
 /*---------------------------------------------------------------------------*/
 /*Четвертая стадия авторизации*/
 /*Принимает nonce зашифрованный AES128-CBC. Если сходится с тем что он сгенерировал, то авторизация прошла успешно, настройки шифрования верные. Отправляем пакет с нулями что бы DAG мог убедиться в этом*/
-static void join_stage_4_sender(const uip_ip6addr_t *dest_addr, const uint8_t *data, const uint16_t length)
+static void join_stage_4_sender(const uip_ip6addr_t *dest_addr, 
+								const uint8_t *data, 
+								const uint16_t length)
 {	
 	/*Получаем nonce*/
 	u8_u16_t nonce;
@@ -469,7 +499,8 @@ static void join_stage_4_sender(const uip_ip6addr_t *dest_addr, const uint8_t *d
 
 /*---------------------------------------------------------------------------*/
 /*Pong*/
-static void pong_sender(const uip_ip6addr_t *dest_addr, ping_t *ping_pack)
+static void pong_sender(const uip_ip6addr_t *dest_addr, 
+						ping_t *ping_pack)
 {
 	/*Заполняем payload*/
 	pong_t pong_pack;							/*Создаем структуру*/
@@ -502,7 +533,8 @@ static void pong_sender(const uip_ip6addr_t *dest_addr, ping_t *ping_pack)
 
 /*---------------------------------------------------------------------------*/
 /*ACK*/
-static void ack_handler(const uip_ip6addr_t *dest_addr, ack_t *ack_pack)
+static void ack_handler(const uip_ip6addr_t *dest_addr, 
+						ack_t *ack_pack)
 {	
 	/*Вывод сообщения о успешной доставке пакета*/
 	printf("[");
@@ -512,7 +544,8 @@ static void ack_handler(const uip_ip6addr_t *dest_addr, ack_t *ack_pack)
 
 /*---------------------------------------------------------------------------*/
 /*NACK*/
-static void nack_handler(const uip_ip6addr_t *dest_addr, nack_t *nack_pack)
+static void nack_handler(const uip_ip6addr_t *dest_addr, 
+						nack_t *nack_pack)
 {
 	/*Вывод сообщения о неуспешной доставке пакета*/
 	printf("[");
@@ -522,7 +555,8 @@ static void nack_handler(const uip_ip6addr_t *dest_addr, nack_t *nack_pack)
 
 /*---------------------------------------------------------------------------*/
 /*Обработчик нажатой кнопки*/
-static void button_status_handler(const uip_ip6addr_t *dest_addr, button_status_t *button_status_pack)
+static void button_status_handler ( const uip_ip6addr_t *dest_addr, 
+									button_status_t *button_status_pack)
 {
 	bool long_click = ((button_status_pack->button_status & LONG_CLICK) >> 7);
 	uint8_t dio = button_status_pack->button_status & DIO_MASK;
@@ -563,7 +597,8 @@ static void button_status_handler(const uip_ip6addr_t *dest_addr, button_status_
 
 /*---------------------------------------------------------------------------*/
 /*Обработчик пакета с измерением освещенности*/
-static void lit_measure_status_handler(const uip_ip6addr_t *dest_addr, lit_measure_status_t *lit_measure_status_pack)
+static void lit_measure_status_handler( const uip_ip6addr_t *dest_addr, 
+										lit_measure_status_t *lit_measure_status_pack)
 {
 	/*Вывод сообщения об успешной авторизации*/
 	printf("[");
@@ -572,8 +607,46 @@ static void lit_measure_status_handler(const uip_ip6addr_t *dest_addr, lit_measu
 }
 
 /*---------------------------------------------------------------------------*/
+/*Обработчик пакета с данными для передачи по UART'*/
+static void send_by_uart_handler(const uip_ip6addr_t *dest_addr, 
+								uint8_t uart_lenght, 
+								uint8_t *uart_message)
+{
+	/*Ожидаем завершения передачи*/
+	while(ti_lib_uart_busy(UART0_BASE));
+
+	/*Отсоединяем пин от UART'а*/ 
+	ti_lib_gpio_set_dio(BOARD_IOID_UART_TX);
+	ti_lib_gpio_set_output_enable_dio(BOARD_IOID_UART_TX, GPIO_OUTPUT_ENABLE);
+	ti_lib_ioc_port_configure_set(BOARD_IOID_UART_TX, IOC_PORT_GPIO, IOC_OUTPUT_PULL_UP);
+
+	/*Присоединяем пин к UART'у*/ 
+	ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_TX, IOC_PORT_MCU_UART0_TX, IOC_STD_OUTPUT);
+	
+	/*Выводим принятый пакет*/
+	for (uint8_t i = 0; i < uart_lenght; i++)	
+	{
+		while(!ti_lib_uart_char_put_non_blocking(UART0_BASE, uart_message[i]));
+	}
+	
+	/*Ожидаем завершения передачи*/
+	while(ti_lib_uart_busy(UART0_BASE));
+	
+	/*Отсоединяем пин от UART'а*/ 
+	ti_lib_gpio_set_dio(BOARD_IOID_ALT_UART_TX);
+	ti_lib_gpio_set_output_enable_dio(BOARD_IOID_ALT_UART_TX, GPIO_OUTPUT_ENABLE);
+	ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_TX, IOC_PORT_GPIO, IOC_OUTPUT_PULL_UP);
+
+	/*Присоединяем пин к UART'у*/ 
+	ti_lib_ioc_port_configure_set(BOARD_IOID_UART_TX, IOC_PORT_MCU_UART0_TX, IOC_STD_OUTPUT);
+}
+
+/*---------------------------------------------------------------------------*/
 /*Отправка настроек канала ШИМ'а*/
-void pwm_settings_sender(const uip_ip6addr_t *dest_addr, uint8_t channel, uint32_t frequency, uint8_t duty)
+void pwm_settings_sender(const uip_ip6addr_t *dest_addr, 
+						uint8_t channel, 
+						uint32_t frequency, 
+						uint8_t duty)
 {	
 	/*Заполняем payload*/
 	pwm_settings_t pwm_settings_pack;				/*Создаем структуру*/
@@ -592,7 +665,9 @@ void pwm_settings_sender(const uip_ip6addr_t *dest_addr, uint8_t channel, uint32
 
 /*---------------------------------------------------------------------------*/
 /*Отправка команды включения/выключения канала ШИМ'а*/
-void pwm_power_channel_sender(const uip_ip6addr_t *dest_addr, uint8_t channel, uint8_t pwm_power_channel)
+void pwm_power_channel_sender ( const uip_ip6addr_t *dest_addr, 
+								uint8_t channel, 
+								uint8_t pwm_power_channel)
 {
 	/*Заполняем payload*/
 	pwm_power_t pwm_power_pack;					/*Создаем структуру*/
@@ -722,41 +797,43 @@ static void send_pack_from_cr(uint8_t* data)
 
 /*---------------------------------------------------------------------------*/
 /*Вывод принятого пакета микрокомпьютеру*/ 
-static void print_cr(const uip_ip6addr_t *dest_addr, uint8_t* data, uint8_t length)
+static void print_cr(const uip_ip6addr_t *dest_addr, 
+					uint8_t* data, 
+					uint8_t length)
 {
-	/*Ожидаем завершения передачи*/
-	while(ti_lib_uart_busy(UART0_BASE));
+	// /*Ожидаем завершения передачи*/
+	// while(ti_lib_uart_busy(UART0_BASE));
 
-	/*Отсоединяем пин от UART'а*/ 
-	ti_lib_gpio_set_dio(BOARD_IOID_UART_TX);
-	ti_lib_gpio_set_output_enable_dio(BOARD_IOID_UART_TX, GPIO_OUTPUT_ENABLE);
-	ti_lib_ioc_port_configure_set(BOARD_IOID_UART_TX, IOC_PORT_GPIO, IOC_OUTPUT_PULL_UP);
+	// /*Отсоединяем пин от UART'а*/ 
+	// ti_lib_gpio_set_dio(BOARD_IOID_UART_TX);
+	// ti_lib_gpio_set_output_enable_dio(BOARD_IOID_UART_TX, GPIO_OUTPUT_ENABLE);
+	// ti_lib_ioc_port_configure_set(BOARD_IOID_UART_TX, IOC_PORT_GPIO, IOC_OUTPUT_PULL_UP);
 
-	/*Присоединяем пин к UART'у*/ 
-	ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_TX, IOC_PORT_MCU_UART0_TX, IOC_STD_OUTPUT);
+	// /*Присоединяем пин к UART'у*/ 
+	// ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_TX, IOC_PORT_MCU_UART0_TX, IOC_STD_OUTPUT);
 
-	/*Выводим адрес отправителя*/
-	for (uint8_t i = 0; i < sizeof(uip_ip6addr_t); i++)	
-	{
-		while(!ti_lib_uart_char_put_non_blocking(UART0_BASE, dest_addr->u8[i]));
-	}
+	// /*Выводим адрес отправителя*/
+	// for (uint8_t i = 0; i < sizeof(uip_ip6addr_t); i++)	
+	// {
+		// while(!ti_lib_uart_char_put_non_blocking(UART0_BASE, dest_addr->u8[i]));
+	// }
 	
-	/*Выводим принятый пакет*/
-	for (uint8_t i = 0; i < length; i++)	
-	{
-		while(!ti_lib_uart_char_put_non_blocking(UART0_BASE, data[i]));
-	}
+	// /*Выводим принятый пакет*/
+	// for (uint8_t i = 0; i < length; i++)	
+	// {
+		// while(!ti_lib_uart_char_put_non_blocking(UART0_BASE, data[i]));
+	// }
 	
-	/*Ожидаем завершения передачи*/
-	while(ti_lib_uart_busy(UART0_BASE));
+	// /*Ожидаем завершения передачи*/
+	// while(ti_lib_uart_busy(UART0_BASE));
 	
-	/*Отсоединяем пин от UART'а*/ 
-	ti_lib_gpio_set_dio(BOARD_IOID_ALT_UART_TX);
-	ti_lib_gpio_set_output_enable_dio(BOARD_IOID_ALT_UART_TX, GPIO_OUTPUT_ENABLE);
-	ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_TX, IOC_PORT_GPIO, IOC_OUTPUT_PULL_UP);
+	// /*Отсоединяем пин от UART'а*/ 
+	// ti_lib_gpio_set_dio(BOARD_IOID_ALT_UART_TX);
+	// ti_lib_gpio_set_output_enable_dio(BOARD_IOID_ALT_UART_TX, GPIO_OUTPUT_ENABLE);
+	// ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_TX, IOC_PORT_GPIO, IOC_OUTPUT_PULL_UP);
 
-	/*Присоединяем пин к UART'у*/ 
-	ti_lib_ioc_port_configure_set(BOARD_IOID_UART_TX, IOC_PORT_MCU_UART0_TX, IOC_STD_OUTPUT);
+	// /*Присоединяем пин к UART'у*/ 
+	// ti_lib_ioc_port_configure_set(BOARD_IOID_UART_TX, IOC_PORT_MCU_UART0_TX, IOC_STD_OUTPUT);
 }
 
 /*---------------------------------------------------------------------------*/

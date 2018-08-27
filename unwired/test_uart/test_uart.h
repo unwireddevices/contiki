@@ -27,75 +27,23 @@
 /*---------------------------------------------------------------------------*/
 /*
 * \file
-*         RPL-root service for Unwired Devices mesh 
+*         Header file for UART service
 * \author
 *         Manchenko Oleg man4enkoos@gmail.com
 */
 /*---------------------------------------------------------------------------*/
 
-#ifndef ROOT_NODE_H_
-#define ROOT_NODE_H_
+#ifndef TEST_UART_H_
+#define TEST_UART_H_
 
 /*---------------------------------------------------------------------------*/
 
 #include "contiki.h"
 #include "net/ip/uip.h"
-#include "net/ipv6/uip-ds6.h"
-
-#include <stdio.h>
-#include <string.h>
 
 /*---------------------------------------------------------------------------*/
-/*Структура UDP подключения*/
-struct simple_udp_connection udp_connection;
+
+PROCESS_NAME(main_process);
 
 /*---------------------------------------------------------------------------*/
-/*ПРОТОТИПЫ ФУНКЦИЙ*/
-
-/*Обработчик принятых пакетов*/
-void udp_data_receiver(struct simple_udp_connection *connection,
-                       const uip_ipaddr_t *sender_addr,
-                       uint16_t sender_port,
-                       const uip_ipaddr_t *receiver_addr,
-                       uint16_t receiver_port,
-                       const uint8_t *data,
-                       uint16_t datalen);
-
-/*Отправка настроек канала ШИМ'а*/
-void pwm_settings_sender(const uip_ip6addr_t *dest_addr, 
-						uint8_t channel, 
-						uint32_t frequency, 
-						uint8_t duty);
-
-/*Отправка команды включения/выключения канала ШИМ'а*/
-void pwm_power_channel_sender ( const uip_ip6addr_t *dest_addr, 
-								uint8_t channel, 
-								uint8_t pwm_power_channel);
-								
-/*Совершить замер освещенности*/
-void lit_measurement_sender(const uip_ip6addr_t *dest_addr);
-	
-/*Конструктор пакета*/
-void pack_sender(const uip_ip6addr_t *dest_addr, 
-				uint8_t device_id, 
-				uint8_t data_type, 
-				uint8_t payload_len, 
-				uint8_t *payload);
-				
-/*Иннициализация RPL*/
-void rpl_initialize();
-
-/*Иннициализация ноды*/
-void root_node_initialize();
-
-/*---------------------------------------------------------------------------*/
-/*ИМЕНА ПРОЦЕССОВ*/
-
-/*Процесс инициализации настроек из EEPROM*/
-PROCESS_NAME(settings_root_init);
-
-/*Процесс управления ROOT'ом*/
-PROCESS_NAME(main_root_process);
-
-/*---------------------------------------------------------------------------*/
-#endif /* ROOT_NODE_H_ */
+#endif /* TEST_UART_H_ */
