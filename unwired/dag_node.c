@@ -160,7 +160,13 @@ static void nack_sender(uint16_t counter);
 	/*Включение/выключение канала ШИМ'а*/
 	static bool dag_pwm_power (	const uip_ipaddr_t *sender_addr,
 								pwm_power_t *pwm_power_pack);
-#endif				
+#endif	
+
+#ifdef UMDK_GPIO
+	/*Выполнение команды для ножки порта*/	
+	static bool dag_gpio_command(const uip_ipaddr_t *sender_addr, 
+								gpio_command_t *gpio_command_pack);	
+#endif		
 
 /*---------------------------------------------------------------------------*/
 /*ПРОТОТИПЫ ПРОЦЕССОВ*/
@@ -357,6 +363,36 @@ static void udp_receiver(struct simple_udp_connection *c,
 				{
 					/*Вывод сообщения об неизвестной команде*/
 					printf("[DAG Node] Unknown command for UMDK-LIT!\n");
+					
+					/*Отправляем пакет об ошибке*/
+					nack_sender(header_down_pack->counter.u16);
+					
+					led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
+					return;
+				}	
+			}
+#endif
+
+#ifdef UMDK_GPIO
+			/*UMDK-GPIO*/ 
+			else if(header_up_pack->device_id == UNWDS_GPIO_MODULE_ID)
+			{
+				if(header_up_pack->data_type == GPIO_CMD)
+				{
+					/*Совершить замер освещенности*/
+					if(dag_gpio_command(sender_addr, (gpio_command_t*)&data[PAYLOAD_OFFSET]))
+						ack_sender(header_down_pack->counter.u16);		/*Отправляем пакет о подтверждении*/
+					else
+						nack_sender(header_down_pack->counter.u16);		/*Отправляем пакет об ошибке*/
+					
+					led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
+					return;
+				}
+				
+				else
+				{
+					/*Вывод сообщения об неизвестной команде*/
+					printf("[DAG Node] Unknown command for UMDK-GPIO!\n");
 					
 					/*Отправляем пакет об ошибке*/
 					nack_sender(header_down_pack->counter.u16);
@@ -746,6 +782,31 @@ bool dag_lit_measure_sender()
 				(uint8_t*)&lit_measure_status_pack);	/*Payload*/		
 				
 	return lit_measure_status_pack.lit_measure_status;
+}
+#endif
+
+/*---------------------------------------------------------------------------*/
+#ifdef UMDK_GPIO
+/*Выполнение команды для ножки порта*/	
+static bool dag_gpio_command(const uip_ipaddr_t *sender_addr, 
+							gpio_command_t *gpio_command_pack)
+{
+	ti_lib_ioc_pin_type_gpio_output(gpio_command_pack->pin);
+	
+	if(gpio_command_pack->command == 1)
+	{
+		ti_lib_gpio_set_dio(gpio_command_pack->pin);
+		
+		printf("[UMDK-GPIO] Set GPIO PIN%i\n", gpio_command_pack->pin);
+		return true;
+	}
+	
+	else
+	{
+		ti_lib_gpio_clear_dio(gpio_command_pack->pin);
+		printf("[UMDK-GPIO] Clear GPIO PIN%i\n", gpio_command_pack->pin);
+		return true;
+	}
 }
 #endif
 

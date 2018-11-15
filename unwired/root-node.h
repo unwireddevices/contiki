@@ -74,6 +74,11 @@ void pwm_power_channel_sender ( const uip_ip6addr_t *dest_addr,
 								
 /*Совершить замер освещенности*/
 void lit_measurement_sender(const uip_ip6addr_t *dest_addr);
+
+/*Отправка команды для ножки порта*/
+void gpio_command_sender(const uip_ip6addr_t *dest_addr,
+						uint8_t pin,
+						uint8_t command);
 	
 /*Конструктор пакета*/
 void pack_sender(const uip_ip6addr_t *dest_addr, 

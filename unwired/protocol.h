@@ -196,6 +196,15 @@ typedef struct {
 } pack lit_measure_status_t;
 
 /*---------------------------------------------------------------------------*/
+/*UNWDS-GPIO*/
+
+/*Struct for GPIO_CMD*/
+typedef struct {		
+	uint8_t pin;				/*Номер ножки порта которую будем переводить в нужное состояние*/
+	uint8_t command;			/*Команда для ножки порта*/
+} pack gpio_command_t;
+
+/*---------------------------------------------------------------------------*/
 /*UNWDS-6LOWPAN_SYSTEM*/
 
 /*Struct for JOIN_STAGE_1*/
@@ -281,6 +290,7 @@ typedef struct {
 #define PWM_POWER_LENGTH 				sizeof(pwm_power_t)
 #define LIT_MEASURE_LENGTH				0
 #define LIT_MEASURE_STATUS_LENGTH		sizeof(lit_measure_status_t)
+#define GPIO_CMD_LENGTH					sizeof(gpio_command_t)
 
 /*---------------------------------------------------------------------------*/
 /*COMMAND*/
@@ -305,6 +315,9 @@ typedef struct {
 /*UNWDS-LIT*/
 #define LIT_MEASURE					0x00 /*Команда запроса замера освещенности*/
 #define LIT_MEASURE_STATUS			0x01 /*Результаты замера освещенности*/
+
+/*UNWDS-GPIO*/
+#define GPIO_CMD					0x00 /*Отправка команды для ножки порта*/
 
 /*UNWDS-UART*/
 #define SEND_BY_UART 				0x00 /*Команда отправки данных по UART'у*/

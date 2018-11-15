@@ -689,11 +689,31 @@ void pwm_power_channel_sender ( const uip_ip6addr_t *dest_addr,
 void lit_measurement_sender(const uip_ip6addr_t *dest_addr)
 {
 	/*Отправляем пакет c запросом освещенности*/
-	pack_sender(dest_addr, 				/*Адрес модуля UMDK-6FET*/
-				UNWDS_LIT_MODULE_ID, 	/*Индентификатор модуля UMDK-LIT*/
-				LIT_MEASURE, 			/*Команда измерения освещенности*/
-				LIT_MEASURE_LENGTH, 	/*Размер payload'а*/
-				NULL);					/*Payload'а нет*/ 
+	pack_sender(dest_addr, 						/*Адрес модуля UMDK-6FET*/
+				UNWDS_LIT_MODULE_ID, 			/*Индентификатор модуля UMDK-LIT*/
+				LIT_MEASURE, 					/*Команда измерения освещенности*/
+				LIT_MEASURE_LENGTH, 			/*Размер payload'а*/
+				NULL);							/*Payload'а нет*/ 
+}
+
+/*---------------------------------------------------------------------------*/
+/*Отправка команды для ножки порта*/
+void gpio_command_sender(const uip_ip6addr_t *dest_addr,
+						uint8_t pin,
+						uint8_t command)
+{
+	/*Заполняем payload*/
+	gpio_command_t gpio_command_pack;			/*Создаем структуру*/
+	
+	gpio_command_pack.pin = pin;				/*Номер ножки порта которую будем переводить в нужное состояние*/
+	gpio_command_pack.command = command;		/*Команда для ножки порта*/
+		
+	/*Отправляем пакет c запросом освещенности*/
+	pack_sender(dest_addr, 						/*Адрес модуля UMDK-6FET*/
+				UNWDS_GPIO_MODULE_ID, 			/*Индентификатор модуля UMDK-LIT*/
+				GPIO_CMD, 						/*Команда измерения освещенности*/
+				GPIO_CMD_LENGTH, 				/*Размер payload'а*/
+				(uint8_t*)&gpio_command_pack);	/*Payload*/ 
 }
 
 /*---------------------------------------------------------------------------*/
