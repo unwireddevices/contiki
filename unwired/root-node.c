@@ -821,39 +821,39 @@ static void print_cr(const uip_ip6addr_t *dest_addr,
 					uint8_t* data, 
 					uint8_t length)
 {
-	// /*Ожидаем завершения передачи*/
-	// while(ti_lib_uart_busy(UART0_BASE));
+	/*Ожидаем завершения передачи*/
+	while(ti_lib_uart_busy(UART0_BASE));
 
-	// /*Отсоединяем пин от UART'а*/ 
-	// ti_lib_gpio_set_dio(BOARD_IOID_UART_TX);
-	// ti_lib_gpio_set_output_enable_dio(BOARD_IOID_UART_TX, GPIO_OUTPUT_ENABLE);
-	// ti_lib_ioc_port_configure_set(BOARD_IOID_UART_TX, IOC_PORT_GPIO, IOC_OUTPUT_PULL_UP);
+	/*Отсоединяем пин от UART'а*/ 
+	ti_lib_gpio_set_dio(BOARD_IOID_UART_TX);
+	ti_lib_gpio_set_output_enable_dio(BOARD_IOID_UART_TX, GPIO_OUTPUT_ENABLE);
+	ti_lib_ioc_port_configure_set(BOARD_IOID_UART_TX, IOC_PORT_GPIO, IOC_OUTPUT_PULL_UP);
 
-	// /*Присоединяем пин к UART'у*/ 
-	// ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_TX, IOC_PORT_MCU_UART0_TX, IOC_STD_OUTPUT);
+	/*Присоединяем пин к UART'у*/ 
+	ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_TX, IOC_PORT_MCU_UART0_TX, IOC_STD_OUTPUT);
 
-	// /*Выводим адрес отправителя*/
-	// for (uint8_t i = 0; i < sizeof(uip_ip6addr_t); i++)	
-	// {
-		// while(!ti_lib_uart_char_put_non_blocking(UART0_BASE, dest_addr->u8[i]));
-	// }
+	/*Выводим адрес отправителя*/
+	for (uint8_t i = 0; i < sizeof(uip_ip6addr_t); i++)	
+	{
+		while(!ti_lib_uart_char_put_non_blocking(UART0_BASE, dest_addr->u8[i]));
+	}
 	
-	// /*Выводим принятый пакет*/
-	// for (uint8_t i = 0; i < length; i++)	
-	// {
-		// while(!ti_lib_uart_char_put_non_blocking(UART0_BASE, data[i]));
-	// }
+	/*Выводим принятый пакет*/
+	for (uint8_t i = 0; i < length; i++)	
+	{
+		while(!ti_lib_uart_char_put_non_blocking(UART0_BASE, data[i]));
+	}
 	
-	// /*Ожидаем завершения передачи*/
-	// while(ti_lib_uart_busy(UART0_BASE));
+	/*Ожидаем завершения передачи*/
+	while(ti_lib_uart_busy(UART0_BASE));
 	
-	// /*Отсоединяем пин от UART'а*/ 
-	// ti_lib_gpio_set_dio(BOARD_IOID_ALT_UART_TX);
-	// ti_lib_gpio_set_output_enable_dio(BOARD_IOID_ALT_UART_TX, GPIO_OUTPUT_ENABLE);
-	// ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_TX, IOC_PORT_GPIO, IOC_OUTPUT_PULL_UP);
+	/*Отсоединяем пин от UART'а*/ 
+	ti_lib_gpio_set_dio(BOARD_IOID_ALT_UART_TX);
+	ti_lib_gpio_set_output_enable_dio(BOARD_IOID_ALT_UART_TX, GPIO_OUTPUT_ENABLE);
+	ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_TX, IOC_PORT_GPIO, IOC_OUTPUT_PULL_UP);
 
-	// /*Присоединяем пин к UART'у*/ 
-	// ti_lib_ioc_port_configure_set(BOARD_IOID_UART_TX, IOC_PORT_MCU_UART0_TX, IOC_STD_OUTPUT);
+	/*Присоединяем пин к UART'у*/ 
+	ti_lib_ioc_port_configure_set(BOARD_IOID_UART_TX, IOC_PORT_MCU_UART0_TX, IOC_STD_OUTPUT);
 }
 
 /*---------------------------------------------------------------------------*/
