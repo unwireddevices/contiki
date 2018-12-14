@@ -1,0 +1,14 @@
+all: softel_lighting
+
+PROJECTDIRS += ..
+APPS = serial-shell
+PROJECT_SOURCEFILES += common-node.c crypto-common.c system-common.c rtc-common.c int-flash-common.c
+DEFINES+=PROJECT_CONF_H=\"project-conf-class-c.h\"
+DEFINES+=UNWDS_ROOT=1
+DEFINES+=CLASS=0x0C
+DEFINES+=UNWDS_MODULE_ID=127
+PROJECTDIRS += $(VARIANT)
+CONTIKI = ../..
+CONTIKI_WITH_IPV6 = 1
+include $(CONTIKI)/Makefile.include
+include $(CONTIKI)/Makefile_git_version.include
