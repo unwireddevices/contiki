@@ -66,31 +66,31 @@ volatile uint8_t radio_mode;
 
 void net_on(uint8_t mode)
 {
-   if (CLASS == CLASS_B)
-   {
-      if (mode == RADIO_ON_NORMAL && radio_mode == RADIO_FREEDOM)
-      {
-         NETSTACK_MAC.on();
-         uip_ds_6_interval_set(CLOCK_SECOND/2);
-         printf("RADIO: Radio ON\n");
-      }
+    if (CLASS == CLASS_B)
+    {
+        if (mode == RADIO_ON_NORMAL && radio_mode == RADIO_FREEDOM)
+        {
+            NETSTACK_MAC.on();
+            uip_ds_6_interval_set(CLOCK_SECOND/2);
+            printf("RADIO: Radio ON\n");
+        }
 
-      if (mode == RADIO_ON_TIMER_OFF && radio_mode == RADIO_FREEDOM)
-      {
-         NETSTACK_MAC.on();
-         uip_ds_6_interval_set(CLOCK_SECOND/2);
-         printf("RADIO: Radio ON\n");
-         net_off(RADIO_OFF_ON_TIMER);
-      }
-   }
+        if (mode == RADIO_ON_TIMER_OFF && radio_mode == RADIO_FREEDOM)
+        {
+            NETSTACK_MAC.on();
+            uip_ds_6_interval_set(CLOCK_SECOND/2);
+            printf("RADIO: Radio ON\n");
+            net_off(RADIO_OFF_ON_TIMER);
+        }
+    }
 }
 
 /*---------------------------------------------------------------------------*/
 
 static void net_off_timer_now(void *ptr)
 {
-   printf("RADIO: Radio OFF on timer expired\n");
-   NETSTACK_MAC.off(0);
+    printf("RADIO: Radio OFF on timer expired\n");
+    NETSTACK_MAC.off(0);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -98,36 +98,35 @@ static void net_off_timer_now(void *ptr)
 
 void net_off(uint8_t mode)
 {
-   if (CLASS == CLASS_B)
-   {
+    if (CLASS == CLASS_B)
+    {
 
-      uip_ds_6_interval_set(CLOCK_SECOND * 20);
+        uip_ds_6_interval_set(CLOCK_SECOND * 20);
 
-      if (mode == RADIO_OFF_ON_TIMER && radio_mode == RADIO_FREEDOM)
-      {
-         ctimer_reset(&net_off_timer);
-         ctimer_set(&net_off_timer, RADIO_OFF_DELAY, net_off_timer_now, NULL);
-      }
+        if (mode == RADIO_OFF_ON_TIMER && radio_mode == RADIO_FREEDOM)
+        {
+            ctimer_reset(&net_off_timer);
+            ctimer_set(&net_off_timer, RADIO_OFF_DELAY, net_off_timer_now, NULL);
+        }
 
 
-      if (mode == RADIO_OFF_NOW && radio_mode == RADIO_FREEDOM)
-      {
-         ctimer_stop(&net_off_timer);
-         printf("RADIO: Radio OFF immediately\n");
-         NETSTACK_MAC.off(0);
-      }
-   }
-
+        if (mode == RADIO_OFF_NOW && radio_mode == RADIO_FREEDOM)
+        {
+            ctimer_stop(&net_off_timer);
+            printf("RADIO: Radio OFF immediately\n");
+            NETSTACK_MAC.off(0);
+        }
+    }
 }
 
 /*---------------------------------------------------------------------------*/
 
 void net_mode(uint8_t mode)
 {
-   if (CLASS == CLASS_B)
-   {
-      radio_mode = mode;
-   }
+    if (CLASS == CLASS_B)
+    {
+        radio_mode = mode;
+    }
 }
 /*---------------------------------------------------------------------------*/
 

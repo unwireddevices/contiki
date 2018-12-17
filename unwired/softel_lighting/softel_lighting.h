@@ -27,10 +27,15 @@
 /*---------------------------------------------------------------------------*/
 /*
 * \file
-*         RPL-root service for Unwired Devices mesh 
+*         Softel lighting
 * \author
 *         Manchenko Oleg man4enkoos@gmail.com
 */
+/*---------------------------------------------------------------------------*/
+
+#ifndef SOFTEL_LIGHTING_H_
+#define SOFTEL_LIGHTING_H_
+
 /*---------------------------------------------------------------------------*/
 
 #include "contiki.h"
@@ -67,7 +72,6 @@
 PROCESS_NAME(main_process);
 
 /*---------------------------------------------------------------------------*/
-
-
+#endif /* SOFTEL_LIGHTING_H_ */
 
 

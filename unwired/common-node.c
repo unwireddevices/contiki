@@ -33,6 +33,8 @@
 */
 /*---------------------------------------------------------------------------*/
 
+// #define DPRINT printf(">dag_node.c:%"PRIu16"\n", __LINE__);watchdog_periodic();
+
 #include "contiki.h"
 #include "lib/random.h"
 #include "sys/ctimer.h"
@@ -70,10 +72,66 @@
 #include "../cpu/cc26xx-cc13xx/dev/cc26xx-uart.h"
 #include "../../core/dev/serial-line.h"
 
-#include "uart/root.h"
+#include "../cpu/cc26xx-cc13xx/dev/pwm.h" /*PWM*/
+#include "softel_lighting/softel_lighting.h"
 
-#define DIO_MASK				0x7F
-#define LONG_CLICK				0x80
+/* DAG */
+#include <string.h>
+#include <stdio.h>
+#include <stdbool.h>
+
+#include "contiki.h"
+#include "contiki-lib.h"
+#include "contiki-net.h"
+#include "clock.h"
+
+#include "net/rpl/rpl.h"
+#include "net/rpl/rpl-private.h"
+#include "net/ipv6/uip-ds6.h"
+#include "net/ipv6/uip-ds6-nbr.h"
+#include "net/ip/uip-debug.h"
+#include "net/ip/simple-udp.h"
+#include "net/link-stats.h"
+
+#include "dev/leds.h"
+#include "sys/clock.h"
+#include "shell.h"
+#include "serial-shell.h"
+#include "dev/serial-line.h" //
+#include "button-sensor.h"
+#include "batmon-sensor.h"
+#include "radio_power.h"
+#include "dev/watchdog.h"
+#include "dev/cc26xx-uart.h"
+#include "board-peripherals.h"
+#include "board.h"
+#include "ti-lib.h"
+
+#include "ota-main.h"
+#include "ota-common.h"
+
+#include "xxf_types_helper.h"
+#include "protocol.h"
+
+#include "../cpu/cc26xx-cc13xx/dev/pwm.h" /*PWM*/
+// #include "../platform/unwired/udboards/opt3001.h" /*LIT*/
+
+
+
+// #define DIO_MASK				0x7F
+// #define LONG_CLICK				0x80
+
+/* DAG DEF */
+#define MAINTENANCE_INTERVAL			(10 * 60 * CLOCK_SECOND)
+#define SHORT_STATUS_INTERVAL			(10 * 60 * CLOCK_SECOND)
+#define LONG_STATUS_INTERVAL			(20 * 60 * CLOCK_SECOND)
+#define ROOT_FIND_INTERVAL				(2 * CLOCK_SECOND)
+#define ROOT_FIND_LIMIT_TIME			(2 * 60 * CLOCK_SECOND)
+
+#define CC26XX_UART_INTERRUPT_ALL ( UART_INT_OE | UART_INT_BE | UART_INT_PE | \
+									UART_INT_FE | UART_INT_RT | UART_INT_TX | \
+									UART_INT_RX | UART_INT_CTS)
+
 
 #define IOC_OUTPUT_PULL_UP	(IOC_CURRENT_2MA	| IOC_STRENGTH_AUTO	| \
 							IOC_IOPULL_UP		| IOC_SLEW_DISABLE	| \
@@ -88,18 +146,19 @@
 #define WAIT_RESPONSE 			3 	//Максимальное время ожидания ответа от счетчика в секундах
 
 /*---------------------------------------------------------------------------*/
-/*ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ*/
+/* ОБЩИЕ ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ */
+/*---------------------------------------------------------------------------*/
 
-uint8_t aes_key[16];					/*Ключ шифрования*/
-static uint8_t nonce_key[16];			/*Сессионный ключ*/
+uint8_t aes_key[16];				/* Ключ шифрования */
+static uint8_t nonce_key[16];		/* Сессионный ключ */
 
-eeprom_t eeprom_settings;				/*Настройки из EEPROM*/
+/* Структура UDP подключения */
+simple_udp_connection_t udp_connection;	
 
-static uip_ipaddr_t null_addr;			/*Сравниваем с этим адресом (аналог nullptr)*/
+/* Настройки из EEPROM */
+eeprom_t eeprom_settings;				
 
-static volatile bool mode_node = 1;		/*Режим работы ROOT or DAG*/
-
-/*Счетчик пакетов*/
+/* Счетчик пакетов */
 static volatile union 
 { 
 	uint16_t u16; 
@@ -107,37 +166,100 @@ static volatile union
 } packet_counter_root;
 
 /*---------------------------------------------------------------------------*/
-/*ПРОТОТИПЫ ФУНКЦИЙ*/
+/* ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ROOT'а */
+/*---------------------------------------------------------------------------*/
 
-/*Вторая стадия авторизации*/
+static uip_ipaddr_t null_addr;			/*Сравниваем с этим адресом (аналог nullptr)*/
+
+static volatile bool mode_node = 1;		/*Режим работы ROOT or DAG*/
+
+/*---------------------------------------------------------------------------*/
+/* ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ DAG'а */
+/*---------------------------------------------------------------------------*/
+
+volatile uint8_t led_mode;
+
+volatile uint8_t non_answered_ping = 0;	/* Количество неотвеченых пингов */
+
+static struct etimer maintenance_timer;	/* Таймер */				
+
+/*---------------------------------------------------------------------------*/
+/* ПРОТОТИПЫ ОБЩИХ ФУНКЦИЙ */
+/*---------------------------------------------------------------------------*/
+
+//
+//
+//
+
+/*---------------------------------------------------------------------------*/
+/* ПРОТОТИПЫ ФУНКЦИЙ ROOT'а */
+/*---------------------------------------------------------------------------*/
+/* Вторая стадия авторизации */
 static void join_stage_2_sender(const uip_ip6addr_t *dest_addr, const uint8_t *data, const uint16_t length);
 
-/*Четвертая стадия авторизации*/
+/* Четвертая стадия авторизации */
 static void join_stage_4_sender(const uip_ip6addr_t *dest_addr, const uint8_t *data, const uint16_t length);
 
-/*Pong*/
+/* Pong */
 static void pong_sender(const uip_ip6addr_t *dest_addr, ping_t *ping_pack);
 
-/*ACK*/
+/* ACK */
 static void ack_handler(const uip_ip6addr_t *dest_addr, ack_t *ack_pack);
 
-/*NACK*/
+/* NACK */
 static void nack_handler(const uip_ip6addr_t *dest_addr, nack_t *nack_pack);
 
-/*Обработчик пакета с нажатой кнопкой*/
-static void button_status_handler(const uip_ip6addr_t *dest_addr, button_status_t *button_status_pack);
-
-/*Обработчик пакета с измерением освещенности*/
-static void lit_measure_status_handler(const uip_ip6addr_t *dest_addr, lit_measure_status_t *lit_measure_status_pack);
-
-/*Обработчик пакета с данными для передачи по UART'*/
-static void send_by_uart_handler(const uip_ip6addr_t *dest_addr, uint8_t uart_lenght, uint8_t *uart_message);
-
-/*Конструктор пакета из UART*/
+/* Конструктор пакета из UART */
 static void send_pack_from_cr(uint8_t* data);
 
-/*Вывод принятого пакета микрокомпьютеру*/ 
+/* Вывод принятого пакета микрокомпьютеру */ 
 static void print_cr(const uip_ip6addr_t *dest_addr, uint8_t* data, uint8_t length);
+
+/*---------------------------------------------------------------------------*/
+/* ПРОТОТИПЫ ФУНКЦИЙ DAG'а */
+/*---------------------------------------------------------------------------*/
+/* Обработчик принятых пакетов */
+static void dag_udp_data_receiver(struct simple_udp_connection *c,
+								  const uip_ipaddr_t *sender_addr,
+								  uint16_t sender_port,
+								  const uip_ipaddr_t *receiver_addr,
+								  uint16_t receiver_port,
+								  const uint8_t *data, 
+								  uint16_t datalen);
+						
+/* Первая стадия авторизации */
+static void join_stage_1_sender(const uip_ipaddr_t *dest_addr);
+
+/* Третья стадия авторизации */
+static void join_stage_3_sender(const uip_ipaddr_t *dest_addr,
+								const uint8_t *data,
+								uint16_t datalen);
+
+/* Обработчик четвертой стадии авторизации */
+static void join_stage_4_handler(const uip_ipaddr_t *sender_addr,
+								 const uint8_t *data,
+								 uint16_t datalen);
+
+/* Ping */
+static void ping_sender(void);
+
+/* Pong */
+static void pong_handler(const uip_ipaddr_t *sender_addr,
+						pong_t *pong_pack);
+						
+/* ACK */
+static void ack_sender(uint16_t counter);
+						
+/* NACK */
+static void nack_sender(uint16_t counter);
+		
+/* Инициализация с заданными настройками канала ШИМ'а */
+static bool dag_pwm_settings(const uip_ipaddr_t *sender_addr,
+							pwm_settings_t *pwm_settings_pack);
+
+/* Включение/выключение канала ШИМ'а */
+static bool dag_pwm_power (	const uip_ipaddr_t *sender_addr,
+							pwm_power_t *pwm_power_pack);
 
 /*---------------------------------------------------------------------------*/
 /* ПРОТОТИПЫ ПРОЦЕССОВ */
@@ -175,11 +297,8 @@ PROCESS(maintenance_process, "Maintenance process");
 PROCESS(led_process, "Led process");
 
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+/* ФУНКЦИИ ROOT'а */
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
-/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
-/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
-/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
-/*---------------------------------------------------------------------------*/
 /* Обработчик принятых пакетов */
 void root_udp_data_receiver(struct simple_udp_connection *connection,
                        const uip_ipaddr_t *sender_addr, 
@@ -189,72 +308,72 @@ void root_udp_data_receiver(struct simple_udp_connection *connection,
                        const uint8_t *data, 
                        uint16_t datalen)
 {
-	led_on(LED_A); 								/*Включаем светодиод*/
+	led_on(LED_A); 								/* Включаем светодиод */
 	
-	/*Отражаем структуру на массив*/ 
+	/* Отражаем структуру на массив */ 
 	header_up_t *header_up_pack = (header_up_t*)&data[HEADER_OFFSET];
 	
-	/*Для отладки. Выводит тип принятого сообщения*/ 
+	/* Для отладки. Выводит тип принятого сообщения */ 
 	// printf("Recive pack: %x\n", header_up_pack->data_type);
 	
-	/*Вывод информационного сообщения в консоль*/
+	/* Вывод информационного сообщения в консоль */
 	// printf("Packet crypto received(%"PRIu8"): ", datalen);
-	// for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
+	// for (uint16_t i = 0; i < datalen; i++)	/* Выводим принятый пакет */ 
 		// printf("%"PRIXX8, data[i]);
 	// printf("\n");
 	
 
-	/*Проверяем версию протокола*/ 
+	/* Проверяем версию протокола */ 
 	if(header_up_pack->protocol_version == UDBP_PROTOCOL_VERSION)
 	{
-		/*Проверяем ID модуля и тип пакета*/ 
+		/* Проверяем ID модуля и тип пакета */ 
 		if((header_up_pack->device_id == UNWDS_6LOWPAN_SYSTEM_MODULE_ID) && (header_up_pack->data_type == JOIN_STAGE_1))
 		{
-			/*Вторая стадия авторизации*/			
+			/* Вторая стадия авторизации */			
 			join_stage_2_sender((uip_ip6addr_t*)sender_addr, data, datalen);
 			
-			led_off(LED_A);		/*Выключаем светодиод*/
+			led_off(LED_A);		/* Выключаем светодиод */
 			return;
 		}
 		
 		else if((header_up_pack->device_id == UNWDS_6LOWPAN_SYSTEM_MODULE_ID) && (header_up_pack->data_type == JOIN_STAGE_3))
 		{
-			/*Четвертая стадия авторизации*/
+			/* Четвертая стадия авторизации */
 			join_stage_4_sender((uip_ip6addr_t*)sender_addr, data, datalen);
 			
-			led_off(LED_A);		/*Выключаем светодиод*/
+			led_off(LED_A);		/* Выключаем светодиод */
 			return;
 		}
 		
 		else
 		{
-			/*Получаем nonce*/
+			/* Получаем nonce */
 			u8_u16_t nonce;
 			nonce.u16 = get_nonce((uip_ip6addr_t*)sender_addr);	
 			
-			/*Копируем полученный nonce и используем его в качестве сессионного ключа (AES128-CBC)*/
+			/* Копируем полученный nonce и используем его в качестве сессионного ключа (AES128-CBC) */
 			for(int i = 0; i < 16; i += 2)
 			{
 				nonce_key[i] = nonce.u8[1];	
 				nonce_key[i+1] = nonce.u8[0];	
 			}
 			
-			/*Расшифровываем данные*/
+			/* Расшифровываем данные */
 			aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[HEADER_DOWN_OFFSET], (uint32_t*)&data[HEADER_DOWN_OFFSET], iterator_to_byte(datalen - HEADER_UP_LENGTH));
 			
-			/*Вывод информационного сообщения в консоль*/
+			/* Вывод информационного сообщения в консоль */
 			// printf("Packet no crypto received(%"PRIu8"): ", datalen);
-			// for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
+			// for (uint16_t i = 0; i < datalen; i++)	/* Выводим принятый пакет */ 
 				// printf("%"PRIXX8, data[i]);
 			// printf("\n");
 			
-			/*Отражаем структуру на массив*/ 
+			/* Отражаем структуру на массив */ 
 			header_down_t *header_down_pack = (header_down_t*)&data[HEADER_DOWN_OFFSET];
 						
-			/*CRC16 проверка*/ 
+			/* CRC16 проверка */ 
 			if(header_down_pack->crc.u16 != crc16_arc((uint8_t*)&data[PAYLOAD_OFFSET], header_down_pack->length))
 			{
-				/*Вывод сообщения об ошибке целостности пакета*/
+				/* Вывод сообщения об ошибке целостности пакета */
 				printf("[");
 				uip_debug_ipaddr_print((uip_ip6addr_t*)sender_addr);
 				printf("] CRC16 Error!\n");
@@ -263,50 +382,50 @@ void root_udp_data_receiver(struct simple_udp_connection *connection,
 				return;
 			}
 			
-			/*Защита от атаки повтором*/
-			/*Проверяем счетчик пакетов на валидность данного пакета*/
+			/* Защита от атаки повтором */
+			/* Проверяем счетчик пакетов на валидность данного пакета */
 			if(!valid_counter((uip_ip6addr_t*)sender_addr, header_down_pack->counter.u16))
 			{
-				/*Вывод сообщения об ошибке счетчика пакетов*/
+				/* Вывод сообщения об ошибке счетчика пакетов */
 				printf("[");
 				uip_debug_ipaddr_print((uip_ip6addr_t*)sender_addr);
 				printf("] Counter error!\n");
 				
-				led_off(LED_A);		/*Выключаем светодиод*/
+				led_off(LED_A);		/* Выключаем светодиод */
 				return;
 			}
 			
-			/*Вывод принятого пакета микрокомпьютеру*/ 
+			/* Вывод принятого пакета микрокомпьютеру */ 
 			print_cr((uip_ip6addr_t*)sender_addr, (uint8_t*)data, (HEADER_LENGTH + header_down_pack->length));
 				
-			/*Проверяем ID модуля*/ 
-			/*UNWDS-6LOWPAN_SYSTEM*/
+			/* Проверяем ID модуля */ 
+			/* UNWDS-6LOWPAN_SYSTEM */
 			if(header_up_pack->device_id == UNWDS_6LOWPAN_SYSTEM_MODULE_ID)
 			{
 				if(header_up_pack->data_type == PING)
 				{
-					/*Pong*/
+					/* Pong */
 					pong_sender((uip_ip6addr_t*)sender_addr, (ping_t*)&data[PAYLOAD_OFFSET]);
 					
-					led_off(LED_A);		/*Выключаем светодиод*/
+					led_off(LED_A);		/* Выключаем светодиод */
 					return;
 				}
 				
 				else if(header_up_pack->data_type == ACK)
 				{
-					/*ACK*/
+					/* ACK */
 					ack_handler((uip_ip6addr_t*)sender_addr, (ack_t*)&data[PAYLOAD_OFFSET]);
 					
-					led_off(LED_A);		/*Выключаем светодиод*/
+					led_off(LED_A);		/* Выключаем светодиод */
 					return;
 				}
 				
 				else if(header_up_pack->data_type == NACK)
 				{
-					/*NACK*/
+					/* NACK */
 					nack_handler((uip_ip6addr_t*)sender_addr, (nack_t*)&data[PAYLOAD_OFFSET]);
 					
-					led_off(LED_A);		/*Выключаем светодиод*/
+					led_off(LED_A);		/* Выключаем светодиод */
 					return;
 				}
 				
@@ -317,91 +436,43 @@ void root_udp_data_receiver(struct simple_udp_connection *connection,
 					uip_debug_ipaddr_print((uip_ip6addr_t*)sender_addr);
 					printf("] Unknown command for system!\n");
 			
-					led_off(LED_A);		/*Выключаем светодиод*/
+					led_off(LED_A);		/* Выключаем светодиод */
 					return;
 				}
 			}
 			
 			/*UMDK-4BTN*/
-			if(header_up_pack->device_id == UNWDS_4BTN_MODULE_ID)
-			{
-				if(header_up_pack->data_type == BUTTON_STATUS)
-				{
-					/*Обработчик пакета с статусом нажатой кнопки*/
-					button_status_handler((uip_ip6addr_t*)sender_addr, (button_status_t*)&data[PAYLOAD_OFFSET]);
+			// if(header_up_pack->device_id == UNWDS_4BTN_MODULE_ID)
+			// {
+			// 	if(header_up_pack->data_type == BUTTON_STATUS)
+			// 	{
+			// 		/*Обработчик пакета с статусом нажатой кнопки*/
+			// 		button_status_handler((uip_ip6addr_t*)sender_addr, (button_status_t*)&data[PAYLOAD_OFFSET]);
 					
-					led_off(LED_A);		/*Выключаем светодиод*/
-					return;
-				}
+			// 		led_off(LED_A);		/*Выключаем светодиод*/
+			// 		return;
+			// 	}
 				
-				else
-				{	
-					/*Вывод сообщения об неизвестной команде*/
-					printf("[");
-					uip_debug_ipaddr_print((uip_ip6addr_t*)sender_addr);
-					printf("] Unknown command for UMDK-4BTN!\n");
+			// 	else
+			// 	{	
+			// 		/*Вывод сообщения об неизвестной команде*/
+			// 		printf("[");
+			// 		uip_debug_ipaddr_print((uip_ip6addr_t*)sender_addr);
+			// 		printf("] Unknown command for UMDK-4BTN!\n");
 			
-					led_off(LED_A);		/*Выключаем светодиод*/
-					return;
-				}
-			}
-		
-			/*UMDK-LIT*/
-			else if(header_up_pack->device_id == UNWDS_LIT_MODULE_ID)
-			{
-				if(header_up_pack->data_type == LIT_MEASURE_STATUS)
-				{
-					/*Обработчик пакета замера освещенности*/
-					lit_measure_status_handler((uip_ip6addr_t*)sender_addr, (lit_measure_status_t*)&data[PAYLOAD_OFFSET]);
-					
-					led_off(LED_A);		/*Выключаем светодиод*/
-					return;
-				}
-				
-				else
-				{	
-					/*Вывод сообщения об неизвестной команде*/
-					printf("[");
-					uip_debug_ipaddr_print((uip_ip6addr_t*)sender_addr);
-					printf("] Unknown command for UMDK-LIT!\n");
-			
-					led_off(LED_A);/*Выключаем светодиод*/
-					return;
-				}
-			}
-			
-			/*UMDK-UART*/
-			if(header_up_pack->device_id == UNWDS_UART_MODULE_ID)
-			{
-				if(header_up_pack->data_type == SEND_BY_UART)
-				{					
-					/*Обработчик пакета с данными для передачи по UART'*/
-					send_by_uart_handler((uip_ip6addr_t*)sender_addr, header_down_pack->length, (uint8_t*)&data[PAYLOAD_OFFSET]);
-					
-					led_off(LED_A);		/*Выключаем светодиод*/
-					return;
-				}
-				
-				else
-				{	
-					/*Вывод сообщения об неизвестной команде*/
-					printf("[");
-					uip_debug_ipaddr_print((uip_ip6addr_t*)sender_addr);
-					printf("] Unknown command for UMDK-UART!\n");
-			
-					led_off(LED_A);		/*Выключаем светодиод*/
-					return;
-				}
-			}
+			// 		led_off(LED_A);		/*Выключаем светодиод*/
+			// 		return;
+			// 	}
+			// }
 			
 			else
 			{	
-				/*Вывод сообщения о неизвестном модуле*/
+				/* Вывод сообщения о неизвестном модуле */
 				printf("[");
 				uip_debug_ipaddr_print((uip_ip6addr_t*)sender_addr);
 				printf("] Unknown module!\n");
 		
-				led_off(LED_A);		/*Выключаем светодиод*/
+				led_off(LED_A);		/* Выключаем светодиод */
 				return;
 			}
 		}	
@@ -409,143 +480,143 @@ void root_udp_data_receiver(struct simple_udp_connection *connection,
 	
 	else 
 	{
-		/*Вывод сообщения о неизвестном протоколе*/
+		/* Вывод сообщения о неизвестном протоколе */
 		printf("[");
 		uip_debug_ipaddr_print((uip_ip6addr_t*)sender_addr);
 		printf("] Unknown protocol version!\n");
 		
-		led_off(LED_A);		/*Выключаем светодиод*/
+		led_off(LED_A);		/* Выключаем светодиод */
 		return;
 	}
 }	
 
 /*---------------------------------------------------------------------------*/
-/*Вторая стадия авторизации*/
-/*Генерирует сессионный ключ (nonce) и отправляет его зашифрованым AES128-ECB, добавляет маршрут в таблицу*/
+/* Вторая стадия авторизации */
+/* Генерирует сессионный ключ (nonce) и отправляет его зашифрованым AES128-ECB, добавляет маршрут в таблицу */
 static void join_stage_2_sender(const uip_ip6addr_t *dest_addr, 
 								const uint8_t *data, 
 								const uint16_t length)
 {	
-	/*Вывод принятого пакета микрокомпьютеру*/ 
+	/* Вывод принятого пакета микрокомпьютеру */ 
 	print_cr((uip_ip6addr_t*)dest_addr, (uint8_t*)data, (HEADER_LENGTH + JOIN_STAGE_1_LENGTH));
 	
-	/*Выделяем память под пакет. Общий размер пакета (header + payload)*/
+	/* Выделяем память под пакет. Общий размер пакета (header + payload) */
 	uint8_t udp_buffer[HEADER_UP_LENGTH + JOIN_STAGE_2_PAYLOAD_LENGTH];
 	
-	/*Отражаем структуры на массивы*/ 
+	/* Отражаем структуры на массивы*/ 
 	header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
 	join_stage_2_t *join_stage_2_pack = (join_stage_2_t*)&udp_buffer[PAYLOAD_OFFSET];
 	
-	/*Заполняем пакет*/  
-	/*Header*/ 
-	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
-	header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
-	header_pack->data_type = JOIN_STAGE_2;						/*Тип пакета*/  
-	header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
-	header_pack->temperature = get_temperature();				/*Температура*/ 
-	header_pack->voltage = get_voltage();						/*Напряжение*/ 
-	header_pack->counter.u16 = packet_counter_root.u16;			/*Счетчик пакетов*/ 
-	header_pack->length = JOIN_STAGE_2_LENGTH;					/*Размер пакета (незашифрованного)*/
+	/* Заполняем пакет */  
+	/* Header */ 
+	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/* Текущая версия протокола */ 
+	header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/* ID устройства */
+	header_pack->data_type = JOIN_STAGE_2;						/* Тип пакета */  
+	header_pack->rssi = get_parent_rssi();						/* RSSI */ 
+	header_pack->temperature = get_temperature();				/* Температура */ 
+	header_pack->voltage = get_voltage();						/* Напряжение */ 
+	header_pack->counter.u16 = packet_counter_root.u16;			/* Счетчик пакетов */ 
+	header_pack->length = JOIN_STAGE_2_LENGTH;					/* Размер пакета (незашифрованного) */
 	
-	/*Payload*/ 
-	join_stage_2_pack->nonce.u16 = random_rand();				/*Генерируем сессионный ключ*/ 
+	/* Payload */ 
+	join_stage_2_pack->nonce.u16 = random_rand();				/*Генерируем сессионный ключ */ 
 	
-	/*Добавляем маршрут*/ 
-	add_route ( (uip_ip6addr_t*)dest_addr,						/*Address*/ 
-				join_stage_2_pack->nonce.u16);					/*Nonce*/ 
+	/* Добавляем маршрут */ 
+	add_route ( (uip_ip6addr_t*)dest_addr,						/* Address */ 
+				join_stage_2_pack->nonce.u16);					/* Nonce */ 
 	
-	/*Дозаполняем блок для шифрования нулями*/ 
+	/* Дозаполняем блок для шифрования нулями */ 
 	for(uint8_t i = JOIN_STAGE_2_LENGTH; i < (JOIN_STAGE_2_PAYLOAD_LENGTH - HEADER_DOWN_LENGTH); i++)
 		udp_buffer[PAYLOAD_OFFSET + i] = 0x00;
 	
-	/*CRC16*/ 
+	/* CRC16 */ 
 	header_pack->crc.u16 = crc16_arc((uint8_t*)&join_stage_2_pack, sizeof(join_stage_2_pack));
 	
-	/*Зашифровываем блок*/ 
+	/* Зашифровываем блок */ 
 	aes_ecb_encrypt((uint32_t*)aes_key, (uint32_t*)(&udp_buffer[HEADER_DOWN_OFFSET]), (uint32_t*)(&udp_buffer[HEADER_DOWN_OFFSET]));
 	
-	/*Отправляем пакет*/ 
+	/* Отправляем пакет */ 
 	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_UP_LENGTH + JOIN_STAGE_2_PAYLOAD_LENGTH), dest_addr);
-	packet_counter_root.u16++;	/*Инкрементируем счетчик пакетов*/ 
+	packet_counter_root.u16++;	/* Инкрементируем счетчик пакетов */ 
 }
 
 /*---------------------------------------------------------------------------*/
-/*Четвертая стадия авторизации*/
-/*Принимает nonce зашифрованный AES128-CBC. Если сходится с тем что он сгенерировал, то авторизация прошла успешно, настройки шифрования верные. Отправляем пакет с нулями что бы DAG мог убедиться в этом*/
+/* Четвертая стадия авторизации */
+/* Принимает nonce зашифрованный AES128-CBC. Если сходится с тем что он сгенерировал, то авторизация прошла успешно, настройки шифрования верные. Отправляем пакет с нулями что бы DAG мог убедиться в этом */
 static void join_stage_4_sender(const uip_ip6addr_t *dest_addr, 
 								const uint8_t *data, 
 								const uint16_t length)
 {	
-	/*Получаем nonce*/
+	/* Получаем nonce */
 	u8_u16_t nonce;
 	nonce.u16 = get_nonce((uip_ip6addr_t*)dest_addr);	
 	
-	/*Копируем полученный nonce и используем его в качестве сессионного ключа (AES128-CBC)*/
+	/* Копируем полученный nonce и используем его в качестве сессионного ключа (AES128-CBC) */
 	for(int i = 0; i < 16; i += 2)
 	{
 		nonce_key[i] = nonce.u8[1];	
 		nonce_key[i+1] = nonce.u8[0];	
 	}
 
-	/*Расшифровываем данные*/
+	/* Расшифровываем данные */
 	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[HEADER_DOWN_OFFSET], (uint32_t*)&data[HEADER_DOWN_OFFSET], CRYPTO_1_BLOCK_LENGTH);
 	
-	/*Вывод принятого пакета микрокомпьютеру*/ 
+	/* Вывод принятого пакета микрокомпьютеру */ 
 	print_cr((uip_ip6addr_t*)dest_addr, (uint8_t*)data, (HEADER_LENGTH + JOIN_STAGE_3_LENGTH));
 	
-	/*Отражаем структуры на массивы*/ 
+	/* Отражаем структуры на массивы */ 
 	join_stage_3_t *join_stage_3_pack = (join_stage_3_t*)&data[PAYLOAD_OFFSET];
 	
-	/*Заполняем payload*/
-	join_stage_4_t join_stage_4_pack;				/*Создаем структуру*/
+	/* Заполняем payload */
+	join_stage_4_t join_stage_4_pack;				/* Создаем структуру */
 	
-	/*Проверяем одинаковые ли у нас настройки шифрования*/ 
+	/* Проверяем одинаковые ли у нас настройки шифрования */ 
 	if((get_nonce((uip_ip6addr_t*)dest_addr) + 1) != join_stage_3_pack->nonce.u16)
 	{
 		join_stage_4_pack.status_code = false;
 		
-		/*Вывод сообщения об успешной авторизации*/
+		/* Вывод сообщения об успешной авторизации */
 		printf("[");
 		uip_debug_ipaddr_print((uip_ip6addr_t*)dest_addr);
 		printf("] Authorization error node\n");
 	}
 	
-	/*Если nonce'ы совпадают, то авторизация прошла успешно, шифрование настроенно правильно*/ 
+	/* Если nonce'ы совпадают, то авторизация прошла успешно, шифрование настроенно правильно */ 
 	else
 	{
-		join_stage_4_pack.status_code = true;		/*Статус код*/
-		unlock_addr((uip_ip6addr_t*)dest_addr);		/*Разрешаем обрабатывать пакеты принятые с авторизированного устройства*/
+		join_stage_4_pack.status_code = true;		/* Статус код */
+		unlock_addr((uip_ip6addr_t*)dest_addr);		/* Разрешаем обрабатывать пакеты принятые с авторизированного устройства */
 		
-		/*Вывод сообщения об успешной авторизации*/
+		/* Вывод сообщения об успешной авторизации */
 		printf("[");
 		uip_debug_ipaddr_print((uip_ip6addr_t*)dest_addr);
 		printf("] Authorized node\n");		
 	}
 			
-	/*Отправляем пакет*/
-	pack_sender(dest_addr, 						/*Адрес модуля*/
-				UNWDS_6LOWPAN_SYSTEM_MODULE_ID, /*Индентификатор модуля*/
-				JOIN_STAGE_4, 					/*Команда 4 стадии авторизации*/
-				JOIN_STAGE_4_LENGTH, 			/*Размер payload'а*/
-				(uint8_t*)&join_stage_4_pack);	/*Payload*/
+	/* Отправляем пакет */
+	pack_sender_root(dest_addr, 						/* Адрес модуля */
+					 UNWDS_6LOWPAN_SYSTEM_MODULE_ID, 	/* Индентификатор модуля */
+					 JOIN_STAGE_4, 						/* Команда 4 стадии авторизации */
+					 JOIN_STAGE_4_LENGTH, 				/* Размер payload'а */
+					 (uint8_t*)&join_stage_4_pack);		/* Payload */
 }
 
 /*---------------------------------------------------------------------------*/
-/*Pong*/
+/* Pong */
 static void pong_sender(const uip_ip6addr_t *dest_addr, 
 						ping_t *ping_pack)
 {
-	/*Заполняем payload*/
-	pong_t pong_pack;							/*Создаем структуру*/
+	/* Заполняем payload */
+	pong_t pong_pack;							/* Создаем структуру */
 	
-	pong_pack.status_code = true;				/*Статус код*/
+	pong_pack.status_code = true;				/* Статус код */
 	
-	/*Проверяем массив. Если nonce совпали, то настройки шифрования верны*/ 
+	/* Проверяем массив. Если nonce совпали, то настройки шифрования верны */ 
 	if(ping_pack->nonce.u16 == get_nonce((uip_ip6addr_t*)dest_addr))
 	{
 		pong_pack.status_code = true;
 		
-		/*Вывод сообщения об успешной авторизации*/
+		/* Вывод сообщения об успешной авторизации */
 		printf("[");
 		uip_debug_ipaddr_print((uip_ip6addr_t*)dest_addr);
 		printf("] Ping\n");
@@ -556,246 +627,127 @@ static void pong_sender(const uip_ip6addr_t *dest_addr,
 		pong_pack.status_code = false;
 	}
 		
-	/*Отправляем пакет*/
-	pack_sender(dest_addr, 						/*Адрес модуля*/
-				UNWDS_6LOWPAN_SYSTEM_MODULE_ID, /*Индентификатор модуля*/
-				PONG, 							/*Команда ответа на PING*/
-				PONG_LENGTH, 					/*Размер payload'а*/
-				(uint8_t*)&pong_pack);			/*Payload*/
+	/* Отправляем пакет */
+	pack_sender_root(dest_addr, 						/* Адрес модуля */
+					 UNWDS_6LOWPAN_SYSTEM_MODULE_ID, 	/* Индентификатор модуля */
+					 PONG, 								/* Команда ответа на PING */
+					 PONG_LENGTH, 						/* Размер payload'а */
+					 (uint8_t*)&pong_pack);				/* Payload */
 }
 
 /*---------------------------------------------------------------------------*/
-/*ACK*/
+/* ACK */
 static void ack_handler(const uip_ip6addr_t *dest_addr, 
 						ack_t *ack_pack)
 {	
-	/*Вывод сообщения о успешной доставке пакета*/
+	/* Вывод сообщения о успешной доставке пакета */
 	printf("[");
 	uip_debug_ipaddr_print((uip_ip6addr_t*)dest_addr);
 	printf("] Package %i is confirmed\n", ack_pack->counter.u16);
 }
 
 /*---------------------------------------------------------------------------*/
-/*NACK*/
+/* NACK */
 static void nack_handler(const uip_ip6addr_t *dest_addr, 
-						nack_t *nack_pack)
+						 nack_t *nack_pack)
 {
-	/*Вывод сообщения о неуспешной доставке пакета*/
+	/* Вывод сообщения о неуспешной доставке пакета */
 	printf("[");
 	uip_debug_ipaddr_print((uip_ip6addr_t*)dest_addr);
 	printf("] Package %i is't confirmed\n", nack_pack->counter.u16);
 }
 
 /*---------------------------------------------------------------------------*/
-/*Обработчик нажатой кнопки*/
-static void button_status_handler ( const uip_ip6addr_t *dest_addr, 
-									button_status_t *button_status_pack)
-{
-	bool long_click = ((button_status_pack->button_status & LONG_CLICK) >> 7);
-	uint8_t dio = button_status_pack->button_status & DIO_MASK;
-
-	/*Вывод сообщения об успешной авторизации*/
-	printf("[");
-	uip_debug_ipaddr_print((uip_ip6addr_t*)dest_addr);
-	printf("] ");
-	
-	if((dio == BOARD_IOID_KEY_A) && (!long_click))
-		printf("Button A click\n");
-	else if((dio == BOARD_IOID_KEY_A) && long_click)
-		printf("Button A long click\n");
-	
-	else if((dio == BOARD_IOID_KEY_B) && (!long_click))
-		printf("Button B click\n");
-	else if((dio == BOARD_IOID_KEY_B) && long_click)
-		printf("Button B long click\n");
-	
-	else if((dio == BOARD_IOID_KEY_C) && (!long_click))
-		printf("Button C click\n");
-	else if((dio == BOARD_IOID_KEY_C) && long_click)
-		printf("Button C long click\n");
-	
-	else if((dio == BOARD_IOID_KEY_D) && (!long_click))
-		printf("Button D click\n");
-	else if((dio == BOARD_IOID_KEY_D) && long_click)
-		printf("Button D long click\n");
-	
-	else if((dio == BOARD_IOID_KEY_E) && (!long_click))
-		printf("Button E click\n");
-	else if((dio == BOARD_IOID_KEY_E) && long_click)
-		printf("Button E long click\n");
-	
-	else
-		printf("Button error\n");
-}
-
-/*---------------------------------------------------------------------------*/
-/*Обработчик пакета с измерением освещенности*/
-static void lit_measure_status_handler( const uip_ip6addr_t *dest_addr, 
-										lit_measure_status_t *lit_measure_status_pack)
-{
-	/*Вывод сообщения об успешной авторизации*/
-	printf("[");
-	uip_debug_ipaddr_print((uip_ip6addr_t*)dest_addr);
-	printf("] Luminocity: %lu lux\n", lit_measure_status_pack->lit_measure_status);
-}
-
-/*---------------------------------------------------------------------------*/
-/*Обработчик пакета с данными для передачи по UART'*/
-static void send_by_uart_handler(const uip_ip6addr_t *dest_addr, 
-								uint8_t uart_lenght, 
-								uint8_t *uart_message)
-{
-	/*Ожидаем завершения передачи*/
-	while(ti_lib_uart_busy(UART0_BASE));
-
-	/*Отсоединяем пин от UART'а*/ 
-	ti_lib_gpio_set_dio(BOARD_IOID_UART_TX);
-	ti_lib_gpio_set_output_enable_dio(BOARD_IOID_UART_TX, GPIO_OUTPUT_ENABLE);
-	ti_lib_ioc_port_configure_set(BOARD_IOID_UART_TX, IOC_PORT_GPIO, IOC_OUTPUT_PULL_UP);
-
-	/*Присоединяем пин к UART'у*/ 
-	ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_TX, IOC_PORT_MCU_UART0_TX, IOC_STD_OUTPUT);
-	
-	/*Выводим принятый пакет*/
-	for (uint8_t i = 0; i < uart_lenght; i++)	
-	{
-		while(!ti_lib_uart_char_put_non_blocking(UART0_BASE, uart_message[i]));
-	}
-	
-	/*Ожидаем завершения передачи*/
-	while(ti_lib_uart_busy(UART0_BASE));
-	
-	/*Отсоединяем пин от UART'а*/ 
-	ti_lib_gpio_set_dio(BOARD_IOID_ALT_UART_TX);
-	ti_lib_gpio_set_output_enable_dio(BOARD_IOID_ALT_UART_TX, GPIO_OUTPUT_ENABLE);
-	ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_TX, IOC_PORT_GPIO, IOC_OUTPUT_PULL_UP);
-
-	/*Присоединяем пин к UART'у*/ 
-	ti_lib_ioc_port_configure_set(BOARD_IOID_UART_TX, IOC_PORT_MCU_UART0_TX, IOC_STD_OUTPUT);
-}
-
-/*---------------------------------------------------------------------------*/
-/*Отправка настроек канала ШИМ'а*/
+/* Отправка настроек канала ШИМ'а */
 void pwm_settings_sender(const uip_ip6addr_t *dest_addr, 
-						uint8_t channel, 
-						uint32_t frequency, 
-						uint8_t duty)
+						 uint8_t channel, 
+						 uint32_t frequency, 
+						 uint8_t duty)
 {	
-	/*Заполняем payload*/
-	pwm_settings_t pwm_settings_pack;				/*Создаем структуру*/
+	/* Заполняем payload */
+	pwm_settings_t pwm_settings_pack;					/* Создаем структуру */
 	
-	pwm_settings_pack.channel = channel;			/*Номер канала*/
-	pwm_settings_pack.frequency = frequency;		/*Частота*/
-	pwm_settings_pack.duty = duty;					/*Коэффицент заполненния*/
+	pwm_settings_pack.channel = channel;				/* Номер канала */
+	pwm_settings_pack.frequency = frequency;			/* Частота */
+	pwm_settings_pack.duty = duty;						/* Коэффицент заполненния */
 			
-	/*Отправляем пакет*/
-	pack_sender(dest_addr, 							/*Адрес модуля UMDK-6FET*/
-				UNWDS_6FET_MODULE_ID, 				/*Индентификатор модуля UMDK-6FET*/
-				PWM_SETTINGS, 						/*Команда настройки канала ШИМ'а*/
-				PWM_SETTINGS_LENGTH, 				/*Размер payload'а*/
-				(uint8_t*)&pwm_settings_pack);		/*Payload*/
+	/* Отправляем пакет */
+	pack_sender_root(dest_addr, 						/* Адрес модуля UMDK-6FET */
+					 UNWDS_6FET_MODULE_ID, 				/* Индентификатор модуля UMDK-6FET */
+					 PWM_SETTINGS, 						/* Команда настройки канала ШИМ'а */
+					 PWM_SETTINGS_LENGTH, 				/* Размер payload'а */
+					 (uint8_t*)&pwm_settings_pack);		/* Payload */
 }
 
 /*---------------------------------------------------------------------------*/
-/*Отправка команды включения/выключения канала ШИМ'а*/
+/* Отправка команды включения/выключения канала ШИМ'а */
 void pwm_power_channel_sender ( const uip_ip6addr_t *dest_addr, 
 								uint8_t channel, 
 								uint8_t pwm_power_channel)
 {
-	/*Заполняем payload*/
-	pwm_power_t pwm_power_pack;					/*Создаем структуру*/
+	/* Заполняем payload */
+	pwm_power_t pwm_power_pack;					/* Создаем структуру */
 	
-	pwm_power_pack.pwm_power = channel;			/*Номер канала*/
+	pwm_power_pack.pwm_power = channel;			/* Номер канала */
 	
-	if(pwm_power_channel)						/*Если включить, то устанавливаем старший бит в единицу*/
+	if(pwm_power_channel)						/* Если включить, то устанавливаем старший бит в единицу */
 		pwm_power_pack.pwm_power |= 0x80;			
 			
-	/*Отправляем пакет*/
-	pack_sender(dest_addr, 						/*Адрес модуля UMDK-6FET*/
-				UNWDS_6FET_MODULE_ID, 			/*Индентификатор модуля UMDK-6FET*/
-				PWM_POWER, 						/*Команда включения канала ШИМ'а*/
-				PWM_POWER_LENGTH, 				/*Размер payload'а*/
-				(uint8_t*)&pwm_power_pack);		/*Payload*/
-}
-/*---------------------------------------------------------------------------*/
-/*Совершить замер освещенности*/
-void lit_measurement_sender(const uip_ip6addr_t *dest_addr)
-{
-	/*Отправляем пакет c запросом освещенности*/
-	pack_sender(dest_addr, 						/*Адрес модуля UMDK-6FET*/
-				UNWDS_LIT_MODULE_ID, 			/*Индентификатор модуля UMDK-LIT*/
-				LIT_MEASURE, 					/*Команда измерения освещенности*/
-				LIT_MEASURE_LENGTH, 			/*Размер payload'а*/
-				NULL);							/*Payload'а нет*/ 
+	/* Отправляем пакет */
+	pack_sender_root(dest_addr, 						/* Адрес модуля UMDK-6FET */
+					 UNWDS_6FET_MODULE_ID, 				/* Индентификатор модуля UMDK-6FET */
+					 PWM_POWER, 						/* Команда включения канала ШИМ'а */
+					 PWM_POWER_LENGTH, 					/* Размер payload'а */
+					 (uint8_t*)&pwm_power_pack);		/* Payload */
 }
 
 /*---------------------------------------------------------------------------*/
-/*Отправка команды для ножки порта*/
-void gpio_command_sender(const uip_ip6addr_t *dest_addr,
-						uint8_t pin,
-						uint8_t command)
+/* Конструктор пакета */
+void pack_sender_root(const uip_ip6addr_t *dest_addr, 
+				      uint8_t device_id, 
+					  uint8_t data_type, 
+					  uint8_t payload_len, 
+					  uint8_t *payload)
 {
-	/*Заполняем payload*/
-	gpio_command_t gpio_command_pack;			/*Создаем структуру*/
-	
-	gpio_command_pack.pin = pin;				/*Номер ножки порта которую будем переводить в нужное состояние*/
-	gpio_command_pack.command = command;		/*Команда для ножки порта*/
-		
-	/*Отправляем пакет c запросом освещенности*/
-	pack_sender(dest_addr, 						/*Адрес модуля UMDK-6FET*/
-				UNWDS_GPIO_MODULE_ID, 			/*Индентификатор модуля UMDK-LIT*/
-				GPIO_CMD, 						/*Команда измерения освещенности*/
-				GPIO_CMD_LENGTH, 				/*Размер payload'а*/
-				(uint8_t*)&gpio_command_pack);	/*Payload*/ 
-}
-
-/*---------------------------------------------------------------------------*/
-/*Конструктор пакета*/
-void pack_sender(const uip_ip6addr_t *dest_addr, 
-				uint8_t device_id, 
-				uint8_t data_type, 
-				uint8_t payload_len, 
-				uint8_t *payload)
-{
-	/*Проверка на то что передан существующий адрес*/
+	/* Проверка на то что передан существующий адрес */
 	if (dest_addr == NULL)
 		return;
 	
-	/*Проверка на то что передан не нулевой адрес буфера*/
+	/* Проверка на то что передан не нулевой адрес буфера */
 	if ((payload == NULL) && (payload_len != 0))
 		return;
 	
-	/*Выделяем память под пакет. Общий размер пакета (header + payload)*/
+	/* Выделяем память под пакет. Общий размер пакета (header + payload) */
 	uint8_t crypto_length = iterator_to_byte(HEADER_DOWN_LENGTH + payload_len);
 	uint8_t udp_buffer[HEADER_UP_LENGTH + crypto_length];
 	
-	/*Отражаем структуры на массивы*/ 
+	/* Отражаем структуры на массивы */ 
 	header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
 	
-	/*Получаем nonce*/
+	/* Получаем nonce */
 	u8_u16_t nonce;
 	nonce.u16 = get_nonce((uip_ip6addr_t*)dest_addr);	
 	
-	/*Копируем полученный nonce и используем его в качестве сессионного ключа (AES128-CBC)*/
+	/* Копируем полученный nonce и используем его в качестве сессионного ключа (AES128-CBC) */
 	for(int i = 0; i < 16; i += 2)
 	{
 		nonce_key[i] = nonce.u8[1];	
 		nonce_key[i+1] = nonce.u8[0];	
 	}
 	
-	/*Заполняем пакет*/  
-	/*Header*/ 
-	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
-	header_pack->device_id = device_id;							/*ID устройства*/
-	header_pack->data_type = data_type;							/*Тип пакета*/  
-	header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
-	header_pack->temperature = get_temperature();				/*Температура*/ 
-	header_pack->voltage = get_voltage();						/*Напряжение*/ 
-	header_pack->counter.u16 = packet_counter_root.u16;			/*Счетчик пакетов*/ 
-	header_pack->length = payload_len;							/*Размер пакета (незашифрованного)*/
+	/* Заполняем пакет */  
+	/* Header */ 
+	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/* Текущая версия протокола */ 
+	header_pack->device_id = device_id;							/* ID устройства */
+	header_pack->data_type = data_type;							/* Тип пакета */  
+	header_pack->rssi = get_parent_rssi();						/* RSSI */ 
+	header_pack->temperature = get_temperature();				/* Температура */ 
+	header_pack->voltage = get_voltage();						/* Напряжение */ 
+	header_pack->counter.u16 = packet_counter_root.u16;			/* Счетчик пакетов */ 
+	header_pack->length = payload_len;							/* Размер пакета (незашифрованного) */
 	
-	/*Payload*/ 	
-	/*Pаполняем пакет, зашифровываем и отправляем его DAG'у. */ 
+	/* Payload */ 	
+	/* Pаполняем пакет, зашифровываем и отправляем его DAG'у. */ 
 	for(uint8_t i = 0; i < (crypto_length - HEADER_DOWN_LENGTH); i++)
 	{
 		if(i < payload_len)
@@ -804,10 +756,10 @@ void pack_sender(const uip_ip6addr_t *dest_addr,
 			udp_buffer[PAYLOAD_OFFSET + i] = 0x00;
 	}
 	
-	/*CRC16*/ 
+	/* CRC16 */ 
 	header_pack->crc.u16 = crc16_arc((uint8_t*)&udp_buffer[PAYLOAD_OFFSET], header_pack->length);
 	
-	/*Для отладки. Выводит содержимое пакета*/ 
+	/* Для отладки. Выводит содержимое пакета */ 
 	// printf("Pack: \n");
 	// hexraw_print(16, (uint8_t*)dest_addr);
 	// hexraw_print(1, (uint8_t*)&(header_pack->device_id));
@@ -820,32 +772,32 @@ void pack_sender(const uip_ip6addr_t *dest_addr,
 	// hexraw_print((HEADER_UP_LENGTH + crypto_length), (uint8_t*)udp_buffer);
 	// printf("\n");
 	
-	/*Зашифровываем данные*/
+	/* Зашифровываем данные */
 	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)(&udp_buffer[HEADER_DOWN_OFFSET]), (uint32_t*)(&udp_buffer[HEADER_DOWN_OFFSET]), crypto_length);
 	
-	/*Отправляем пакет*/ 
+	/* Отправляем пакет */ 
 	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_UP_LENGTH + crypto_length), dest_addr);
-	packet_counter_root.u16++;		/*Инкрементируем счетчик пакетов*/
+	packet_counter_root.u16++;		/* Инкрементируем счетчик пакетов */
 }
 
 /*---------------------------------------------------------------------------*/
-/*Конструктор пакета из UART*/
+/* Конструктор пакета из UART */
 static void send_pack_from_cr(uint8_t* data)
 {
-	/*Отражаем структуры на массивы*/ 
+	/* Отражаем структуры на массивы */ 
 	uart_header_t *uart_header_pack = (uart_header_t*)&data[1];
 	
-	/*Для отладки. Выводит содержимое пакета*/
+	/* Для отладки. Выводит содержимое пакета */
 	// printf("uart_event_message: ");	
 	// hexraw_print(data[0], (uint8_t*)&data[1]);
 	// printf("\n");
 	
-	/*Отправляем пакет*/ 
-	pack_sender(&(uart_header_pack->dest_addr), 	/*Адрес модуля*/
-				uart_header_pack->device_id, 		/*Индентификатор модуля*/
-				uart_header_pack->data_type, 		/*Команда*/
-				uart_header_pack->payload_len, 		/*Размер payload'а*/
-				(uint8_t*)&data[20] );				/*Payload*/
+	/* Отправляем пакет */ 
+	pack_sender_root(&(uart_header_pack->dest_addr), 	/* Адрес модуля */
+					 uart_header_pack->device_id, 		/* Индентификатор модуля */
+					 uart_header_pack->data_type, 		/* Команда */
+					 uart_header_pack->payload_len, 		/* Размер payload'а */
+					 (uint8_t*)&data[20] );				/* Payload */
 }
 
 /*---------------------------------------------------------------------------*/
@@ -854,10 +806,10 @@ static void print_cr(const uip_ip6addr_t *dest_addr,
 					uint8_t* data, 
 					uint8_t length)
 {
-	/*Ожидаем завершения передачи*/
+	/* Ожидаем завершения передачи */
 	while(ti_lib_uart_busy(UART0_BASE));
 
-	/*Отсоединяем пин от UART'а*/ 
+	/* Отсоединяем пин от UART'а */ 
 	ti_lib_gpio_set_dio(BOARD_IOID_UART_TX);
 	ti_lib_gpio_set_output_enable_dio(BOARD_IOID_UART_TX, GPIO_OUTPUT_ENABLE);
 	ti_lib_ioc_port_configure_set(BOARD_IOID_UART_TX, IOC_PORT_GPIO, IOC_OUTPUT_PULL_UP);
@@ -865,40 +817,40 @@ static void print_cr(const uip_ip6addr_t *dest_addr,
 	/*Присоединяем пин к UART'у*/ 
 	ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_TX, IOC_PORT_MCU_UART0_TX, IOC_STD_OUTPUT);
 
-	/*Выводим адрес отправителя*/
+	/* Выводим адрес отправителя */
 	for (uint8_t i = 0; i < sizeof(uip_ip6addr_t); i++)	
 	{
 		while(!ti_lib_uart_char_put_non_blocking(UART0_BASE, dest_addr->u8[i]));
 	}
 	
-	/*Выводим принятый пакет*/
+	/* Выводим принятый пакет */
 	for (uint8_t i = 0; i < length; i++)	
 	{
 		while(!ti_lib_uart_char_put_non_blocking(UART0_BASE, data[i]));
 	}
 	
-	/*Ожидаем завершения передачи*/
+	/* Ожидаем завершения передачи */
 	while(ti_lib_uart_busy(UART0_BASE));
 	
-	/*Отсоединяем пин от UART'а*/ 
+	/* Отсоединяем пин от UART'а */ 
 	ti_lib_gpio_set_dio(BOARD_IOID_ALT_UART_TX);
 	ti_lib_gpio_set_output_enable_dio(BOARD_IOID_ALT_UART_TX, GPIO_OUTPUT_ENABLE);
 	ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_TX, IOC_PORT_GPIO, IOC_OUTPUT_PULL_UP);
 
-	/*Присоединяем пин к UART'у*/ 
+	/* Присоединяем пин к UART'у */ 
 	ti_lib_ioc_port_configure_set(BOARD_IOID_UART_TX, IOC_PORT_MCU_UART0_TX, IOC_STD_OUTPUT);
 }
 
 /*---------------------------------------------------------------------------*/
-/*Иннициализация RPL*/
+/* Иннициализация RPL */
 void rpl_initialize()
 {
-	/*Устанавливаем режим работы MASH*/
+	/* Устанавливаем режим работы MASH */
 	rpl_set_mode(RPL_MODE_MESH);
 
 	static uip_ipaddr_t ipaddr;
 	
-	/*Инициализируем нулевой адрес*/
+	/* Инициализируем нулевой адрес */
 	uip_ip6addr(&null_addr, 0, 0, 0, 0, 0, 0, 0, 0);
 
 	/* Fill in the address with zeros and the local prefix */
@@ -947,228 +899,165 @@ bool node_is_root(void)
 }
 
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+/* ФУНКЦИИ DAG'а */
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
-/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
-/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
-/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
-/*Обработчик принятых пакетов*/
-static void udp_receiver(struct simple_udp_connection *c,
-						const uip_ipaddr_t *sender_addr,
-						uint16_t sender_port,
-						const uip_ipaddr_t *receiver_addr,
-						uint16_t receiver_port,
-						const uint8_t *data, 
-						uint16_t datalen)
+/* Обработчик принятых пакетов */
+static void dag_udp_data_receiver(struct simple_udp_connection *c,
+								  const uip_ipaddr_t *sender_addr,
+								  uint16_t sender_port,
+								  const uip_ipaddr_t *receiver_addr,
+								  uint16_t receiver_port,
+								  const uint8_t *data, 
+								  uint16_t datalen)
 {
-	/*Отражаем структуру на массив*/ 
+	/* Отражаем структуру на массив */ 
 	header_up_t *header_up_pack = (header_up_t*)&data[HEADER_OFFSET];
 
-	/*Вывод информационного сообщения в консоль*/
+	/* Вывод информационного сообщения в консоль */
 	// printf("[DAG Node]: UDP crypto packet received(%"PRIu8"): ", datalen);
-	// for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
+	// for (uint16_t i = 0; i < datalen; i++)	/* Выводим принятый пакет */ 
 		// printf("%"PRIXX8, data[i]);
 	// printf("\n");
 	
-	/*Проверяем версию протокола*/ 
+	/* Проверяем версию протокола */ 
 	if(header_up_pack->protocol_version == UDBP_PROTOCOL_VERSION)
 	{
 
-		/*Проверяем ID модуля и тип пакета*/ 
+		/* Проверяем ID модуля и тип пакета */ 
 		if((header_up_pack->device_id == UNWDS_6LOWPAN_SYSTEM_MODULE_ID) && (header_up_pack->data_type == JOIN_STAGE_2))
 		{
-			/*Третья стадия авторизации*/
+			/* Третья стадия авторизации */
 			join_stage_3_sender(sender_addr, data, datalen);
 			
-			led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
+			led_mode_set(LED_FLASH);	/* Мигаем светодиодом */
 			return;
 		}
 		
 		else if((header_up_pack->device_id == UNWDS_6LOWPAN_SYSTEM_MODULE_ID) && (header_up_pack->data_type == JOIN_STAGE_4))
 		{
-			/*Обработчик четвертой стадии авторизации*/
+			/* Обработчик четвертой стадии авторизации */
 			join_stage_4_handler(sender_addr, data, datalen);
 			
-			led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
+			led_mode_set(LED_FLASH);	/* Мигаем светодиодом */
 			return;
 		}
 		
 		else 
 		{	
-			/*Расшифровываем данные*/
+			/* Расшифровываем данные */
 			aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[HEADER_DOWN_OFFSET], (uint32_t*)&data[HEADER_DOWN_OFFSET], iterator_to_byte(datalen - HEADER_UP_LENGTH));
 
 			/*Вывод информационного сообщения в консоль*/
 			// printf("DAG Node: UDP no crypto packet received(%"PRIu8"): ", datalen);
-			// for (uint16_t i = 0; i < datalen; i++)	/*Выводим принятый пакет*/ 
+			// for (uint16_t i = 0; i < datalen; i++)	/* Выводим принятый пакет */ 
 				// printf("%"PRIXX8, data[i]);
 			// printf("\n");
 			
-			/*Отражаем структуру на массив*/ 
+			/* Отражаем структуру на массив */ 
 			header_down_t *header_down_pack = (header_down_t*)&data[HEADER_DOWN_OFFSET];
 			
 			
-			/*CRC16 проверка*/ 
+			/* CRC16 проверка */ 
 			if(header_down_pack->crc.u16 != crc16_arc((uint8_t*)&data[PAYLOAD_OFFSET], header_down_pack->length))
 			{
-				/*Вывод сообщения об ошибке целостности пакета*/
+				/* Вывод сообщения об ошибке целостности пакета */
 				printf("[DAG Node] CRC16 Error!\n");
 				
-				led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
+				led_mode_set(LED_FLASH);	/* Мигаем светодиодом */
 				return;
 			}
 			
-			/*Защита от атаки повтором*/
-			/*Проверяем счетчик пакетов на валидность данного пакета*/
+			/* Защита от атаки повтором */
+			/* Проверяем счетчик пакетов на валидность данного пакета */
 			if(packet_counter_root.u16 >= header_down_pack->counter.u16)
 			{	
-				/*Вывод сообщения об ошибке счетчика пакетов*/
+				/* Вывод сообщения об ошибке счетчика пакетов */
 				printf("[DAG Node] Counter error!\n");
 				
-				led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
+				led_mode_set(LED_FLASH);	/* Мигаем светодиодом */
 				return;
 			}
 			
-			/*Обновляем значение счетчика ROOT'а*/
+			/* Обновляем значение счетчика ROOT'а */
 			packet_counter_root.u16 = header_down_pack->counter.u16;	
 			
-			/*Проверяем ID модуля*/ 
-			/*UNWDS-6LOWPAN_SYSTEM*/
+			/* Проверяем ID модуля */ 
+			/* UNWDS-6LOWPAN_SYSTEM */
 			if(header_up_pack->device_id == UNWDS_6LOWPAN_SYSTEM_MODULE_ID)
 			{
 				if(header_up_pack->data_type == PONG)
 				{
-					/*Pong*/
+					/* Pong */
 					pong_handler(sender_addr, (pong_t*)&data[PAYLOAD_OFFSET]);
 					
-					led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
+					led_mode_set(LED_FLASH);	/* Мигаем светодиодом */
 					return;
 				}
 
 				else
 				{
-					/*Вывод сообщения об неизвестной команде*/
+					/* Вывод сообщения об неизвестной команде */
 					printf("[DAG Node] Unknown command for system!\n");
 			
-					/*Отправляем пакет об ошибке*/
+					/* Отправляем пакет об ошибке */
 					nack_sender(header_down_pack->counter.u16);
 					
-					led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
+					led_mode_set(LED_FLASH);	/* Мигаем светодиодом */
 					return;
 				}
 					
 			}
-			
-#ifdef UMDK_6FET 			
-			/*UMDK-6FET*/ 
+				
+			/* UMDK-6FET */ 
 			if(header_up_pack->device_id == UNWDS_6FET_MODULE_ID)
 			{
 				if(header_up_pack->data_type == PWM_SETTINGS)
 				{
-					/*Инициализация с заданными настройками канала ШИМ'а*/
+					/* Инициализация с заданными настройками канала ШИМ'а */
 					if(dag_pwm_settings(sender_addr, (pwm_settings_t*)&data[PAYLOAD_OFFSET]))
-						ack_sender(header_down_pack->counter.u16);		/*Отправляем пакет о подтверждении*/
+						ack_sender(header_down_pack->counter.u16);		/* Отправляем пакет о подтверждении */
 					else
-						nack_sender(header_down_pack->counter.u16);		/*Отправляем пакет об ошибке*/
+						nack_sender(header_down_pack->counter.u16);		/* Отправляем пакет об ошибке */
 					
-					led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
+					led_mode_set(LED_FLASH);	/* Мигаем светодиодом */
 					return;
 				}
 				
 				else if(header_up_pack->data_type == PWM_POWER)
 				{
-					/*Включение/выключение канала ШИМ'а*/
+					/* Включение/выключение канала ШИМ'а */
 					if(dag_pwm_power(sender_addr, (pwm_power_t*)&data[PAYLOAD_OFFSET]))
-						ack_sender(header_down_pack->counter.u16);		/*Отправляем пакет о подтверждении*/
+						ack_sender(header_down_pack->counter.u16);		/* Отправляем пакет о подтверждении */
 					else
-						nack_sender(header_down_pack->counter.u16);		/*Отправляем пакет об ошибке*/
+						nack_sender(header_down_pack->counter.u16);		/* Отправляем пакет об ошибке */
 					
-					led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
+					led_mode_set(LED_FLASH);	/* Мигаем светодиодом */
 					return;
 				}
 				
 				else
 				{
-					/*Вывод сообщения об неизвестной команде*/
+					/* Вывод сообщения об неизвестной команде */
 					printf("[DAG Node] Unknown command for UMDK-6FET!\n");
 					
-					/*Отправляем пакет об ошибке*/
+					/* Отправляем пакет об ошибке */
 					nack_sender(header_down_pack->counter.u16);
 					
-					led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
+					led_mode_set(LED_FLASH);	/* Мигаем светодиодом */
 					return;
 				}
 					
 			}
-#endif
 
-#ifdef UMDK_LIT
-			/*UMDK-LIT*/ 
-			else if(header_up_pack->device_id == UNWDS_LIT_MODULE_ID)
-			{
-				if(header_up_pack->data_type == LIT_MEASURE)
-				{
-					/*Совершить замер освещенности*/
-					if(dag_lit_measure_sender())
-						ack_sender(header_down_pack->counter.u16);		/*Отправляем пакет о подтверждении*/
-					else
-						nack_sender(header_down_pack->counter.u16);		/*Отправляем пакет об ошибке*/
-					
-					led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
-					return;
-				}
-				
-				else
-				{
-					/*Вывод сообщения об неизвестной команде*/
-					printf("[DAG Node] Unknown command for UMDK-LIT!\n");
-					
-					/*Отправляем пакет об ошибке*/
-					nack_sender(header_down_pack->counter.u16);
-					
-					led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
-					return;
-				}	
-			}
-#endif
-
-#ifdef UMDK_GPIO
-			/*UMDK-GPIO*/ 
-			else if(header_up_pack->device_id == UNWDS_GPIO_MODULE_ID)
-			{
-				if(header_up_pack->data_type == GPIO_CMD)
-				{
-					/*Совершить замер освещенности*/
-					if(dag_gpio_command(sender_addr, (gpio_command_t*)&data[PAYLOAD_OFFSET]))
-						ack_sender(header_down_pack->counter.u16);		/*Отправляем пакет о подтверждении*/
-					else
-						nack_sender(header_down_pack->counter.u16);		/*Отправляем пакет об ошибке*/
-					
-					led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
-					return;
-				}
-				
-				else
-				{
-					/*Вывод сообщения об неизвестной команде*/
-					printf("[DAG Node] Unknown command for UMDK-GPIO!\n");
-					
-					/*Отправляем пакет об ошибке*/
-					nack_sender(header_down_pack->counter.u16);
-					
-					led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
-					return;
-				}	
-			}
-#endif
 			else
 			{
-				/*Вывод сообщения о неизвестном модуле*/
+				/* Вывод сообщения о неизвестном модуле */
 				printf("[DAG Node] Unknown module!\n");
 				
-				/*Отправляем пакет об ошибке*/
+				/* Отправляем пакет об ошибке */
 				nack_sender(header_down_pack->counter.u16);
 				
-				led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
+				led_mode_set(LED_FLASH);	/* Мигаем светодиодом */
 				return;
 			}
 		}
@@ -1176,45 +1065,45 @@ static void udp_receiver(struct simple_udp_connection *c,
 	
 	else
 	{
-		/*Вывод сообщения о неизвестном протоколе*/
+		/* Вывод сообщения о неизвестном протоколе */
 		printf("[DAG Node] Unknown protocol version!\n");
 		
-		led_mode_set(LED_FLASH);	/*Мигаем светодиодом*/
+		led_mode_set(LED_FLASH);	/* Мигаем светодиодом */
 		return;
 	}
 }
 
 /*---------------------------------------------------------------------------*/
-/*Конструктор пакета*/
-void pack_sender(uint8_t device_id, 
-				uint8_t data_type, 
-				uint8_t payload_len, 
-				uint8_t *payload)
+/* Конструктор пакета */
+void pack_sender_dag(uint8_t device_id, 
+					 uint8_t data_type, 
+					 uint8_t payload_len, 
+					 uint8_t *payload)
 {	
-	/*Проверка на то что передан не нулевой адрес буфера*/
+	/* Проверка на то что передан не нулевой адрес буфера */
 	if ((payload == NULL) && (payload_len != 0))
 		return;
 		
-	/*Выделяем память под пакет. Общий размер пакета (header + payload)*/
+	/* Выделяем память под пакет. Общий размер пакета (header + payload) */
 	uint8_t crypto_length = iterator_to_byte(HEADER_DOWN_LENGTH + payload_len);
 	uint8_t udp_buffer[HEADER_UP_LENGTH + crypto_length];
 	
-	/*Отражаем структуры на массивы*/ 
+	/* Отражаем структуры на массивы */ 
 	header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
 	
-	/*Заполняем пакет*/  
-	/*Header*/ 
-	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
-	header_pack->device_id = device_id;							/*ID устройства*/
-	header_pack->data_type = data_type;							/*Тип пакета*/  
-	header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
-	header_pack->temperature = get_temperature();				/*Температура*/ 
-	header_pack->voltage = get_voltage();						/*Напряжение*/ 
-	header_pack->counter.u16 = packet_counter_node.u16;			/*Счетчик пакетов*/ 
-	header_pack->length = payload_len;							/*Размер пакета (незашифрованного)*/
+	/* Заполняем пакет */  
+	/* Header */ 
+	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/* Текущая версия протокола */ 
+	header_pack->device_id = device_id;							/* ID устройства */
+	header_pack->data_type = data_type;							/* Тип пакета */  
+	header_pack->rssi = get_parent_rssi();						/* RSSI */ 
+	header_pack->temperature = get_temperature();				/* Температура */ 
+	header_pack->voltage = get_voltage();						/* Напряжение */ 
+	header_pack->counter.u16 = packet_counter_node.u16;			/* Счетчик пакетов */ 
+	header_pack->length = payload_len;							/* Размер пакета (незашифрованного) */
 	
-	/*Payload*/ 	
-	/*Pаполняем пакет, зашифровываем и отправляем его DAG'у. */ 
+	/* Payload */ 	
+	/* Pаполняем пакет, зашифровываем и отправляем его DAG'у. */ 
 	for(uint8_t i = 0; i < (crypto_length - HEADER_DOWN_LENGTH); i++)
 	{
 		if(i < payload_len)
@@ -1223,189 +1112,189 @@ void pack_sender(uint8_t device_id,
 			udp_buffer[PAYLOAD_OFFSET + i] = 0x00;
 	}
 	
-	/*CRC16*/ 
+	/* CRC16 */ 
 	header_pack->crc.u16 = crc16_arc((uint8_t*)&udp_buffer[PAYLOAD_OFFSET], header_pack->length);
 	
-	/*Зашифровываем данные*/
+	/* Зашифровываем данные */
 	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)(&udp_buffer[HEADER_DOWN_OFFSET]), (uint32_t*)(&udp_buffer[HEADER_DOWN_OFFSET]), crypto_length);
 	
-	/*Отправляем пакет*/ 
+	/* Отправляем пакет */ 
 	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_UP_LENGTH + crypto_length), (uip_ipaddr_t*)&root_addr);
-	packet_counter_node.u16++;		/*Инкрементируем счетчик пакетов*/
+	packet_counter_node.u16++;		/* Инкрементируем счетчик пакетов */
 }
 
 /*---------------------------------------------------------------------------*/
-/*Первая стадия авторизации*/
-/*Передаём свой серийный номер*/
+/* Первая стадия авторизации */
+/* Передаём свой серийный номер */
 static void join_stage_1_sender(const uip_ipaddr_t *dest_addr)
 {
-	/*Проверка на то что передан существующий адрес*/
+	/* Проверка на то что передан существующий адрес */
 	if (dest_addr == NULL)
 		return;
 
-	uip_ipaddr_t addr;						/*Выделяем память для адреса на который отправится пакет*/
-	uip_ip6addr_copy(&addr, dest_addr);		/*Копируем адрес*/
+	uip_ipaddr_t addr;						/* Выделяем память для адреса на который отправится пакет */
+	uip_ip6addr_copy(&addr, dest_addr);		/* Копируем адрес */
 	
-	/*Вывод информационного сообщения в консоль*/
+	/* Вывод информационного сообщения в консоль */
 	printf("[DAG Node] Send join packet to DAG-root node: ");
 	uip_debug_ipaddr_print(&addr);
 	printf("\n");
 
-	/*Выделяем память под пакет. Общий размер пакета (header + payload)*/	
+	/* Выделяем память под пакет. Общий размер пакета (header + payload) */	
 	uint8_t udp_buffer[HEADER_LENGTH + JOIN_STAGE_1_PAYLOAD_LENGTH];
 	
-	/*Отражаем структуры на массив*/ 
+	/* Отражаем структуры на массив */ 
 	header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
 	join_stage_1_t *join_stage_1_pack = (join_stage_1_t*)&udp_buffer[PAYLOAD_OFFSET];
 	
-	/*Заполняем пакет*/  
-	/*Header*/ 
-	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
-	header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
-	header_pack->data_type = JOIN_STAGE_1;						/*Тип пакета*/  
-	header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
-	header_pack->temperature = get_temperature();				/*Температура*/ 
-	header_pack->voltage = get_voltage();						/*Напряжение*/ 
-	header_pack->counter.u16 = packet_counter_node.u16;			/*Счетчик пакетов*/ 
-	header_pack->length = JOIN_STAGE_1_LENGTH;					/*Размер пакета*/
+	/* Заполняем пакет */  
+	/* Header */ 
+	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/* Текущая версия протокола */ 
+	header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/* ID устройства */
+	header_pack->data_type = JOIN_STAGE_1;						/* Тип пакета */  
+	header_pack->rssi = get_parent_rssi();						/* RSSI */ 
+	header_pack->temperature = get_temperature();				/* Температура */ 
+	header_pack->voltage = get_voltage();						/* Напряжение */ 
+	header_pack->counter.u16 = packet_counter_node.u16;			/* Счетчик пакетов */ 
+	header_pack->length = JOIN_STAGE_1_LENGTH;					/* Размер пакета */
 
-	/*Payload*/
+	/* Payload */
 	join_stage_1_pack->module_id = UNWDS_MODULE_ID;
 	
-	/*CRC16*/ 
+	/* CRC16 */ 
 	header_pack->crc.u16 = 0;
 	
-	/*Отправляем пакет*/ 
+	/* Отправляем пакет */ 
 	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_LENGTH + JOIN_STAGE_1_PAYLOAD_LENGTH), &addr);
 }
 
 /*---------------------------------------------------------------------------*/
-/*Третья стадия авторизации*/
-/*Получаем nonce и отправляем его root'у зашифрованым AES128-CBC*/
+/* Третья стадия авторизации */
+/* Получаем nonce и отправляем его root'у зашифрованым AES128-CBC */
 static void join_stage_3_sender(const uip_ipaddr_t *dest_addr,
 								const uint8_t *data,
 								uint16_t datalen)
 {
-	/*Проверка на то что передан существующий адрес*/
+	/* Проверка на то что передан существующий адрес */
 	if (dest_addr == NULL)
 		return;
 	
-	uip_ipaddr_t addr;						/*Выделяем память для адреса на который отправится пакет*/
-	uip_ip6addr_copy(&addr, dest_addr);		/*Копируем адрес*/
+	uip_ipaddr_t addr;						/* Выделяем память для адреса на который отправится пакет */
+	uip_ip6addr_copy(&addr, dest_addr);		/* Копируем адрес */
 	
-	/*Вывод информационного сообщения в консоль*/
+	/* Вывод информационного сообщения в консоль */
 	printf("[DAG Node] Send join packet stage 3 to DAG-root node:");
 	uip_debug_ipaddr_print(&addr);
 	printf("\n");
 
 	
-	/*Выделяем память под пакет. Общий размер пакета (header + payload)*/
+	/* Выделяем память под пакет. Общий размер пакета (header + payload) */
 	uint8_t udp_buffer[HEADER_UP_LENGTH + JOIN_STAGE_3_PAYLOAD_LENGTH];	
 	
-	/*Отражаем структуры на массивы*/ 
+	/* Отражаем структуры на массивы */ 
 	header_t *header_pack = (header_t*)&udp_buffer[HEADER_OFFSET];
 	join_stage_2_t *join_stage_2_pack = (join_stage_2_t*)&data[PAYLOAD_OFFSET];
 	join_stage_3_t *join_stage_3_pack = (join_stage_3_t*)&udp_buffer[PAYLOAD_OFFSET];
 	
-	/*Заполняем пакет*/  
-	/*Header*/ 
-	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/*Текущая версия протокола*/ 
-	header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/*ID устройства*/
-	header_pack->data_type = JOIN_STAGE_3;						/*Тип пакета*/  
-	header_pack->rssi = get_parent_rssi();						/*RSSI*/ 
-	header_pack->temperature = get_temperature();				/*Температура*/ 
-	header_pack->voltage = get_voltage();						/*Напряжение*/ 
-	header_pack->counter.u16 = packet_counter_node.u16;			/*Счетчик пакетов*/ 
-	header_pack->length = JOIN_STAGE_3_LENGTH;					/*Размер пакета*/
+	/* Заполняем пакет */  
+	/* Header */ 
+	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/* Текущая версия протокола */ 
+	header_pack->device_id = UNWDS_6LOWPAN_SYSTEM_MODULE_ID;	/* ID устройства */
+	header_pack->data_type = JOIN_STAGE_3;						/* Тип пакета */  
+	header_pack->rssi = get_parent_rssi();						/* RSSI */ 
+	header_pack->temperature = get_temperature();				/* Температура */ 
+	header_pack->voltage = get_voltage();						/* Напряжение */ 
+	header_pack->counter.u16 = packet_counter_node.u16;			/* Счетчик пакетов */ 
+	header_pack->length = JOIN_STAGE_3_LENGTH;					/* Размер пакета */
 	
-	/*Payload*/ 
-	/*Расшифровываем блок*/ 
+	/* Payload */ 
+	/* Расшифровываем блок */ 
 	aes_ecb_decrypt((uint32_t*)aes_key, (uint32_t*)&data[HEADER_DOWN_OFFSET], (uint32_t*)&data[HEADER_DOWN_OFFSET]);
 	
 	//CRC16
 	
-	/*Копируем полученный nonce и используем его в качестве сессионного ключа (AES128-CBC)*/
+	/* Копируем полученный nonce и используем его в качестве сессионного ключа (AES128-CBC) */
 	for(int i = 0; i < 16; i += 2)
 	{
 		nonce_key[i] = join_stage_2_pack->nonce.u8[1];	
 		nonce_key[i+1] = join_stage_2_pack->nonce.u8[0];	
 	}
 	
-	/*Отправляем ROOT'у nonce на еденицу больше для того что бы он был уверен что у нас одинаковое шифрование*/ 
-	join_stage_3_pack->nonce.u16 = join_stage_2_pack->nonce.u16 + 1; /*Увеличиваем nonce на единицу: nonce += 1*/	
+	/* Отправляем ROOT'у nonce на еденицу больше для того что бы он был уверен что у нас одинаковое шифрование */ 
+	join_stage_3_pack->nonce.u16 = join_stage_2_pack->nonce.u16 + 1; /* Увеличиваем nonce на единицу: nonce += 1 */	
 	
-	/*Дозаполняем блок для шифрования нулями*/ 
+	/* Дозаполняем блок для шифрования нулями */ 
 	for(uint8_t i = JOIN_STAGE_3_LENGTH; i < (JOIN_STAGE_3_PAYLOAD_LENGTH - HEADER_DOWN_LENGTH); i++)
 		udp_buffer[PAYLOAD_OFFSET + i] = 0x00;
 	
-	/*CRC16*/ 
+	/* CRC16 */ 
 	header_pack->crc.u16 = crc16_arc((uint8_t*)&join_stage_3_pack, sizeof(join_stage_3_pack));
 	
-	/*Зашифровываем данные*/
+	/* Зашифровываем данные */
 	aes_cbc_encrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&udp_buffer[HEADER_DOWN_OFFSET], (uint32_t*)&udp_buffer[HEADER_DOWN_OFFSET], CRYPTO_1_BLOCK_LENGTH);		
 	
-	/*Отправляем пакет*/ 
+	/* Отправляем пакет */ 
 	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_DOWN_OFFSET + JOIN_STAGE_3_PAYLOAD_LENGTH), &addr);
 }
 
 /*---------------------------------------------------------------------------*/
-/*Обработчик четвертой стадии авторизации*/
-/*Сравниваем данные пришедшие от root'а для того что бы удостоверится в том что используются правильные настройки шифрования*/
+/* Обработчик четвертой стадии авторизации */
+/* Сравниваем данные пришедшие от root'а для того что бы удостоверится в том что используются правильные настройки шифрования */
 static void join_stage_4_handler(const uip_ipaddr_t *sender_addr,
 								 const uint8_t *data,
 								 uint16_t datalen)
 {	
-	/*Проверка на то что передан существующий адрес*/
+	/* Проверка на то что передан существующий адрес */
 	if (sender_addr == NULL)
 		return;
 
-	/*Отражаем структуры на массивы*/ 
+	/* Отражаем структуры на массивы */ 
 	header_t *header_pack = (header_t*)&data[HEADER_OFFSET];
 	join_stage_4_t *join_stage_4_pack = (join_stage_4_t*)&data[PAYLOAD_OFFSET];
 	
-	/*Расшифровываем данные*/
+	/* Расшифровываем данные */
 	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[HEADER_DOWN_OFFSET], (uint32_t*)&data[HEADER_DOWN_OFFSET], CRYPTO_1_BLOCK_LENGTH);
 	
-	/*Проверяем массив. Если все нули, то авториция прошла успешно*/
+	/* Проверяем массив. Если все нули, то авториция прошла успешно */
 	if(join_stage_4_pack->status_code)
 	{
-		packet_counter_root.u16 = header_pack->counter.u16;				/*Сохраняем счетчик пакетов ROOT'а*/ 
-		uip_ipaddr_copy(&root_addr, sender_addr); 						/*Копируем адрес ROOT'а с которым авторизировались*/ 
-		packet_counter_node.u16 = 1;									/*Инициализируем счетчик пакетов*/
-		etimer_set(&maintenance_timer, 0);								/*Устанавливаем таймер*/ 
-		process_post(&dag_node_process, PROCESS_EVENT_CONTINUE, NULL);	/*Передаем управление dag_node_process*/ 
+		packet_counter_root.u16 = header_pack->counter.u16;				/* Сохраняем счетчик пакетов ROOT'а */ 
+		uip_ipaddr_copy(&root_addr, sender_addr); 						/* Копируем адрес ROOT'а с которым авторизировались */ 
+		packet_counter_node.u16 = 1;									/* Инициализируем счетчик пакетов */
+		etimer_set(&maintenance_timer, 0);								/* Устанавливаем таймер */ 
+		process_post(&dag_node_process, PROCESS_EVENT_CONTINUE, NULL);	/* Передаем управление dag_node_process */ 
 		process_start(&ping_process, NULL);
 		return;
 	}
 	
-	/*Выводим: Ошибка авторизации*/
+	/* Выводим: Ошибка авторизации */
 	printf("[DAG Node] Authorisation Error\n"); 
 }
 
 /*---------------------------------------------------------------------------*/
-/*Ping*/
+/* Ping */
 static void ping_sender(void)
 {
-	/*Заполняем payload*/
-	ping_t ping_pack;							/*Создаем структуру*/
+	/* Заполняем payload */
+	ping_t ping_pack;							/* Создаем структуру */
 	
-	ping_pack.nonce.u8[1] = nonce_key[0];		/*Заполняем nonce*/
-	ping_pack.nonce.u8[0] = nonce_key[1];		/*Заполняем nonce*/
+	ping_pack.nonce.u8[1] = nonce_key[0];		/* Заполняем nonce */
+	ping_pack.nonce.u8[0] = nonce_key[1];		/* Заполняем nonce */
 	
-	/*Вывод информационного сообщения в консоль*/
+	/* Вывод информационного сообщения в консоль */
 	printf("[DAG Node] Send ping packet\n");
 	
-	/*Отправляем пакет*/	
-	pack_sender(UNWDS_6LOWPAN_SYSTEM_MODULE_ID,	/*ID модуля*/
-				PING, 							/*Команда ping*/
-				PING_LENGTH,					/*Размер payload'а*/
-				(uint8_t*)&ping_pack); 			/*Payload*/
+	/* Отправляем пакет */	
+	pack_sender_dag(UNWDS_6LOWPAN_SYSTEM_MODULE_ID,	/* ID модуля */
+					PING, 							/* Команда ping */
+					PING_LENGTH,					/* Размер payload'а */
+					(uint8_t*)&ping_pack); 			/* Payload */
 }
 
 /*---------------------------------------------------------------------------*/
-/*Pong*/
+/* Pong */
 static void pong_handler(const uip_ipaddr_t *sender_addr,
-						pong_t *pong_pack)
+						 pong_t *pong_pack)
 {	
 	if(pong_pack->status_code)
 	{
@@ -1415,7 +1304,7 @@ static void pong_handler(const uip_ipaddr_t *sender_addr,
 	
 	else
 	{
-		/*Выводим: Ошибка авторизации*/
+		/* Выводим: Ошибка авторизации */
 		printf("[DAG Node] Crypto Error\n Reboot...\n");
 		watchdog_reboot();
 		
@@ -1426,80 +1315,79 @@ static void pong_handler(const uip_ipaddr_t *sender_addr,
 }
 
 /*---------------------------------------------------------------------------*/
-/*ACK*/
+/* ACK */
 static void ack_sender(uint16_t counter)
 {
-	/*Заполняем payload*/
-	ack_t ack_pack;								/*Создаем структуру*/
+	/* Заполняем payload */
+	ack_t ack_pack;								/* Создаем структуру */
 	
-	ack_pack.counter.u16 = counter;				/*Заполняем counter*/
+	ack_pack.counter.u16 = counter;				/* Заполняем counter */
 		
-	/*Вывод информационного сообщения в консоль*/
+	/* Вывод информационного сообщения в консоль */
 	printf("[DAG Node] Send ACK packet\n");
 	
-	/*Отправляем пакет*/	
-	pack_sender(UNWDS_6LOWPAN_SYSTEM_MODULE_ID, /*ID модуля*/
-				ACK, 							/*Команда ACK*/
-				ACK_LENGTH, 					/*Размер payload'а*/
-				(uint8_t*)&ack_pack);			/*Payload*/			
+	/* Отправляем пакет */	
+	pack_sender_dag(UNWDS_6LOWPAN_SYSTEM_MODULE_ID, /* ID модуля */
+					ACK, 							/* Команда ACK */
+					ACK_LENGTH, 					/* Размер payload'а */
+					(uint8_t*)&ack_pack);			/* Payload */			
 }
 
 /*---------------------------------------------------------------------------*/					
-/*NACK*/
+/* NACK */
 static void nack_sender(uint16_t counter)
 {
-	/*Заполняем payload*/
-	nack_t nack_pack;							/*Создаем структуру*/
+	/* Заполняем payload */
+	nack_t nack_pack;							/* Создаем структуру */
 	
-	nack_pack.counter.u16 = counter;			/*Заполняем counter*/
+	nack_pack.counter.u16 = counter;			/* Заполняем counter */
 	
-	/*Вывод информационного сообщения в консоль*/
+	/* Вывод информационного сообщения в консоль */
 	printf("[DAG Node] Send NACK packet\n");
 	
-	/*Отправляем пакет*/	
-	pack_sender(UNWDS_6LOWPAN_SYSTEM_MODULE_ID,	/*ID модуля*/
-				NACK, 							/*Команда ACK*/
-				NACK_LENGTH, 					/*Размер payload'а*/
-				(uint8_t*)&nack_pack);			/*Payload*/		
+	/* Отправляем пакет */	
+	pack_sender_dag(UNWDS_6LOWPAN_SYSTEM_MODULE_ID,	/* ID модуля */
+					NACK, 							/* Команда ACK */
+					NACK_LENGTH, 					/* Размер payload'а */
+					(uint8_t*)&nack_pack);			/* Payload */		
 }
 
 /*---------------------------------------------------------------------------*/
-#ifdef UMDK_6FET
-/*Инициализация с заданными настройками канала ШИМ'а*/
+/* Инициализация с заданными настройками канала ШИМ'а */
 static bool dag_pwm_settings(const uip_ipaddr_t *sender_addr,
-							pwm_settings_t *pwm_settings_pack)
+							 pwm_settings_t *pwm_settings_pack)
 {	
-	/*Инициализация 0 канала ШИМ'а*/
+	/* Инициализация 0 канала ШИМ'а */
 	if(pwm_settings_pack->channel == 0)
 		return pwm_config(pwm_settings_pack->channel, pwm_settings_pack->frequency, pwm_settings_pack->duty, IOID_5);
 	
-	/*Инициализация 1 канала ШИМ'а*/
+	/* Инициализация 1 канала ШИМ'а */
 	else if(pwm_settings_pack->channel == 1)
 		return pwm_config(pwm_settings_pack->channel, pwm_settings_pack->frequency, pwm_settings_pack->duty, IOID_6);
 	
-	/*Инициализация 2 канала ШИМ'а*/
+	/* Инициализация 2 канала ШИМ'а */
 	else if(pwm_settings_pack->channel == 2)
 		return pwm_config(pwm_settings_pack->channel, pwm_settings_pack->frequency, pwm_settings_pack->duty, IOID_7);
 	
-	/*Инициализация 3 канала ШИМ'а*/
+	/* Инициализация 3 канала ШИМ'а */
 	else if(pwm_settings_pack->channel == 3)
 		return pwm_config(pwm_settings_pack->channel, pwm_settings_pack->frequency, pwm_settings_pack->duty, IOID_24);
 	
-	/*Инициализация 4 канала ШИМ'а*/
+	/* Инициализация 4 канала ШИМ'а */
 	else if(pwm_settings_pack->channel == 4)
 		return pwm_config(pwm_settings_pack->channel, pwm_settings_pack->frequency, pwm_settings_pack->duty, IOID_25);
 	
-	/*Инициализация 5 канала ШИМ'а*/
+	/* Инициализация 5 канала ШИМ'а */
 	else if(pwm_settings_pack->channel == 5)
 		return pwm_config(pwm_settings_pack->channel, pwm_settings_pack->frequency, pwm_settings_pack->duty, IOID_26);
 	
-	/*Нет такого канала ШИМ'а*/
+	/* Нет такого канала ШИМ'а */
 	else
 		return false;
 }
 
 /*---------------------------------------------------------------------------*/
-/*Включение/выключение канала ШИМ'а*/
+/* Включение/выключение канала ШИМ'а */
 static bool dag_pwm_power (	const uip_ipaddr_t *sender_addr,
 							pwm_power_t *pwm_power_pack)
 {
@@ -1516,106 +1404,9 @@ static bool dag_pwm_power (	const uip_ipaddr_t *sender_addr,
 		return pwm_stop(pwm_channel);
 	}
 }
-#endif
 
 /*---------------------------------------------------------------------------*/
-#ifdef UMDK_LIT
-/*Совершить замер освещенности*/			
-bool dag_lit_measure_sender()
-{
-	/*Заполняем payload*/
-	lit_measure_status_t lit_measure_status_pack;						/*Создаем структуру*/
-	
-	lit_measure_status_pack.lit_measure_status = opt3001_measure();		/*Измеряем освещенность*/
-	
-	/*Вывод информационного сообщения в консоль*/
-	if(node_mode == MODE_NORMAL)
-		printf("[DAG Node] Send LIT measure status packet\n");
-	printf("[UMDK-LIT] Luminocity: %lu lux\n", lit_measure_status_pack.lit_measure_status);
-	
-	/*Отправляем пакет*/	
-	pack_sender(UNWDS_LIT_MODULE_ID,					/*ID модуля*/
-				LIT_MEASURE_STATUS, 					/*Команда включения канала ШИМ'а*/
-				LIT_MEASURE_STATUS_LENGTH, 				/*Размер payload'а*/
-				(uint8_t*)&lit_measure_status_pack);	/*Payload*/		
-				
-	return lit_measure_status_pack.lit_measure_status;
-}
-#endif
-
-/*---------------------------------------------------------------------------*/
-#ifdef UMDK_GPIO
-/*Выполнение команды для ножки порта*/	
-static bool dag_gpio_command(const uip_ipaddr_t *sender_addr, 
-							gpio_command_t *gpio_command_pack)
-{
-	ti_lib_ioc_pin_type_gpio_output(gpio_command_pack->pin);
-	
-	if(gpio_command_pack->command == 1)
-	{
-		ti_lib_gpio_set_dio(gpio_command_pack->pin);
-		
-		printf("[UMDK-GPIO] Set GPIO PIN%i\n", gpio_command_pack->pin);
-		return true;
-	}
-	
-	else
-	{
-		ti_lib_gpio_clear_dio(gpio_command_pack->pin);
-		printf("[UMDK-GPIO] Clear GPIO PIN%i\n", gpio_command_pack->pin);
-		return true;
-	}
-}
-#endif
-
-/*---------------------------------------------------------------------------*/
-#ifdef UMDK_4BTN
-/*Функция отправки состояния кнопок*/
-void button_status_sender ( uint8_t button_number,
-							uint8_t click_type)
-{
-	/*Заполняем payload*/
-	button_status_t button_status_pack;				/*Создаем структуру*/
-	
-	button_status_pack.button_status = button_number;
-
-	if(click_type == LONG_CLICK)
-		button_status_pack.button_status |= LONG_CLICK;
-	
-	/*Вывод информационного сообщения в консоль*/
-	if(node_mode == MODE_NORMAL)
-		printf("[DAG Node] Send button status packet\n");
-	
-	/*Отправляем пакет*/
-	pack_sender(UNWDS_4BTN_MODULE_ID,				/*ID модуля*/
-				BUTTON_STATUS, 						/*Команда включения канала ШИМ'а*/
-				BUTTON_STATUS_LENGTH, 				/*Размер payload'а*/
-				(uint8_t*)&button_status_pack );	/*Payload*/		
-}
-#endif
-
-/*---------------------------------------------------------------------------*/
-#ifdef UMDK_UART
-/*Отправка данных по UART'у*/
-void uart_sender(uint8_t *uart_message)
-{
-	// /*Вывод информационного сообщения в консоль*/
-	// if(node_mode == MODE_NORMAL)
-		// printf("[DAG Node] Send UART message\n");
-	
-	/*Отражаем структуры на массив*/ 
-	uint8_t *uart_lenght = (uint8_t*)&uart_message[0];
-	
-	/*Отправляем пакет*/
-	pack_sender(UNWDS_UART_MODULE_ID,				/*ID модуля*/
-				SEND_BY_UART, 						/*Команда отправки данных по UART'у*/
-				*uart_lenght, 						/*Размер payload'а*/
-				(uint8_t*)&uart_message[1]);		/*Payload*/		
-}
-#endif
-
-/*---------------------------------------------------------------------------*/
-/*Функция управления светодиодами*/
+/* Функция управления светодиодами */
 void led_mode_set(uint8_t mode)
 {
 	led_mode = mode;
@@ -1631,14 +1422,9 @@ void led_mode_set(uint8_t mode)
 		process_exit(&led_process);
 }
 
-
-
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+/* ОБЩИЕ ПРОЦЕССЫ */
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
-/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
-/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
-/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
-/*---------------------------------------------------------------------------*/
 /* Процесс инициализации настроек из EEPROM */
 PROCESS_THREAD(settings_init, ev, data)
 {
@@ -1724,11 +1510,8 @@ PROCESS_THREAD(settings_init, ev, data)
 	PROCESS_END();
 }
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+/* ПРОЦЕССЫ ROOT'а */
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
-/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
-/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
-/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
-/*---------------------------------------------------------------------------*/
 /* Процесс управления ROOT'ом */
 PROCESS_THREAD(main_root_process, ev, data)
 {
@@ -1752,12 +1535,9 @@ PROCESS_THREAD(main_root_process, ev, data)
 }
 
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+/* ПРОЦЕССЫ DAG'а */
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
-/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
-/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
-/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
-/*---------------------------------------------------------------------------*/
-/*Процесс опроса ROOT'а на достижимость*/
+/* Процесс опроса ROOT'а на достижимость */
 PROCESS_THREAD(ping_process, ev, data)
 {
 	PROCESS_BEGIN();
@@ -2011,7 +1791,7 @@ PROCESS_THREAD(dag_node_process, ev, data)
 	PROCESS_PAUSE();
 
 	/* Инициализация обработчика входящих пакетов */
-	simple_udp_register(&udp_connection, UDP_DATA_PORT, NULL, UDP_DATA_PORT, udp_receiver);
+	simple_udp_register(&udp_connection, UDP_DATA_PORT, NULL, UDP_DATA_PORT, dag_udp_data_receiver);
 
 	/* Выбор режима работы RPL */
 	if (CLASS == CLASS_B)

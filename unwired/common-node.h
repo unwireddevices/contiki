@@ -27,14 +27,14 @@
 /*---------------------------------------------------------------------------*/
 /*
 * \file
-*         RPL-root service for Unwired Devices mesh 
+*         Common node
 * \author
 *         Manchenko Oleg man4enkoos@gmail.com
 */
 /*---------------------------------------------------------------------------*/
 
-#ifndef ROOT_NODE_H_
-#define ROOT_NODE_H_
+#ifndef COMMON_NODE_H_
+#define COMMON_NODE_H_
 
 /*---------------------------------------------------------------------------*/
 
@@ -46,13 +46,45 @@
 #include <string.h>
 
 /*---------------------------------------------------------------------------*/
-/*Структура UDP подключения*/
-struct simple_udp_connection udp_connection;
+
+#define MODE_NORMAL				0x01
+#define MODE_NOTROOT			0x02
+#define MODE_JOIN_PROGRESS		0x03
+#define MODE_NEED_REBOOT		0x04
+
+#define LED_OFF					0x00
+#define LED_ON					0x01
+#define LED_FLASH				0x02
+#define LED_SLOW_BLINK			0x03
+#define LED_FAST_BLINK			0x04
+
+#define CLICK					0x00
+#define LONG_CLICK				0x80
 
 /*---------------------------------------------------------------------------*/
-/*ПРОТОТИПЫ ФУНКЦИЙ*/
 
-/*Обработчик принятых пакетов*/
+volatile uip_ipaddr_t root_addr;			/* Адресс root'а */
+volatile uint8_t node_mode;					/* Режим работы ноды */
+
+/* Счетчик пакетов */
+volatile union 
+{ 
+	uint16_t u16;
+	uint8_t u8[2];
+} packet_counter_node;	
+
+/*---------------------------------------------------------------------------*/
+/* ПРОТОТИПЫ ОБЩИХ ФУНКЦИЙ */
+/*---------------------------------------------------------------------------*/
+
+//
+//
+//
+
+/*---------------------------------------------------------------------------*/
+/* ПРОТОТИПЫ ФУНКЦИЙ ROOT'а */
+/*---------------------------------------------------------------------------*/
+/* Обработчик принятых пакетов */
 void root_udp_data_receiver(struct simple_udp_connection *connection,
                        		const uip_ipaddr_t *sender_addr,
                        		uint16_t sender_port,
@@ -61,40 +93,47 @@ void root_udp_data_receiver(struct simple_udp_connection *connection,
                        		const uint8_t *data,
                        		uint16_t datalen);
 
-/*Отправка настроек канала ШИМ'а*/
+/* Отправка настроек канала ШИМ'а */
 void pwm_settings_sender(const uip_ip6addr_t *dest_addr, 
 						uint8_t channel, 
 						uint32_t frequency, 
 						uint8_t duty);
 
-/*Отправка команды включения/выключения канала ШИМ'а*/
+/* Отправка команды включения/выключения канала ШИМ'а */
 void pwm_power_channel_sender ( const uip_ip6addr_t *dest_addr, 
 								uint8_t channel, 
 								uint8_t pwm_power_channel);
-								
-/*Совершить замер освещенности*/
-void lit_measurement_sender(const uip_ip6addr_t *dest_addr);
-
-/*Отправка команды для ножки порта*/
-void gpio_command_sender(const uip_ip6addr_t *dest_addr,
-						uint8_t pin,
-						uint8_t command);
 	
-/*Конструктор пакета*/
-void pack_sender(const uip_ip6addr_t *dest_addr, 
-				uint8_t device_id, 
-				uint8_t data_type, 
-				uint8_t payload_len, 
-				uint8_t *payload);
+/* Конструктор пакета */
+void pack_sender_root(const uip_ip6addr_t *dest_addr, 
+					  uint8_t device_id, 
+					  uint8_t data_type, 
+					  uint8_t payload_len, 
+				      uint8_t *payload);
 				
-/*Иннициализация RPL*/
+/* Иннициализация RPL */
 void rpl_initialize();
 
-/*Иннициализация ноды*/
+/* Иннициализация ноды */
 void root_node_initialize();
 
 /* Проверка является ли эта нода рутом */
 bool node_is_root(void);
+
+
+/*---------------------------------------------------------------------------*/
+/* ПРОТОТИПЫ ФУНКЦИЙ DAG'а */
+/*---------------------------------------------------------------------------*/
+
+/* Функция управления светодиодами */
+void led_mode_set(uint8_t mode);
+
+/* Конструктор пакета */
+void pack_sender_dag(uint8_t device_id, 
+				 	 uint8_t data_type, 
+				 	 uint8_t payload_len, 
+				 	 uint8_t *payload);
+
 
 /*---------------------------------------------------------------------------*/
 /* ИМЕНА ПРОЦЕССОВ */
@@ -132,4 +171,4 @@ PROCESS_NAME(maintenance_process);
 PROCESS_NAME(led_process);
 
 /*---------------------------------------------------------------------------*/
-#endif /* ROOT_NODE_H_ */
+#endif /* COMMON_NODE_H_ */

@@ -27,7 +27,7 @@
 /*---------------------------------------------------------------------------*/
 /*
 * \file
-*         RPL-root service for Unwired Devices mesh 
+*         Softel lighting 
 * \author
 *         Manchenko Oleg man4enkoos@gmail.com
 */
@@ -62,8 +62,8 @@
 
 #include "xxf_types_helper.h"
 #include "dev/watchdog.h"
-#include "root.h"
-#include "../root-node.h"
+#include "softel_lighting.h"
+#include "../common-node.h"
 #include "../system-common.h"//
 #include "../protocol.h"//
 
@@ -74,6 +74,10 @@
 							IOC_HYST_DISABLE	| IOC_NO_EDGE		| \
 							IOC_INT_DISABLE		| IOC_IOMODE_NORMAL	| \
 							IOC_NO_WAKE_UP		| IOC_INPUT_ENABLE	)
+
+/*---------------------------------------------------------------------------*/
+
+static struct etimer shell_off;	
 
 /*---------------------------------------------------------------------------*/
 
@@ -122,7 +126,6 @@ PROCESS_THREAD(main_process, ev, data)
 		rpl_initialize();
 		root_node_initialize();
 
-		static struct etimer shell_off;	
 		printf("[ROOT Node] Command line is lock. For unlock, press the button E\n");
 		ti_lib_ioc_port_configure_set(BOARD_IOID_UART_RX, IOC_PORT_GPIO, IOC_INPUT_PULL_UP);
 		ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_RX, IOC_PORT_MCU_UART0_RX, IOC_INPUT_PULL_UP);
