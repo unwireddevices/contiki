@@ -187,6 +187,12 @@ typedef struct {
 	uint8_t pwm_power;		/*Номер канала от 0 до 5. Для включения: номер канала |= (1<<7)*/
 } pack pwm_power_t;
 
+/*Struct for PWM_SET*/
+typedef struct {
+	unsigned pwm_power:1;	/*Включить/выключить*/
+	unsigned duty:7;		/*Коэффицент заполнения от 0% до 100%*/
+} pack pwm_set_t;
+
 /*---------------------------------------------------------------------------*/
 /*UNWDS-LIT*/
 
@@ -288,6 +294,7 @@ typedef struct {
 #define BUTTON_STATUS_LENGTH 			sizeof(button_status_t)
 #define PWM_SETTINGS_LENGTH 			sizeof(pwm_settings_t)
 #define PWM_POWER_LENGTH 				sizeof(pwm_power_t)
+#define PWM_SET_LENGTH 					sizeof(pwm_set_t)
 #define LIT_MEASURE_LENGTH				0
 #define LIT_MEASURE_STATUS_LENGTH		sizeof(lit_measure_status_t)
 #define GPIO_CMD_LENGTH					sizeof(gpio_command_t)
@@ -311,6 +318,7 @@ typedef struct {
 /*UNWDS-6FET*/
 #define PWM_SETTINGS				0x00 /*Пакет с настройкоами ШИМ канала*/
 #define PWM_POWER					0x01 /*Команда включения/выключения канала ШИМ'а*/
+#define PWM_SET						0x02 /*Команда включения/выключения канала ШИМ'а c заданным duty cycle*/
 
 /*UNWDS-LIT*/
 #define LIT_MEASURE					0x00 /*Команда запроса замера освещенности*/

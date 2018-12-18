@@ -113,14 +113,6 @@
 #include "xxf_types_helper.h"
 #include "protocol.h"
 
-#include "../cpu/cc26xx-cc13xx/dev/pwm.h" /*PWM*/
-// #include "../platform/unwired/udboards/opt3001.h" /*LIT*/
-
-
-
-// #define DIO_MASK				0x7F
-// #define LONG_CLICK				0x80
-
 /* DAG DEF */
 #define MAINTENANCE_INTERVAL			(10 * 60 * CLOCK_SECOND)
 #define SHORT_STATUS_INTERVAL			(10 * 60 * CLOCK_SECOND)
@@ -165,13 +157,14 @@ static volatile union
 	uint8_t u8[2]; 
 } packet_counter_root;
 
+/* Режим работы ROOT or DAG */
+static volatile bool mode_node = 0;		
+
 /*---------------------------------------------------------------------------*/
 /* ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ROOT'а */
 /*---------------------------------------------------------------------------*/
-
-static uip_ipaddr_t null_addr;			/*Сравниваем с этим адресом (аналог nullptr)*/
-
-static volatile bool mode_node = 1;		/*Режим работы ROOT or DAG*/
+/* Сравниваем с этим адресом (аналог nullptr) */
+static uip_ipaddr_t null_addr;			
 
 /*---------------------------------------------------------------------------*/
 /* ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ DAG'а */
@@ -245,21 +238,17 @@ static void ping_sender(void);
 
 /* Pong */
 static void pong_handler(const uip_ipaddr_t *sender_addr,
-						pong_t *pong_pack);
+						 pong_t *pong_pack);
 						
 /* ACK */
 static void ack_sender(uint16_t counter);
 						
 /* NACK */
 static void nack_sender(uint16_t counter);
-		
-/* Инициализация с заданными настройками канала ШИМ'а */
-static bool dag_pwm_settings(const uip_ipaddr_t *sender_addr,
-							pwm_settings_t *pwm_settings_pack);
 
-/* Включение/выключение канала ШИМ'а */
-static bool dag_pwm_power (	const uip_ipaddr_t *sender_addr,
-							pwm_power_t *pwm_power_pack);
+/* Команда включения/выключения канала ШИМ'а c заданным duty cycle */
+static bool dag_pwm_set(const uip_ipaddr_t *sender_addr,
+						pwm_set_t *pwm_set_pack);
 
 /*---------------------------------------------------------------------------*/
 /* ПРОТОТИПЫ ПРОЦЕССОВ */
@@ -295,6 +284,16 @@ PROCESS(maintenance_process, "Maintenance process");
 
 /* Процесс упарвления светодиодами */
 PROCESS(led_process, "Led process");
+
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+/* ФУНКЦИИ ROOT'а */
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+/* Проверка является ли эта нода рутом */
+bool node_is_root(void)
+{
+	return mode_node;
+}
 
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
 /* ФУНКЦИИ ROOT'а */
@@ -702,6 +701,26 @@ void pwm_power_channel_sender ( const uip_ip6addr_t *dest_addr,
 }
 
 /*---------------------------------------------------------------------------*/
+/* Отправка команды включения/выключения канала ШИМ'а c заданным duty cycle */
+void pwm_set_sender(const uip_ip6addr_t *dest_addr,
+					bool pwm_power,
+					uint8_t duty)
+{
+	/* Заполняем payload */
+	pwm_set_t pwm_set_pack;					/* Создаем структуру */
+
+	pwm_set_pack.pwm_power = pwm_power;		/* Включить/выключить */
+	pwm_set_pack.duty = duty;				/* Коэффицент заполненния */
+
+	/* Отправляем пакет */
+	pack_sender_root(dest_addr, 						/* Адрес модуля UMDK-6FET */
+					 UNWDS_6FET_MODULE_ID, 				/* Индентификатор модуля UMDK-6FET */
+					 PWM_SET, 							/* Команда включения канала ШИМ'а */
+					 PWM_POWER_LENGTH, 					/* Размер payload'а */
+					 (uint8_t*)&pwm_set_pack);			/* Payload */
+}
+
+/*---------------------------------------------------------------------------*/
 /* Конструктор пакета */
 void pack_sender_root(const uip_ip6addr_t *dest_addr, 
 				      uint8_t device_id, 
@@ -888,16 +907,6 @@ void root_node_initialize()
 	process_start(&main_root_process, NULL);
 }
 
-/*---------------------------------------------------------------------------*/
-/* Проверка является ли эта нода рутом */
-bool node_is_root(void)
-{
-	/* Чтение GPIO */
-	//
-
-	return mode_node;
-}
-
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
 /* ФУНКЦИИ DAG'а */
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
@@ -1007,26 +1016,14 @@ static void dag_udp_data_receiver(struct simple_udp_connection *c,
 				}
 					
 			}
-				
+
 			/* UMDK-6FET */ 
 			if(header_up_pack->device_id == UNWDS_6FET_MODULE_ID)
 			{
-				if(header_up_pack->data_type == PWM_SETTINGS)
-				{
-					/* Инициализация с заданными настройками канала ШИМ'а */
-					if(dag_pwm_settings(sender_addr, (pwm_settings_t*)&data[PAYLOAD_OFFSET]))
-						ack_sender(header_down_pack->counter.u16);		/* Отправляем пакет о подтверждении */
-					else
-						nack_sender(header_down_pack->counter.u16);		/* Отправляем пакет об ошибке */
-					
-					led_mode_set(LED_FLASH);	/* Мигаем светодиодом */
-					return;
-				}
-				
-				else if(header_up_pack->data_type == PWM_POWER)
+				if(header_up_pack->data_type == PWM_SET)
 				{
 					/* Включение/выключение канала ШИМ'а */
-					if(dag_pwm_power(sender_addr, (pwm_power_t*)&data[PAYLOAD_OFFSET]))
+					if(dag_pwm_set(sender_addr, (pwm_set_t*)&data[PAYLOAD_OFFSET]))
 						ack_sender(header_down_pack->counter.u16);		/* Отправляем пакет о подтверждении */
 					else
 						nack_sender(header_down_pack->counter.u16);		/* Отправляем пакет об ошибке */
@@ -1034,7 +1031,7 @@ static void dag_udp_data_receiver(struct simple_udp_connection *c,
 					led_mode_set(LED_FLASH);	/* Мигаем светодиодом */
 					return;
 				}
-				
+
 				else
 				{
 					/* Вывод сообщения об неизвестной команде */
@@ -1046,7 +1043,6 @@ static void dag_udp_data_receiver(struct simple_udp_connection *c,
 					led_mode_set(LED_FLASH);	/* Мигаем светодиодом */
 					return;
 				}
-					
 			}
 
 			else
@@ -1353,55 +1349,21 @@ static void nack_sender(uint16_t counter)
 }
 
 /*---------------------------------------------------------------------------*/
-/* Инициализация с заданными настройками канала ШИМ'а */
-static bool dag_pwm_settings(const uip_ipaddr_t *sender_addr,
-							 pwm_settings_t *pwm_settings_pack)
-{	
-	/* Инициализация 0 канала ШИМ'а */
-	if(pwm_settings_pack->channel == 0)
-		return pwm_config(pwm_settings_pack->channel, pwm_settings_pack->frequency, pwm_settings_pack->duty, IOID_5);
-	
-	/* Инициализация 1 канала ШИМ'а */
-	else if(pwm_settings_pack->channel == 1)
-		return pwm_config(pwm_settings_pack->channel, pwm_settings_pack->frequency, pwm_settings_pack->duty, IOID_6);
-	
-	/* Инициализация 2 канала ШИМ'а */
-	else if(pwm_settings_pack->channel == 2)
-		return pwm_config(pwm_settings_pack->channel, pwm_settings_pack->frequency, pwm_settings_pack->duty, IOID_7);
-	
-	/* Инициализация 3 канала ШИМ'а */
-	else if(pwm_settings_pack->channel == 3)
-		return pwm_config(pwm_settings_pack->channel, pwm_settings_pack->frequency, pwm_settings_pack->duty, IOID_24);
-	
-	/* Инициализация 4 канала ШИМ'а */
-	else if(pwm_settings_pack->channel == 4)
-		return pwm_config(pwm_settings_pack->channel, pwm_settings_pack->frequency, pwm_settings_pack->duty, IOID_25);
-	
-	/* Инициализация 5 канала ШИМ'а */
-	else if(pwm_settings_pack->channel == 5)
-		return pwm_config(pwm_settings_pack->channel, pwm_settings_pack->frequency, pwm_settings_pack->duty, IOID_26);
-	
-	/* Нет такого канала ШИМ'а */
-	else
-		return false;
-}
-
-/*---------------------------------------------------------------------------*/
-/* Включение/выключение канала ШИМ'а */
-static bool dag_pwm_power (	const uip_ipaddr_t *sender_addr,
-							pwm_power_t *pwm_power_pack)
+/* Команда включения/выключения канала ШИМ'а c заданным duty cycle */
+static bool dag_pwm_set(const uip_ipaddr_t *sender_addr,
+						pwm_set_t *pwm_set_pack)
 {
-	uint8_t pwm_channel = pwm_power_pack->pwm_power & 0x7F;
-	uint8_t pwm_power = ((pwm_power_pack->pwm_power & 0x80) >> 7); 
-	
-	if(pwm_power)
+	if(pwm_set_pack->pwm_power)
 	{
-		return pwm_start(pwm_channel);
+		bool pwm_config_res = pwm_config(0, 500, pwm_set_pack->duty, IOID_5); //ch, frec, duty, pin
+		if(pwm_config_res)
+			return pwm_start(0);
+		else 
+			return false;
 	}
-	
 	else
 	{
-		return pwm_stop(pwm_channel);
+		return pwm_stop(0);
 	}
 }
 
@@ -1504,11 +1466,22 @@ PROCESS_THREAD(settings_init, ev, data)
 		}
 	}
 	
+	/* Чтение GPIO и установка режима работы */
+	ti_lib_ioc_pin_type_gpio_input(IOID_23);
+	mode_node = ti_lib_gpio_read_dio(IOID_23);
+
+	/* Test LED */
+	// ti_lib_ioc_pin_type_gpio_output(IOID_22);
+	// ti_lib_gpio_set_dio(IOID_22);
+
+	// printf("LED: %lu\n", ti_lib_gpio_read_dio(IOID_22));
+
 	/* Передаем управление rpl_root_process */
 	process_post(&main_process, PROCESS_EVENT_CONTINUE, NULL);
 
 	PROCESS_END();
 }
+
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
 /* ПРОЦЕССЫ ROOT'а */
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/

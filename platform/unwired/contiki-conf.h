@@ -86,11 +86,11 @@
 #endif
 
 #ifndef NETSTACK_CONF_FRAMER
-#define NETSTACK_CONF_FRAMER  framer_802154
+#define NETSTACK_CONF_FRAMER        framer_802154
 #endif
 
 #ifdef RF_CHANNEL
-#define RF_CORE_CONF_CHANNEL             RF_CHANNEL
+#define RF_CORE_CONF_CHANNEL        RF_CHANNEL
 #endif
 
 /* Number of Prop Mode RX buffers */
@@ -110,7 +110,7 @@
 #endif /* CPU_FAMILY_CC13XX */
 
 #if CC13XX_CONF_PROP_MODE
-#define NETSTACK_CONF_RADIO        prop_mode_driver
+#define NETSTACK_CONF_RADIO         prop_mode_driver
 
 #ifndef RF_CORE_CONF_CHANNEL
 #define RF_CORE_CONF_CHANNEL                      0
@@ -128,7 +128,7 @@
 #define CONTIKIMAC_CONF_AFTER_ACK_DETECTED_WAIT_TIME (RTIMER_SECOND / 1000)
 #define CONTIKIMAC_CONF_INTER_PACKET_INTERVAL     (RTIMER_SECOND / 240)
 #else
-#define NETSTACK_CONF_RADIO        ieee_mode_driver
+#define NETSTACK_CONF_RADIO         ieee_mode_driver
 
 #ifndef RF_CORE_CONF_CHANNEL
 #define RF_CORE_CONF_CHANNEL                     25
@@ -233,7 +233,7 @@
 #define NBR_TABLE_CONF_MAX_NEIGHBORS        20
 #endif
 #ifndef UIP_CONF_MAX_ROUTES
-#define UIP_CONF_MAX_ROUTES                 200
+#define UIP_CONF_MAX_ROUTES                 250
 #endif
 
 #ifndef UIP_CONF_TCP

@@ -67,6 +67,8 @@
 #include "../system-common.h"//
 #include "../protocol.h"//
 
+#include "../../cpu/cc26xx-cc13xx/dev/pwm.h" /*PWM*/
+
 #include "sys/etimer.h"
 								
 #define IOC_INPUT_PULL_UP	(IOC_CURRENT_2MA	| IOC_STRENGTH_AUTO	| \
@@ -155,19 +157,23 @@ PROCESS_THREAD(main_process, ev, data)
 			/* Разблокировка командной строки на 15 секунд. */
 			if(ev == sensors_event && data == &button_e_sensor_click)
 			{	
-				printf("[ROOT Node] Command line is unlocked for 15 seconds\n");
-				ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_RX, IOC_PORT_GPIO, IOC_INPUT_PULL_UP);
-				ti_lib_ioc_port_configure_set(BOARD_IOID_UART_RX , IOC_PORT_MCU_UART0_RX, IOC_INPUT_PULL_UP);
-				unset_uart();		
+				// printf("[ROOT Node] Command line is unlocked for 15 seconds\n");
+				// ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_RX, IOC_PORT_GPIO, IOC_INPUT_PULL_UP);
+				// ti_lib_ioc_port_configure_set(BOARD_IOID_UART_RX , IOC_PORT_MCU_UART0_RX, IOC_INPUT_PULL_UP);
+				// unset_uart();		
 		
-				etimer_set(&shell_off, CLOCK_SECOND * 15);
-				PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&shell_off));
+				// etimer_set(&shell_off, CLOCK_SECOND * 15);
+				// PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&shell_off));
 				
-				printf("[ROOT Node] Command line is lock\n");
-				ti_lib_ioc_port_configure_set(BOARD_IOID_UART_RX, IOC_PORT_GPIO, IOC_INPUT_PULL_UP);
-				ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_RX, IOC_PORT_MCU_UART0_RX, IOC_INPUT_PULL_UP);
-				set_uart();	
+				// printf("[ROOT Node] Command line is lock\n");
+				// ti_lib_ioc_port_configure_set(BOARD_IOID_UART_RX, IOC_PORT_GPIO, IOC_INPUT_PULL_UP);
+				// ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_RX, IOC_PORT_MCU_UART0_RX, IOC_INPUT_PULL_UP);
+				// set_uart();	
 		
+
+
+
+
 		
 		
 		
@@ -176,8 +182,10 @@ PROCESS_THREAD(main_process, ev, data)
 				// led_on(LED_A); 
 				
 				// /*Адрес DAG'а*/
-				// static uip_ipaddr_t dest_addr;
-				// uip_ip6addr(&dest_addr, 0xFD00, 0x0, 0x0, 0x0, 0x0212, 0x4B00, 0x0C46, 0x8D03);			
+				static uip_ipaddr_t dest_addr;
+				uip_ip6addr(&dest_addr, 0xFD00, 0x0, 0x0, 0x0, 0x0212, 0x4B00, 0x17B7, 0xCEEA);		
+
+				pwm_set_sender(&dest_addr, true, 50);	
 				
 				// hexraw_print(16, &dest_addr);
 				
