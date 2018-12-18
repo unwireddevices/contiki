@@ -49,6 +49,17 @@
 
 #include <string.h>
 
+////////////////////////////////////////////////////////////////////
+#ifdef UNWDS_ROOT 
+/* Define some settings */
+#define ROUTELIST_SAFE_INTERVAL			(60 * CLOCK_SECOND)
+#define MIN_NUM_ROUTE_SAFE					(20)
+
+/* Safe routelist to EEPROM process */
+PROCESS(safe_routelist_process, "Safe routelist process");
+#endif
+////////////////////////////////////////////////////////////////////
+
 /* A configurable function called after adding a new neighbor as next hop */
 #ifdef NETSTACK_CONF_ROUTING_NEIGHBOR_ADDED_CALLBACK
 void NETSTACK_CONF_ROUTING_NEIGHBOR_ADDED_CALLBACK(const linkaddr_t *addr);
@@ -193,6 +204,14 @@ uip_ds6_route_init(void)
 #if UIP_DS6_NOTIFICATIONS
   list_init(notificationlist);
 #endif
+
+////////////////////////////////////////////////////////////////////
+#ifdef UNWDS_ROOT 
+	/* Load and safe routelist to EEPROM process */
+	process_start(&safe_routelist_process, NULL);
+#endif
+////////////////////////////////////////////////////////////////////
+
 }
 #if (UIP_CONF_MAX_ROUTES != 0)
 /*---------------------------------------------------------------------------*/
@@ -916,6 +935,101 @@ bool valid_counter(uip_ip6addr_t *addr, uint16_t counter)
 	}
 	return false;
 }
-#endif
+
 /*---------------------------------------------------------------------------*/
+void print_routelist(void)
+{
+	printf("addr routelist_list: 0x%08lx\n", (uint32_t)routelist_list);
+
+	uint32_t num_routes = uip_ds6_route_num_routes();
+  printf("num routes: %lu\n", num_routes);
+
+	for(uint32_t i = 0; i < num_routes; i++)
+	{
+		hexraw_print(sizeof(uip_ds6_route_t), (uint8_t*)((uint32_t)routelist_list) + ((i-1) * sizeof(uip_ds6_route_t)));   
+		printf("\n");
+	}
+
+	// for(uint8_t i = 0; i < UIP_CONF_MAX_ROUTES; i++)
+	// {
+	// 	hexraw_print(sizeof(uip_ds6_route_t) * UIP_CONF_MAX_ROUTES, (uint8_t*)((uint32_t)routelist_list) + (i * sizeof(uip_ds6_route_t)));   
+	// 	printf("\n");
+	// }
+		//((uint32_t)routelist_list) + (i * sizeof(uip_ds6_route_t))
+
+
+
+	// //routelist_list
+	// printf("addr routelist_list: 0x%08lx\n", routelist_list);
+  // printf("addr routelist_list: 0x%08lx\n", &routelist_list);
+
+	// //routelist
+	// printf("addr routelist: 0x%08lx\n", routelist);
+	// printf("addr routelist: 0x%08lx\n", &routelist);
+
+// addr routelist_list: 0x200010d4
+// addr routelist_list: 0x200010d0
+// addr routelist: 0x200010d0
+// addr routelist: 0x20000778
+
+
+//  .bss.routememb_memb_mem
+//                 0x200010d4     0x1f40 contiki-unwired.a(uip-ds6-route.o)
+//  .bss.routelist_list
+//                 0x200010d0        0x4 contiki-unwired.a(uip-ds6-route.o)
+//  .bss.routelist_list
+//                 0x200010d0        0x4 contiki-unwired.a(uip-ds6-route.o)
+//  .data.routelist
+//               0x20000778        0x4 contiki-unwired.a(uip-ds6-route.o)
+
+
+}
+
+/*---------------------------------------------------------------------------*/
+/* Safe routelist to EEPROM process */
+PROCESS_THREAD(safe_routelist_process, ev, data)
+{
+	PROCESS_BEGIN();
+	
+	if(ev == PROCESS_EVENT_EXIT)
+		return 1;
+
+	//
+	// Проверяет есть ли сохранённая таблица маршрутизации.
+	// Если есть, то загружает её. 
+	//
+	// Загружаем 
+	// Addr: routelist_list
+	// Len: (sizeof(uip_ds6_route_t) * UIP_CONF_MAX_ROUTES)
+	//
+	
+	/* Создаём таймер для по истечении которого будет сохранятся таблица маршрутизации */
+	static struct etimer safe_routelist_timer;	
+	
+	while (1)
+	{
+		/* Устанавливаем таймер на срабатывание с раз в ROUTELIST_SAFE_INTERVAL */
+		etimer_set(&safe_routelist_timer, ROUTELIST_SAFE_INTERVAL);	
+
+		/* TEST PRINTF */		
+		printf("safe_routelist_process num_routes: %i\n", uip_ds6_route_num_routes());
+		
+		/* Если прошел 1ч и устройств > MIN_NUM_ROUTE_SAFE, то сохраняем таблицу маршрутизации */
+		if(uip_ds6_route_num_routes() > MIN_NUM_ROUTE_SAFE)								
+		{
+			//
+			// Сохраняем
+			// Addr: routelist_list
+			// Len: (sizeof(uip_ds6_route_t) * UIP_CONF_MAX_ROUTES)
+			//
+		}
+		
+		PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&safe_routelist_timer));	/* Засыпаем до срабатывания таймера */
+	}
+	
+	PROCESS_END();
+}
+
+/*---------------------------------------------------------------------------*/
+#endif
 /** @} */

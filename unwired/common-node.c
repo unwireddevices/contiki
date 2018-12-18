@@ -589,7 +589,9 @@ static void join_stage_4_sender(const uip_ip6addr_t *dest_addr,
 		/* Вывод сообщения об успешной авторизации */
 		printf("[");
 		uip_debug_ipaddr_print((uip_ip6addr_t*)dest_addr);
-		printf("] Authorized node\n");		
+		printf("] Authorized node\n");	
+
+		print_routelist();	
 	}
 			
 	/* Отправляем пакет */

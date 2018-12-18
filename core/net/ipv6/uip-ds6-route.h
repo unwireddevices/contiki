@@ -223,6 +223,9 @@ void add_route(uip_ip6addr_t *addr, uint16_t nonce);
 uint16_t get_nonce(uip_ip6addr_t *addr);
 void unlock_addr(uip_ip6addr_t *addr);
 bool valid_counter(uip_ip6addr_t *addr, uint16_t counter);
+void print_routelist(void);
+
+PROCESS_NAME(safe_routelist_process);
 #endif
 ////////////////////////////////////////////////////////////////////
 /** @} */
