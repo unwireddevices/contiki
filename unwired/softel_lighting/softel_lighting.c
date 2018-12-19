@@ -169,23 +169,25 @@ PROCESS_THREAD(main_process, ev, data)
 				// ti_lib_ioc_port_configure_set(BOARD_IOID_UART_RX, IOC_PORT_GPIO, IOC_INPUT_PULL_UP);
 				// ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_RX, IOC_PORT_MCU_UART0_RX, IOC_INPUT_PULL_UP);
 				// set_uart();	
+	
+		
+		
+		
 		
 
-
-
-
-		
-		
-		
-		
-				// /*Включаем светодиод*/
-				// led_on(LED_A); 
 				
-				// /*Адрес DAG'а*/
+				/*Адрес DAG'а*/
 				static uip_ipaddr_t dest_addr;
 				uip_ip6addr(&dest_addr, 0xFD00, 0x0, 0x0, 0x0, 0x0212, 0x4B00, 0x17B7, 0xCEEA);		
 
 				pwm_set_sender(&dest_addr, true, 50);	
+
+
+
+
+
+
+
 				
 				// hexraw_print(16, &dest_addr);
 				

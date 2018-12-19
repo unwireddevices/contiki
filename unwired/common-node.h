@@ -76,10 +76,18 @@ volatile union
 /*---------------------------------------------------------------------------*/
 /* ПРОТОТИПЫ ОБЩИХ ФУНКЦИЙ */
 /*---------------------------------------------------------------------------*/
+/* Конструктор пакета */
+void pack_sender(const uip_ip6addr_t *dest_addr, 
+				 uint8_t device_id, 
+				 uint8_t data_type, 
+				 uint8_t payload_len, 
+				 uint8_t *payload);
 
-//
-//
-//
+/* Функция управления светодиодами */
+void led_mode_set(uint8_t mode);
+
+/* Проверка является ли эта нода рутом */
+bool node_is_root(void);
 
 /*---------------------------------------------------------------------------*/
 /* ПРОТОТИПЫ ФУНКЦИЙ ROOT'а */
@@ -97,13 +105,6 @@ void root_udp_data_receiver(struct simple_udp_connection *connection,
 void pwm_set_sender(const uip_ip6addr_t *dest_addr,
 					bool pwm_power,
 					uint8_t duty);
-	
-/* Конструктор пакета */
-void pack_sender_root(const uip_ip6addr_t *dest_addr, 
-					  uint8_t device_id, 
-					  uint8_t data_type, 
-					  uint8_t payload_len, 
-				      uint8_t *payload);
 				
 /* Иннициализация RPL */
 void rpl_initialize();
@@ -111,22 +112,13 @@ void rpl_initialize();
 /* Иннициализация ноды */
 void root_node_initialize();
 
-/* Проверка является ли эта нода рутом */
-bool node_is_root(void);
-
-
 /*---------------------------------------------------------------------------*/
 /* ПРОТОТИПЫ ФУНКЦИЙ DAG'а */
 /*---------------------------------------------------------------------------*/
 
-/* Функция управления светодиодами */
-void led_mode_set(uint8_t mode);
-
-/* Конструктор пакета */
-void pack_sender_dag(uint8_t device_id, 
-				 	 uint8_t data_type, 
-				 	 uint8_t payload_len, 
-				 	 uint8_t *payload);
+//
+//
+//
 
 
 /*---------------------------------------------------------------------------*/
@@ -136,6 +128,9 @@ void pack_sender_dag(uint8_t device_id,
 /*---------------------------------------------------------------------------*/
 /* Процесс инициализации настроек из EEPROM */
 PROCESS_NAME(settings_init);
+
+/* Процесс упарвления светодиодами */
+PROCESS_NAME(led_process);
 
 /*---------------------------------------------------------------------------*/
 /* ПРОЦЕССЫ ROOT'а */
@@ -160,9 +155,6 @@ PROCESS_NAME(root_find_process);
 
 /* Процесс управления нодой */
 PROCESS_NAME(maintenance_process);
-
-/* Процесс упарвления светодиодами */
-PROCESS_NAME(led_process);
 
 /*---------------------------------------------------------------------------*/
 #endif /* COMMON_NODE_H_ */

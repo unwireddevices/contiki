@@ -939,16 +939,23 @@ bool valid_counter(uip_ip6addr_t *addr, uint16_t counter)
 /*---------------------------------------------------------------------------*/
 void print_routelist(void)
 {
-	printf("addr routelist_list: 0x%08lx\n", (uint32_t)routelist_list);
+	// printf("addr routelist_list: 0x%08lx\n", (uint32_t)routelist_list);
 
 	uint32_t num_routes = uip_ds6_route_num_routes();
   printf("num routes: %lu\n", num_routes);
 
-	for(uint32_t i = 0; i < num_routes; i++)
-	{
-		hexraw_print(sizeof(uip_ds6_route_t), (uint8_t*)((uint32_t)routelist_list) + ((i-1) * sizeof(uip_ds6_route_t)));   
-		printf("\n");
-	}
+	// for(uint32_t i = 0; i < num_routes; i++)
+	// {
+	// 	hexraw_print(sizeof(uip_ds6_route_t), (uint8_t*)((uint32_t)routelist_list) + ((i-1) * sizeof(uip_ds6_route_t)));   
+	// 	printf("\n");
+	// }
+
+	return;
+
+
+
+
+
 
 	// for(uint8_t i = 0; i < UIP_CONF_MAX_ROUTES; i++)
 	// {
