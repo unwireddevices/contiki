@@ -1348,7 +1348,7 @@ PROCESS_THREAD(settings_init, ev, data)
 			write_eeprom((uint8_t*)&eeprom_settings, sizeof(eeprom_settings));
 		}
 		
-		printf("[ROOT Node] AES-128 key not declared\n[DAG Node] ***PLEASE SET AES KEY***\n");
+		printf("[Node] AES-128 key not declared\n[DAG Node] ***PLEASE SET AES KEY***\n");
 		while(eeprom_settings.aes_key_configured)
 		{
 			PROCESS_YIELD();
@@ -1358,7 +1358,7 @@ PROCESS_THREAD(settings_init, ev, data)
 	/* Если ключа шифрования нет, то информируем об этом */
 	else
 	{
-		printf("[ROOT Node] AES-128 key:");
+		printf("[Node] AES-128 key:");
 		for (uint8_t i = 0; i < 16; i++)
 		{
 			aes_key[i] = eeprom_settings.aes_key[i];
@@ -1380,14 +1380,14 @@ PROCESS_THREAD(settings_init, ev, data)
 		if (ti_lib_chipinfo_chip_family_is_cc26xx())
 		{
 			uint32_t freq_mhz = (2405 + 5 * (eeprom_settings.channel - 11));
-			printf("[ROOT Node] Changed the radio-channel to: %"PRIint" (%"PRIu32" MHz)\n", (int)eeprom_settings.channel, freq_mhz);
+			printf("[Node] Changed the radio-channel to: %"PRIint" (%"PRIu32" MHz)\n", (int)eeprom_settings.channel, freq_mhz);
 		}
 
 		/* Если мы чип CC13XX, то выводим частоту */
 		if (ti_lib_chipinfo_chip_family_is_cc13xx())
 		{
 			uint32_t freq_khz = 863125 + (eeprom_settings.channel * 200);
-			printf("[ROOT Node] Changed the radio-channel to: %"PRIint" (%"PRIu32" kHz)\n", (int)eeprom_settings.channel, freq_khz);
+			printf("[Node] Changed the radio-channel to: %"PRIint" (%"PRIu32" kHz)\n", (int)eeprom_settings.channel, freq_khz);
 		}
 	}
 	
@@ -1403,13 +1403,71 @@ PROCESS_THREAD(settings_init, ev, data)
 			NETSTACK_RADIO.set_value(RADIO_PARAM_PAN_ID, eeprom_settings.panid);
 			
 			/* Выводим PAN ID */
-			printf("[ROOT Node] PAN ID changed to: %"PRIXX16"\n", eeprom_settings.panid);
+			printf("[Node] PAN ID changed to: %"PRIXX16"\n", eeprom_settings.panid);
+		}
+	}
+
+	/* Copy the current firmware into OTA slot 0 as the "Golden Image" */
+	if(eeprom_settings.is_backup_golden_image)
+	{
+		/* Проверяем установлена ли флешка */
+		bool eeprom_access = ext_flash_open();
+		if(eeprom_access)
+		{
+			backup_golden_image();
+			eeprom_settings.is_backup_golden_image = 0;
+			write_eeprom((uint8_t*)&eeprom_settings, sizeof(eeprom_settings));
+		}
+		else
+		{
+			ext_flash_close();
 		}
 	}
 	
 	/* Чтение GPIO и установка режима работы */
 	ti_lib_ioc_pin_type_gpio_input(IOID_23);
 	mode_node = ti_lib_gpio_read_dio(IOID_23);
+
+	/* TEST */
+	OTAMetadata_t ota_metadata;
+	get_current_metadata(&ota_metadata);
+	printf("\nOTA METADATA:\n");
+	print_metadata(&ota_metadata);
+	printf("\n");
+
+	// backup_golden_image();
+
+
+
+
+
+
+
+
+
+
+
+
+	// printf("old fw_flag: %i\n", read_fw_flag());
+	// uint8_t ota_flag = write_fw_flag(FW_FLAG_NON_UPDATE);
+	// if(ota_flag == FLAG_OK_WRITE)
+	// 	printf("FLAG_OK_WRITE\n");
+	// else if(ota_flag == FLAG_ERROR_WRITE)
+	// 	printf("FLAG_ERROR_WRITE\n");
+	// else 
+	// 	printf("FLAG_ELSE\n");
+
+	// ota_flag = read_fw_flag();
+	// if(ota_flag == FW_FLAG_NON_UPDATE)
+	// 	printf("FW_FLAG_NON_UPDATE\n");
+	// printf("new fw_flag: %i\n", ota_flag);
+
+
+	// old fw_flag: 51
+	// FLAG_OK_WRITE
+	// FW_FLAG_NON_UPDATE
+	// new fw_flag: 48
+
 
 	/* Передаем управление rpl_root_process */
 	process_post(&main_process, PROCESS_EVENT_CONTINUE, NULL);

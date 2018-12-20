@@ -45,6 +45,8 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdbool.h>
+
+#include "ota-bootloader.h"
 //#include "xxf_types_helper.h"
 
 /*---------------------------------------------------------------------------*/
@@ -94,6 +96,7 @@
 static void
 select_on_bus(void)
 {
+  // print_uart("select_on_bus()\n");
   ti_lib_gpio_clear_dio(BOARD_IOID_FLASH_CS);
 }
 /*---------------------------------------------------------------------------*/
@@ -104,6 +107,7 @@ static void
 deselect(void)
 {
   ti_lib_gpio_set_dio(BOARD_IOID_FLASH_CS);
+  // print_uart("deselect()\n");
 }
 /*---------------------------------------------------------------------------*/
 /**
@@ -113,6 +117,7 @@ deselect(void)
 static bool
 wait_ready(void)
 {
+  // print_uart("wait_ready()\n");
   bool ret;
   const uint8_t wbuf[1] = { BLS_CODE_READ_STATUS };
 
@@ -162,6 +167,7 @@ wait_ready(void)
 static uint8_t
 verify_part(void)
 {
+  // print_uart("verify_part()\n");
   const uint8_t wbuf[] = { BLS_CODE_MDID };
   uint8_t rbuf[3] = { 0, 0, 0 };
   bool ret;
@@ -196,6 +202,7 @@ verify_part(void)
 static void
 power_down(void)
 {
+  // print_uart("power_down()\n");
   uint8_t cmd;
   uint8_t i;
 
@@ -230,6 +237,7 @@ power_down(void)
 static bool
 power_standby(void)
 {
+  // print_uart("power_standby()\n");
   uint8_t cmd;
   bool success;
 
@@ -255,6 +263,7 @@ power_standby(void)
 static bool
 write_enable(void)
 {
+  // print_uart("write_enable()\n");
   bool ret;
   const uint8_t wbuf[] = { BLS_CODE_WRITE_ENABLE };
 
@@ -271,6 +280,7 @@ write_enable(void)
 bool
 ext_flash_open()
 {
+  // print_uart("ext_flash_open()\n");
   board_spi_open(4000000, BOARD_IOID_SPI_CLK_FLASH);
 
   /* GPIO pin configuration */
@@ -289,6 +299,7 @@ ext_flash_open()
 void
 ext_flash_close()
 {
+  // print_uart("ext_flash_close()\n");
   /* Put the part in low power mode */
   power_down();
 
@@ -299,12 +310,14 @@ ext_flash_close()
 void
 spi_flash_close()
 {
+  // print_uart("ext_flash_close()\n");
   board_spi_close();
 }
 /*---------------------------------------------------------------------------*/
 bool
 ext_flash_read(size_t offset, size_t length, uint8_t *buf)
 {
+  // print_uart("ext_flash_read()\n");
   uint8_t wbuf[4];
   bool ret;
   /* Wait till previous erase/program operation completes */
@@ -340,6 +353,7 @@ ext_flash_read(size_t offset, size_t length, uint8_t *buf)
 bool
 ext_flash_write(size_t offset, size_t length, const uint8_t *buf)
 {
+  // print_uart("ext_flash_write()\n");
   uint8_t wbuf[4];
   bool ret;
   size_t ilen; /* interim length per instruction */
@@ -397,6 +411,7 @@ ext_flash_write(size_t offset, size_t length, const uint8_t *buf)
 bool
 ext_flash_erase(size_t offset, size_t length)
 {
+  // print_uart("ext_flash_erase()\n");
   /*
    * Note that Block erase might be more efficient when the floor map
    * is well planned for OTA, but to simplify this implementation,
@@ -446,6 +461,7 @@ ext_flash_erase(size_t offset, size_t length)
 bool
 ext_flash_test(void)
 {
+  // print_uart("ext_flash_test()\n");
   bool ret;
 
   ret = ext_flash_open();
@@ -457,12 +473,13 @@ ext_flash_test(void)
 void
 ext_flash_probe(void)
 {
-
+  // print_uart("ext_flash_probe()\n");
 }
 /*---------------------------------------------------------------------------*/
 bool
 ext_flash_init()
 {
+  // print_uart("ext_flash_init()\n");
   bool status = ext_flash_open();
 
   if (status == true)
@@ -473,6 +490,17 @@ ext_flash_init()
   {
      spi_flash_close();
   }
+
+  // print_uart("status: ");
+  // if (status == true)
+  // {
+  //   print_uart("true\n");
+  // }
+  // else
+  // {
+  //   print_uart("false\n");
+  // }
+
   return status;
 }
 /*---------------------------------------------------------------------------*/

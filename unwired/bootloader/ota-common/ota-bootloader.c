@@ -252,13 +252,17 @@ int
 verify_current_firmware( OTAMetadata_t *current_firmware_metadata )
 {
   //  (1) Determine the external flash address corresponding to the OTA slot
-  uint32_t firmware_address = 0x2000 + OTA_METADATA_SPACE;
+  print_uart("verify_current_firmware()\n");
+  print_uart("Determine the external flash address corresponding to the OTA slot\n");
+  uint32_t firmware_address = (CURRENT_FIRMWARE<<12) + OTA_METADATA_SPACE;
   uint32_t firmware_end_address = firmware_address + (current_firmware_metadata->size);
 
   //  (3) Compute the CRC16 over the entire image
+  print_uart("Compute the CRC16 over the entire image\n");
   uint16_t imageCRC = 0;
 
   //  (4) Read the firmware image, one word at a time
+  print_uart("Read the firmware image, one word at a time\n");
   int idx;
   while (firmware_address < firmware_end_address) {
     uint8_t _word[4];
@@ -274,21 +278,29 @@ verify_current_firmware( OTAMetadata_t *current_firmware_metadata )
   }
 
   //  (5) Compute two more CRC iterations using value of 0
+  print_uart("Compute two more CRC iterations using value of 0\n");
   imageCRC = crc16(imageCRC, 0);
   imageCRC = crc16(imageCRC, 0);
 
   //  (6) Update the CRC shadow with our newly calculated value
+  print_uart("Update the CRC shadow with our newly calculated value\n");
   current_firmware_metadata->crc_shadow = imageCRC;
 
   //  (4) Finally, update Metadata stored in ext-flash
-  while(  FlashProgram( (uint8_t *)current_firmware_metadata, (CURRENT_FIRMWARE<<12), OTA_METADATA_LENGTH )
-  != FAPI_STATUS_SUCCESS );
+  print_uart("Finally, update Metadata stored in ext-flash\n");
+
+  print_uart_byte(FlashProgram( (uint8_t *)current_firmware_metadata, (CURRENT_FIRMWARE<<12), OTA_METADATA_LENGTH ));
+
+  // while(  FlashProgram( (uint8_t *)current_firmware_metadata, (CURRENT_FIRMWARE<<12), OTA_METADATA_LENGTH )
+  // != FAPI_STATUS_SUCCESS );
 
   if (current_firmware_metadata->crc_shadow == current_firmware_metadata->crc)
   {
-     return CORRECT_CRC;
+    print_uart("CORRECT_CRC\n");
+    return CORRECT_CRC;
   }
 
+  print_uart("NON_CORRECT_CRC\n");
   return NON_CORRECT_CRC;
 }
 

@@ -184,12 +184,34 @@ main(void)
    }
 
    uint8_t fw_flag = read_fw_flag();
+   print_uart("read_fw_flag()\n");
 
    OTAMetadata_t current_firmware;
    get_current_metadata( &current_firmware );
+
+
+
+// typedef struct OTAMetadata {
+//   uint16_t crc;             //
+//   uint16_t crc_shadow;      //
+//   uint32_t size;            //  Size of firmware image
+//   uint32_t uuid;             //  Integer representing unique firmware ID
+//   uint16_t version;         //  Integer representing firmware version
+// } OTAMetadata_t;
+
+   for(uint8_t i = 0; i < sizeof(OTAMetadata_t); i++)
+   {
+      print_uart_byte(((uint8_t*)(&current_firmware))[i]);
+   }
+   print_uart("\n");
+   
+   print_uart("get_current_metadata()\n");
    int8_t verify_result_int = verify_current_firmware( &current_firmware );
+   print_uart("verify_current_firmware()\n");
    int8_t verify_result_ota_1 = verify_ota_slot( 1 );
+   print_uart("verify_ota_slot(1)\n");
    int8_t verify_result_ota_0 = verify_ota_slot( 0 );
+   print_uart("verify_ota_slot(0)\n");
 
    print_uart_bl("FW flag: ");
    print_uart_byte(fw_flag);

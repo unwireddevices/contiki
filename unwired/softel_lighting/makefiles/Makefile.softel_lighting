@@ -2,7 +2,7 @@ all: softel_lighting
 
 PROJECTDIRS += ..
 APPS = serial-shell
-PROJECT_SOURCEFILES += common-node.c crypto-common.c system-common.c rtc-common.c int-flash-common.c
+PROJECT_SOURCEFILES += common-node.c crypto-common.c system-common.c rtc-common.c int-flash-common.c ota-common.c ota-main.c
 DEFINES+=PROJECT_CONF_H=\"project-conf-class-c.h\"
 DEFINES+=UNWDS_ROOT=1
 DEFINES+=CLASS=0x0C

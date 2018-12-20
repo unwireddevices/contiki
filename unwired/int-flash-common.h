@@ -64,7 +64,8 @@ typedef  struct {
 	uint8_t aes_key[16];					
 	uint8_t panid_configured;
 	uint8_t channel_configured;	
-	uint8_t aes_key_configured;		
+	uint8_t aes_key_configured;	
+	uint8_t is_backup_golden_image;	
 } eeprom_t;
 
 /*---------------------------------------------------------------------------*/
