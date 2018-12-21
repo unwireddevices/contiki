@@ -59,6 +59,12 @@
 #define ROUTELIST_SAFE_INTERVAL				(60 * CLOCK_SECOND)
 #define MIN_NUM_ROUTE_SAFE					(20)
 
+#define EEPROM_ADDR							(0x60000)
+#define MAGIC_BYTES_ADDR					(EEPROM_ADDR)
+#define MAGIC_BYTES							(0xBABECAFE)
+#define MAGIC_BYTES_LENGTH					(sizeof(uint32_t))
+#define ROUTELIST_EEPROM_ADDR				(EEPROM_ADDR + MAGIC_BYTES_LENGTH)
+
 /* Safe routelist to EEPROM process */
 PROCESS(safe_routelist_process, "Safe routelist process");
 #endif
@@ -952,73 +958,63 @@ bool valid_counter(uip_ip6addr_t *addr, uint16_t counter)
 /*---------------------------------------------------------------------------*/
 bool load_routelist(void)
 {
-  // Загружаем 
-  // Addr: routelist_list
-  // Len: (sizeof(uip_ds6_route_t) * UIP_CONF_MAX_ROUTES)
+	// Загружаем 
+	// Addr: routelist_list
+	// Len: (sizeof(uip_ds6_route_t) * UIP_CONF_MAX_ROUTES)
 
-  // /* Проверяем установлена ли флешка */
-  // bool eeprom_access = ext_flash_open();
-  // if(eeprom_access)
-  // {
-  // 	// Проверяет есть ли сохранённая таблица маршрутизации, если есть, то загружает её. 
-  // 	uip_ip6addr_t test_flash_empty; 
-  // 	uip_ip6addr_t route_from_flash;
+	/* Проверяем установлена ли флешка */
+	bool eeprom_access = ext_flash_open();
+	if(eeprom_access)
+	{
+		/* Проверяет есть ли сохранённая таблица маршрутизации, если есть, то загружает её */
+		uint32_t magic_bytes; 
 
-  // 	memset(&test_flash_empty, 0xFF, sizeof(uip_ds6_route_t));
+		// ext_flash_erase(ROUTELIST_EEPROM_ADDR, FLASH_PAGE_SIZE);
 
-  // 	ext_flash_erase(0x60000, FLASH_PAGE_SIZE);
-  // 	/* Считываем первый маршрут */
-  // 	eeprom_access = ext_flash_read(0x60000, sizeof(uip_ds6_route_t), (uint8_t*)&route_from_flash);
+		/* Считываем магические байты */
+		eeprom_access = ext_flash_read(MAGIC_BYTES_ADDR, MAGIC_BYTES_LENGTH, (uint8_t*)&magic_bytes);
 
-  // 	hexraw_print(sizeof(uip_ds6_route_t), (uint8_t*)&test_flash_empty);
-  // 	printf("\n");
-  // 	hexraw_print(sizeof(uip_ds6_route_t), (uint8_t*)&route_from_flash);
-  // 	printf("\n");
+		/* Проверка */
+		if(eeprom_access) 
+		{
+			printf("[EEPROM] Read ok\n");
+			printf("magic_bytes: %lu\n", magic_bytes);
+		
+			if(magic_bytes == MAGIC_BYTES)
+			{
+				printf("[EEPROM] flash is empty\n");
+				ext_flash_close();
+				return false;
+			}
+		}
+		else
+		{
+			printf("[EEPROM] Read error\n");
+			ext_flash_close();
+			return false;
+		}
 
-  // 	/* Проверка */
-  // 	if(eeprom_access) 
-  // 	{
-  // 		printf("[EEPROM] Read ok\n");
-	  
-  // 		if(memcmp(&test_flash_empty, &route_from_flash, sizeof(uip_ds6_route_t)) == 0)
-  // 		{
-  // 			printf("[EEPROM] flash is empty\n");
-  // 			ext_flash_close();
-  // 			return false;
-  // 		}
-  // 	}
-  // 	else
-  // 	{
-  // 		printf("[EEPROM] Read error\n");
-  // 		ext_flash_close();
-  // 		return false;
-  // 	}
+		eeprom_access = ext_flash_read(ROUTELIST_EEPROM_ADDR, (sizeof(uip_ds6_route_t) * UIP_CONF_MAX_ROUTES), (uint8_t*)routelist_list);
 
-  // 	eeprom_access = ext_flash_read(0x60000, (sizeof(uip_ds6_route_t) * UIP_CONF_MAX_ROUTES), (uint8_t*)routelist_list);
-
-  // 	if(eeprom_access) 
-  // 	{
-  // 		printf("[EEPROM] Read ok\n");
-  // 		ext_flash_close();
-  // 		return true;
-  // 	}
-  // 	else
-  // 	{
-  // 		printf("[EEPROM] Read error\n");
-  // 		ext_flash_close();
-  // 		return false;
-  // 	}
-  // }
-  // else
-  // {
-  // 	printf("[EEPROM] Could not access EEPROM\n");
-  // 	ext_flash_close();
-  // 	return false;
-  // }
-
-
-
-  	return true;
+		if(eeprom_access) 
+		{
+			printf("[EEPROM] Read ok\n");
+			ext_flash_close();
+			return true;
+		}
+		else
+		{
+			printf("[EEPROM] Read error\n");
+			ext_flash_close();
+			return false;
+		}
+	}
+	else
+	{
+		printf("[EEPROM] Could not access EEPROM\n");
+		ext_flash_close();
+		return false;
+	}
 }
 
 /*---------------------------------------------------------------------------*/
@@ -1032,12 +1028,24 @@ bool safe_routelist(void)
 	bool eeprom_access = ext_flash_open();
 	if(eeprom_access)
 	{
-		eeprom_access = ext_flash_erase(0x60000, FLASH_PAGE_SIZE);
+		eeprom_access = ext_flash_erase(ROUTELIST_EEPROM_ADDR, (sizeof(uip_ds6_route_t) * UIP_CONF_MAX_ROUTES));
 		if(eeprom_access) 
 		{
 			printf("[EEPROM] Erase ok\n");
 
-			eeprom_access = ext_flash_write(0x60000, (sizeof(uip_ds6_route_t) * UIP_CONF_MAX_ROUTES), (uint8_t*)routelist_list);
+			// eeprom_access = ext_flash_write(ROUTELIST_EEPROM_ADDR, (sizeof(uip_ds6_route_t) * UIP_CONF_MAX_ROUTES), (uint8_t*)routelist_list);
+			// if(eeprom_access) 
+			// {
+			// 	printf("[EEPROM] Write ok\n");
+			// }
+			// else
+			// {
+			// 	printf("[EEPROM] Write error\n");
+			// 	ext_flash_close();
+			// 	return false;
+			// }
+
+			eeprom_access = ext_flash_write(ROUTELIST_EEPROM_ADDR, (sizeof(uip_ds6_route_t) * UIP_CONF_MAX_ROUTES), (uint8_t*)routelist_list);
 			if(eeprom_access) 
 			{
 				printf("[EEPROM] Write ok\n");
@@ -1046,9 +1054,9 @@ bool safe_routelist(void)
 			}
 			else
 			{
-					printf("[EEPROM] Write error\n");
-					ext_flash_close();
-					return false;
+				printf("[EEPROM] Write error\n");
+				ext_flash_close();
+				return false;
 			}
 		}
 		else
@@ -1098,6 +1106,42 @@ PROCESS_THREAD(safe_routelist_process, ev, data)
 		else
 			printf("safe_routelist: error\n");
 		
+
+
+		// uint8_t test_eeprom[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+
+		// printf("sizeof(test_eeprom): %i\n", sizeof(test_eeprom));
+		// hexraw_print(sizeof(test_eeprom), (uint8_t*)test_eeprom); //00 01 02 03 04 05 06 07 08 09
+		// printf("\n");
+
+		// /* Проверяем установлена ли флешка */
+		// ext_flash_open();
+		// ext_flash_erase(ROUTELIST_EEPROM_ADDR, FLASH_PAGE_SIZE);
+		// ext_flash_write(ROUTELIST_EEPROM_ADDR, sizeof(test_eeprom), (uint8_t *)test_eeprom);
+
+		// memset(test_eeprom , 0x00, sizeof(test_eeprom));
+		// hexraw_print(sizeof(test_eeprom), (uint8_t*)test_eeprom); //00 00 00 00 00 00 00 00 00 00
+		// printf("\n");
+
+		// ext_flash_read(ROUTELIST_EEPROM_ADDR, sizeof(test_eeprom), (uint8_t *)test_eeprom);
+		// hexraw_print(sizeof(test_eeprom), (uint8_t*)test_eeprom); //00 01 02 03 04 05 06 07 08 09
+		// printf("\n");
+
+		// memset(test_eeprom, 0xFF, sizeof(test_eeprom));
+		// ext_flash_write(ROUTELIST_EEPROM_ADDR, sizeof(test_eeprom), (uint8_t *)test_eeprom);
+		
+		// ext_flash_read(ROUTELIST_EEPROM_ADDR, sizeof(test_eeprom), (uint8_t *)test_eeprom);
+		// hexraw_print(sizeof(test_eeprom), (uint8_t*)test_eeprom); //00 00 00 00 00 00 00 00 00 00
+		// printf("\n");
+
+		// ext_flash_erase( ROUTELIST_EEPROM_ADDR, FLASH_PAGE_SIZE );
+		// ext_flash_read( ROUTELIST_EEPROM_ADDR, sizeof(test_eeprom), (uint8_t *)test_eeprom);
+		// hexraw_print(sizeof(test_eeprom), (uint8_t*)test_eeprom); //
+		// printf("\n");
+
+		// ext_flash_close();
+
+
 
 
 		/* Если прошел 1ч и устройств > MIN_NUM_ROUTE_SAFE, то сохраняем таблицу маршрутизации */
