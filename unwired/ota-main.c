@@ -18,7 +18,7 @@
 #define DPRINT //printf("\t\t\t\t\t>ota.c:%"PRIu16"\n", __LINE__);watchdog_periodic();
 #define PRINTF(...) printf(__VA_ARGS__)
 
-uint8_t ota_images[3] = OTA_ADDRESSES;
+uint8_t ota_images[2] = OTA_ADDRESSES;
 uint8_t ota_slot_for_erase = 0;
 
 PROCESS(ota_image_erase_process, "Ota image erase process");

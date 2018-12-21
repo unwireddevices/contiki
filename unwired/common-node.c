@@ -671,9 +671,7 @@ static void join_stage_4_sender(const uip_ip6addr_t *dest_addr,
 		/* Вывод сообщения об успешной авторизации */
 		printf("[");
 		uip_debug_ipaddr_print((uip_ip6addr_t*)dest_addr);
-		printf("] Authorized node\n");	
-
-		print_routelist();	
+		printf("] Authorized node\n");		
 	}
 			
 	/* Отправляем пакет */
@@ -1435,8 +1433,120 @@ PROCESS_THREAD(settings_init, ev, data)
 	print_metadata(&ota_metadata);
 	printf("\n");
 
-	// backup_golden_image();
 
+
+
+	
+	// uint8_t test_eeprom[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+
+	// printf("sizeof(test_eeprom): %i\n", sizeof(test_eeprom));
+	// hexraw_print(sizeof(test_eeprom), (uint8_t*)test_eeprom); //00 01 02 03 04 05 06 07 08 09
+	// printf("\n");
+
+	// /* Проверяем установлена ли флешка */
+	// ext_flash_open();
+	// ext_flash_erase(0x60000, FLASH_PAGE_SIZE);
+	// ext_flash_write(0x60000, sizeof(test_eeprom), (uint8_t *)test_eeprom);
+
+	// memset(test_eeprom , 0x00, sizeof(test_eeprom));
+	// hexraw_print(sizeof(test_eeprom), (uint8_t*)test_eeprom); //00 00 00 00 00 00 00 00 00 00
+	// printf("\n");
+
+	// ext_flash_read(0x60000, sizeof(test_eeprom), (uint8_t *)test_eeprom);
+	// hexraw_print(sizeof(test_eeprom), (uint8_t*)test_eeprom); //00 01 02 03 04 05 06 07 08 09
+	// printf("\n");
+
+	// memset(test_eeprom, 0xFF, sizeof(test_eeprom));
+	// ext_flash_write(0x60000, sizeof(test_eeprom), (uint8_t *)test_eeprom);
+	
+	// ext_flash_read(0x60000, sizeof(test_eeprom), (uint8_t *)test_eeprom);
+	// hexraw_print(sizeof(test_eeprom), (uint8_t*)test_eeprom); //00 00 00 00 00 00 00 00 00 00
+	// printf("\n");
+
+	// ext_flash_erase( 0x60000, FLASH_PAGE_SIZE );
+	// ext_flash_read( 0x60000, sizeof(test_eeprom), (uint8_t *)test_eeprom);
+	// hexraw_print(sizeof(test_eeprom), (uint8_t*)test_eeprom); //
+	// printf("\n");
+
+	// ext_flash_close();
+
+
+
+
+
+
+
+	// //
+	// uint8_t test_eeprom[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+
+	// printf("sizeof(test_eeprom): %i\n", sizeof(test_eeprom));
+	// hexraw_print(sizeof(test_eeprom), (uint8_t*)test_eeprom);
+	// printf("\n");
+
+	// /* Проверяем установлена ли флешка */
+	// bool eeprom_access = ext_flash_open();
+	// if(eeprom_access)
+	// {
+	// 	//
+	// 	eeprom_access = ext_flash_erase( 0x60000, FLASH_PAGE_SIZE );
+	// 	if(eeprom_access) 
+	// 	{
+	// 		printf("[EEPROM] Erase ok\n");
+
+	// 		eeprom_access = ext_flash_write( 0x60000, sizeof(test_eeprom), (uint8_t *)test_eeprom );
+	// 		if(eeprom_access) 
+	// 		{
+	// 			printf("[EEPROM] Write ok\n");
+	// 		}
+	// 		else
+	// 		{
+	// 			printf("[EEPROM] Write error\n");
+	// 		}
+	// 	}
+	// 	else
+	// 	{
+	// 		printf("[EEPROM] Erase error\n");
+	// 	}
+
+	// 	ext_flash_close();
+	// 	//
+	// }
+	// else
+	// {
+	// 	printf("[EEPROM] Could not access EEPROM\n");
+	// 	ext_flash_close();
+	// }
+
+	// memset(test_eeprom , 0x00, sizeof(test_eeprom));
+	// hexraw_print(sizeof(test_eeprom), (uint8_t*)test_eeprom);
+	// printf("\n");
+
+	// /* Проверяем установлена ли флешка */
+	// eeprom_access = ext_flash_open();
+	// if(eeprom_access)
+	// {
+	// 	eeprom_access = ext_flash_read( 0x60000, sizeof(test_eeprom), (uint8_t *)test_eeprom);
+
+	// 	if(eeprom_access) 
+	// 	{
+	// 		printf("[EEPROM] Read ok\n");
+	// 	}
+	// 	else
+	// 	{
+	// 		printf("[EEPROM] Read error\n");
+	// 	}
+
+	// 	ext_flash_close();
+	// }
+	// else
+	// {
+	// 	printf("[EEPROM] Could not access EEPROM\n");
+	// 	ext_flash_close();
+	// }
+
+	// hexraw_print(sizeof(test_eeprom), (uint8_t*)test_eeprom);
+	// printf("\n");
+	// //
 
 
 
@@ -1469,7 +1579,7 @@ PROCESS_THREAD(settings_init, ev, data)
 	// new fw_flag: 48
 
 
-	/* Передаем управление rpl_root_process */
+	/* Передаем управление main_process */
 	process_post(&main_process, PROCESS_EVENT_CONTINUE, NULL);
 
 	PROCESS_END();
