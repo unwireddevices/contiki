@@ -103,7 +103,7 @@ typedef struct {
 	uip_ip6addr_t dest_addr; 	/*Адрес модуля*/
 	uint8_t device_id; 			/*Индентификатор модуля*/
 	uint8_t data_type; 			/*Команда*/
-	uint8_t payload_len;		/*Размер payload'а*/
+	uint16_t payload_len;		/*Размер payload'а*/
 } pack uart_header_t;
 
 /*---------------------------------------------------------------------------*/
@@ -304,8 +304,14 @@ typedef struct {
 	OTAMetadata_t ota_metadata;		/* */
 } pack start_ota_t;
 
+/*Struct for REQ_DATA_FOR_OTA*/
+typedef struct {
+	uint16_t ota_block;		
+} pack req_data_for_ota_t;
+
 /*Struct for DATA_FOR_OTA*/
-typedef struct {		
+typedef struct {
+	uint16_t ota_block;		
 	crypto_16_block_t data_for_ota;		/* */
 } pack data_for_ota_t;
 
@@ -374,8 +380,9 @@ typedef struct {
 #define NACK						0x08 /*NACK*/
 
 #define START_OTA					0x10 /* */
-#define DATA_FOR_OTA				0x11 /* */
-#define FINISH_OTA					0x12 /* */
+#define REQ_DATA_FOR_OTA			0x11 /* */
+#define DATA_FOR_OTA				0x12 /* */
+#define FINISH_OTA					0x13 /* */
 
 /*UNWDS-4BTN*/
 #define BUTTON_STATUS				0x00 /*Пакет статусом нажатой кнопки*/

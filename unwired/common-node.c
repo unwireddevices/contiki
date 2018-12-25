@@ -174,7 +174,9 @@ volatile uint8_t led_mode;
 
 volatile uint8_t non_answered_ping = 0;	/* Количество неотвеченых пингов */
 
-static struct etimer maintenance_timer;	/* Таймер */				
+static struct etimer maintenance_timer;	/* Таймер */		
+
+process_event_t ota_event_message; 		/* ota event */
 
 /*---------------------------------------------------------------------------*/
 /* ПРОТОТИПЫ ОБЩИХ ФУНКЦИЙ */
@@ -284,6 +286,9 @@ PROCESS(root_find_process, "Root find process");
 
 /* Процесс управления нодой */
 PROCESS(maintenance_process, "Maintenance process");
+
+/* Процесс обновления по воздуху */
+PROCESS(ota_process, "OTA process");
 
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
 /* ОБЩИЕ ФУНКЦИИ */
@@ -934,7 +939,6 @@ static void dag_udp_data_receiver(struct simple_udp_connection *c,
 	/* Проверяем версию протокола */ 
 	if(header_up_pack->protocol_version == UDBP_PROTOCOL_VERSION)
 	{
-
 		/* Проверяем ID модуля и тип пакета */ 
 		if((header_up_pack->device_id == UNWDS_6LOWPAN_SYSTEM_MODULE_ID) && (header_up_pack->data_type == JOIN_STAGE_2))
 		{
@@ -1004,6 +1008,16 @@ static void dag_udp_data_receiver(struct simple_udp_connection *c,
 					
 					led_mode_set(LED_FLASH);	/* Мигаем светодиодом */
 					return;
+				}
+
+				else if(header_up_pack->data_type == START_OTA)
+				{
+					process_start(&ota_process, (start_ota_t*)&data[PAYLOAD_OFFSET]);
+				}
+
+				else if(header_up_pack->data_type == DATA_FOR_OTA)
+				{
+					process_post(PROCESS_BROADCAST, ota_event_message, (data_for_ota_t*)&data[PAYLOAD_OFFSET]);
 				}
 
 				else
@@ -1633,36 +1647,6 @@ PROCESS_THREAD(led_process, ev, data)
 	PROCESS_END();
 }
 
-/*---------------------------------------------------------------------------*/
-/* Процесс обновления по воздуху */
-// PROCESS_THREAD(ota_process, ev, data)
-// {
-// 	PROCESS_BEGIN();
-	
-// 	if(ev == PROCESS_EVENT_EXIT)
-// 		return 1;
-	
-// 	static struct etimer ping_timer;							/* Создаём таймер для по истечении которого будет ROOT будет пинговаться */
-	
-// 	while (1)
-// 	{
-// 		etimer_set(&ping_timer, (CLOCK_SECOND * 10));			/* Устанавливаем таймер на 10 минут */
-		
-// 		if(non_answered_ping > 3)								/* Перезагрузить если больше трех неотвеченных пингов */
-// 		{
-// 			printf("[DAG Node] Ping error!\nReboot...");
-// 			watchdog_reboot();
-// 		}
-		
-// 		PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&ping_timer));	/* Засыпаем до срабатывания таймера */
-		
-// 		non_answered_ping++;									/* Увеличиваем на еденицу. При ответе в pong_handler() должно обнулиться */		
-// 		ping_sender();											/* Отправляем ping */
-// 	}
-	
-// 	PROCESS_END();
-// }
-
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
 /* ПРОЦЕССЫ ROOT'а */
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
@@ -1937,3 +1921,79 @@ PROCESS_THREAD(dag_node_process, ev, data)
 }
 
 /*---------------------------------------------------------------------------*/
+/* Процесс обновления по воздуху */
+
+/*
+Принимаем метададу.
+Считаем количество блоков.
+	Запрашиваем нужный блок
+	//Если в течении минуты блок не пришел, то завершаем процесс
+	Записываем полученный блок
+*/
+
+
+
+					// process_event_t ota_event_message; /* UART receive event */
+					// ota_event_message = process_alloc_event();
+					// process_post(PROCESS_BROADCAST, ota_event_message, uart_buf);
+
+PROCESS_THREAD(ota_process, ev, data)
+{
+	PROCESS_BEGIN();
+	
+	ota_event_message = process_alloc_event();
+	
+	if(ev == PROCESS_EVENT_EXIT)
+		return 1;
+
+	if(data == NULL)
+		return 1;
+
+	//
+	/* ota_metadata */
+	OTAMetadata_t ota_metadata;
+	memcpy(&ota_metadata, &((start_ota_t*)data)->ota_metadata, sizeof(OTAMetadata_t));
+	get_current_metadata(&ota_metadata);
+
+	printf("\nOTA METADATA:\n");
+	print_metadata(&ota_metadata);
+	printf("\n");
+	// join_stage_1_pack->ota_metadata = ota_metadata;
+	//
+	
+	// static struct etimer ping_timer;							/* Создаём таймер для по истечении которого будет ROOT будет пинговаться */
+	
+	/* Цикл который ожидает события ota_event_message */
+	while (1)
+	{
+		PROCESS_YIELD(); 
+		if(ev == ota_event_message) 
+		{
+			/* Отражаем структуры на массивы */ 
+			data_for_ota_t *data_for_ota_pack = (data_for_ota_t*)data;
+
+			printf("[OTA] Received %i block:\n", data_for_ota_pack->ota_block);
+			hexraw_print(256, (uint8_t*)(&data_for_ota_pack->data_for_ota));
+			printf("\n");
+
+			// /* Конструктор пакета из UART */
+			// send_pack_from_cr(data);
+		} 
+
+
+		// etimer_set(&ping_timer, (CLOCK_SECOND * 10));			/* Устанавливаем таймер на 10 минут */
+		
+		// if(non_answered_ping > 3)								/* Перезагрузить если больше трех неотвеченных пингов */
+		// {
+		// 	printf("[DAG Node] Ping error!\nReboot...");
+		// 	watchdog_reboot();
+		// }
+		
+		// PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&ping_timer));	/* Засыпаем до срабатывания таймера */
+		
+		// non_answered_ping++;									/* Увеличиваем на еденицу. При ответе в pong_handler() должно обнулиться */		
+		// ping_sender();											/* Отправляем ping */
+	}
+	
+	PROCESS_END();
+}

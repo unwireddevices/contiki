@@ -156,5 +156,8 @@ PROCESS_NAME(root_find_process);
 /* Процесс управления нодой */
 PROCESS_NAME(maintenance_process);
 
+/* Процесс обновления по воздуху */
+PROCESS_NAME(ota_process);
+
 /*---------------------------------------------------------------------------*/
 #endif /* COMMON_NODE_H_ */
