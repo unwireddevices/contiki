@@ -12,7 +12,7 @@
 #include <stdbool.h>
 
 
-uint8_t ota_images[3] = OTA_ADDRESSES;
+uint8_t ota_images[2] = OTA_ADDRESSES;
 
 /*---------------------------------------------------------------------------*/
 
@@ -327,7 +327,7 @@ verify_ota_slot( uint8_t ota_slot )
     //  If ota_slot = 0, we're looking for the Golden Image
     ota_image_address = GOLDEN_IMAGE;
   }
-  ota_image_address <<= 12;
+  ota_image_address <<= 12; //0x20000
 
   //  (2) Read the metadata of the corresponding OTA slot
   OTAMetadata_t ota_metadata;

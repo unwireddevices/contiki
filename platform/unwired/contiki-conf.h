@@ -413,6 +413,13 @@ typedef uint32_t rtimer_clock_t;
 
 /** @} */
 /*---------------------------------------------------------------------------*/
+/**
+ * \name Size of uart buffer
+ */
+#define SERIAL_LINE_CONF_BUFSIZE (128) 
+#define UART_BUFSIZE 			 (300) 
+
+/*---------------------------------------------------------------------------*/
 /* board.h assumes that basic configuration is done */
 #include "board.h"
 /*---------------------------------------------------------------------------*/

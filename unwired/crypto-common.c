@@ -50,7 +50,7 @@
 
 /*---------------------------------------------------------------------------*/
 
-uint8_t iterator_to_byte(uint8_t iterator)
+uint16_t iterator_to_byte(uint16_t iterator)
 {
 	if(iterator <= 16)
 		return 16;
@@ -68,6 +68,26 @@ uint8_t iterator_to_byte(uint8_t iterator)
 		return 112;
 	if((iterator > 112) && (iterator <= 128))
 		return 128;
+	if((iterator > 128) && (iterator <= 144))
+		return 144;
+	if((iterator > 144) && (iterator <= 160))
+		return 160;
+	if((iterator > 160) && (iterator <= 176))
+		return 176;
+	if((iterator > 176) && (iterator <= 192))
+		return 192;
+	if((iterator > 192) && (iterator <= 208))
+		return 208;
+	if((iterator > 208) && (iterator <= 224))
+		return 224;
+	if((iterator > 224) && (iterator <= 240))
+		return 240;
+	if((iterator > 240) && (iterator <= 256))
+		return 256;
+	// if((iterator > 256) && (iterator <= 272))
+	// 	return 272;
+	// if((iterator > 272) && (iterator <= 288))
+	// 	return 288;
 	return 0;
 }
 

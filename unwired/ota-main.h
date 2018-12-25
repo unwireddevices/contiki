@@ -39,7 +39,7 @@ typedef struct OTAMetadata {
   uint16_t crc;             //
   uint16_t crc_shadow;      //
   uint32_t size;            //  Size of firmware image
-  uint32_t uuid;             //  Integer representing unique firmware ID
+  uint32_t uuid;            //  Integer representing unique firmware ID
   uint16_t version;         //  Integer representing firmware version
 } OTAMetadata_t;
 /**

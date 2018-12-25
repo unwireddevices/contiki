@@ -206,7 +206,7 @@ static void nack_handler(const uip_ip6addr_t *dest_addr, nack_t *nack_pack);
 static void send_pack_from_cr(uint8_t* data);
 
 /* Вывод принятого пакета микрокомпьютеру */ 
-static void print_cr(const uip_ip6addr_t *dest_addr, uint8_t* data, uint8_t length);
+static void print_cr(const uip_ip6addr_t *dest_addr, uint8_t *data, uint16_t length);
 
 /*---------------------------------------------------------------------------*/
 /* ПРОТОТИПЫ ФУНКЦИЙ DAG'а */
@@ -292,7 +292,7 @@ PROCESS(maintenance_process, "Maintenance process");
 void pack_sender(const uip_ip6addr_t *dest_addr, 
 				 uint8_t device_id, 
 				 uint8_t data_type, 
-				 uint8_t payload_len, 
+				 uint16_t payload_len, 
 				 uint8_t *payload)
 {
 	/* Проверка на то что передан существующий адрес */
@@ -304,7 +304,7 @@ void pack_sender(const uip_ip6addr_t *dest_addr,
 		return;
 	
 	/* Выделяем память под пакет. Общий размер пакета (header + payload) */
-	uint8_t crypto_length = iterator_to_byte(HEADER_DOWN_LENGTH + payload_len);
+	uint16_t crypto_length = iterator_to_byte(HEADER_DOWN_LENGTH + payload_len);
 	uint8_t udp_buffer[HEADER_UP_LENGTH + crypto_length];
 	
 	/* Отражаем структуры на массивы */ 
@@ -333,11 +333,11 @@ void pack_sender(const uip_ip6addr_t *dest_addr,
 	header_pack->temperature = get_temperature();				/* Температура */ 
 	header_pack->voltage = get_voltage();						/* Напряжение */ 
 	header_pack->counter.u16 = packet_counter_root.u16;			/* Счетчик пакетов */ 
-	header_pack->length = payload_len;							/* Размер пакета (незашифрованного) */
+	header_pack->length.u16 = payload_len;						/* Размер пакета (незашифрованного) */
 	
 	/* Payload */ 	
 	/* Pаполняем пакет, зашифровываем и отправляем его DAG'у. */ 
-	for(uint8_t i = 0; i < (crypto_length - HEADER_DOWN_LENGTH); i++)
+	for(uint16_t i = 0; i < (crypto_length - HEADER_DOWN_LENGTH); i++)
 	{
 		if(i < payload_len)
 			udp_buffer[PAYLOAD_OFFSET + i] = payload[i];
@@ -346,7 +346,7 @@ void pack_sender(const uip_ip6addr_t *dest_addr,
 	}
 	
 	/* CRC16 */ 
-	header_pack->crc.u16 = crc16_arc((uint8_t*)&udp_buffer[PAYLOAD_OFFSET], header_pack->length);
+	header_pack->crc.u16 = crc16_arc((uint8_t*)&udp_buffer[PAYLOAD_OFFSET], header_pack->length.u16);
 	
 	/* Для отладки. Выводит содержимое пакета */ 
 	// printf("Pack: \n");
@@ -468,7 +468,7 @@ void root_udp_data_receiver(struct simple_udp_connection *connection,
 			header_down_t *header_down_pack = (header_down_t*)&data[HEADER_DOWN_OFFSET];
 						
 			/* CRC16 проверка */ 
-			if(header_down_pack->crc.u16 != crc16_arc((uint8_t*)&data[PAYLOAD_OFFSET], header_down_pack->length))
+			if(header_down_pack->crc.u16 != crc16_arc((uint8_t*)&data[PAYLOAD_OFFSET], header_down_pack->length.u16))
 			{
 				/* Вывод сообщения об ошибке целостности пакета */
 				printf("[");
@@ -495,7 +495,7 @@ void root_udp_data_receiver(struct simple_udp_connection *connection,
 			}
 			
 			/* Вывод принятого пакета микрокомпьютеру */ 
-			print_cr((uip_ip6addr_t*)sender_addr, (uint8_t*)data, (HEADER_LENGTH + header_down_pack->length));
+			print_cr((uip_ip6addr_t*)sender_addr, (uint8_t*)data, (HEADER_LENGTH + header_down_pack->length.u16));
 				
 			/* Проверяем ID модуля */ 
 			/* UNWDS-6LOWPAN_SYSTEM */
@@ -597,7 +597,7 @@ static void join_stage_2_sender(const uip_ip6addr_t *dest_addr,
 	header_pack->temperature = get_temperature();				/* Температура */ 
 	header_pack->voltage = get_voltage();						/* Напряжение */ 
 	header_pack->counter.u16 = packet_counter_root.u16;			/* Счетчик пакетов */ 
-	header_pack->length = JOIN_STAGE_2_LENGTH;					/* Размер пакета (незашифрованного) */
+	header_pack->length.u16 = JOIN_STAGE_2_LENGTH;				/* Размер пакета (незашифрованного) */
 	
 	/* Payload */ 
 	join_stage_2_pack->nonce.u16 = random_rand();				/*Генерируем сессионный ключ */ 
@@ -607,7 +607,7 @@ static void join_stage_2_sender(const uip_ip6addr_t *dest_addr,
 				join_stage_2_pack->nonce.u16);					/* Nonce */ 
 	
 	/* Дозаполняем блок для шифрования нулями */ 
-	for(uint8_t i = JOIN_STAGE_2_LENGTH; i < (JOIN_STAGE_2_PAYLOAD_LENGTH - HEADER_DOWN_LENGTH); i++)
+	for(uint16_t i = JOIN_STAGE_2_LENGTH; i < (JOIN_STAGE_2_PAYLOAD_LENGTH - HEADER_DOWN_LENGTH); i++)
 		udp_buffer[PAYLOAD_OFFSET + i] = 0x00;
 	
 	/* CRC16 */ 
@@ -825,8 +825,8 @@ static void send_pack_from_cr(uint8_t* data)
 /*---------------------------------------------------------------------------*/
 /*Вывод принятого пакета микрокомпьютеру*/ 
 static void print_cr(const uip_ip6addr_t *dest_addr, 
-					uint8_t* data, 
-					uint8_t length)
+					uint8_t *data, 
+					uint16_t length)
 {
 	/* Ожидаем завершения передачи */
 	while(ti_lib_uart_busy(UART0_BASE));
@@ -970,7 +970,7 @@ static void dag_udp_data_receiver(struct simple_udp_connection *c,
 			
 			
 			/* CRC16 проверка */ 
-			if(header_down_pack->crc.u16 != crc16_arc((uint8_t*)&data[PAYLOAD_OFFSET], header_down_pack->length))
+			if(header_down_pack->crc.u16 != crc16_arc((uint8_t*)&data[PAYLOAD_OFFSET], header_down_pack->length.u16))
 			{
 				/* Вывод сообщения об ошибке целостности пакета */
 				printf("[DAG Node] CRC16 Error!\n");
@@ -1105,13 +1105,19 @@ static void join_stage_1_sender(const uip_ipaddr_t *dest_addr)
 	header_pack->temperature = get_temperature();				/* Температура */ 
 	header_pack->voltage = get_voltage();						/* Напряжение */ 
 	header_pack->counter.u16 = packet_counter_node.u16;			/* Счетчик пакетов */ 
-	header_pack->length = JOIN_STAGE_1_LENGTH;					/* Размер пакета */
+	header_pack->length.u16 = JOIN_STAGE_1_LENGTH;				/* Размер пакета */
 
 	/* Payload */
-	join_stage_1_pack->module_id = UNWDS_MODULE_ID;
+	OTAMetadata_t ota_metadata;
+	get_current_metadata(&ota_metadata);
+
+	// printf("\nOTA METADATA:\n");
+	// print_metadata(&ota_metadata);
+	// printf("\n");
+	join_stage_1_pack->ota_metadata = ota_metadata;
 	
 	/* CRC16 */ 
-	header_pack->crc.u16 = 0;
+	header_pack->crc.u16 = crc16_arc((uint8_t*)&udp_buffer[PAYLOAD_OFFSET], header_pack->length.u16);
 	
 	/* Отправляем пакет */ 
 	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_LENGTH + JOIN_STAGE_1_PAYLOAD_LENGTH), &addr);
@@ -1154,13 +1160,15 @@ static void join_stage_3_sender(const uip_ipaddr_t *dest_addr,
 	header_pack->temperature = get_temperature();				/* Температура */ 
 	header_pack->voltage = get_voltage();						/* Напряжение */ 
 	header_pack->counter.u16 = packet_counter_node.u16;			/* Счетчик пакетов */ 
-	header_pack->length = JOIN_STAGE_3_LENGTH;					/* Размер пакета */
+	header_pack->length.u16 = JOIN_STAGE_3_LENGTH;				/* Размер пакета */
 	
 	/* Payload */ 
 	/* Расшифровываем блок */ 
 	aes_ecb_decrypt((uint32_t*)aes_key, (uint32_t*)&data[HEADER_DOWN_OFFSET], (uint32_t*)&data[HEADER_DOWN_OFFSET]);
 	
-	//CRC16
+	/* CRC16 */ 
+	header_pack->crc.u16 = 0;
+	// header_pack->crc.u16 = crc16_arc((uint8_t*)&udp_buffer[PAYLOAD_OFFSET], header_pack->length.u16);
 	
 	/* Копируем полученный nonce и используем его в качестве сессионного ключа (AES128-CBC) */
 	for(int i = 0; i < 16; i += 2)
@@ -1426,12 +1434,6 @@ PROCESS_THREAD(settings_init, ev, data)
 	ti_lib_ioc_pin_type_gpio_input(IOID_23);
 	mode_node = ti_lib_gpio_read_dio(IOID_23);
 
-	/* TEST */
-	OTAMetadata_t ota_metadata;
-	get_current_metadata(&ota_metadata);
-	printf("\nOTA METADATA:\n");
-	print_metadata(&ota_metadata);
-	printf("\n");
 
 
 
@@ -1630,6 +1632,36 @@ PROCESS_THREAD(led_process, ev, data)
 
 	PROCESS_END();
 }
+
+/*---------------------------------------------------------------------------*/
+/* Процесс обновления по воздуху */
+// PROCESS_THREAD(ota_process, ev, data)
+// {
+// 	PROCESS_BEGIN();
+	
+// 	if(ev == PROCESS_EVENT_EXIT)
+// 		return 1;
+	
+// 	static struct etimer ping_timer;							/* Создаём таймер для по истечении которого будет ROOT будет пинговаться */
+	
+// 	while (1)
+// 	{
+// 		etimer_set(&ping_timer, (CLOCK_SECOND * 10));			/* Устанавливаем таймер на 10 минут */
+		
+// 		if(non_answered_ping > 3)								/* Перезагрузить если больше трех неотвеченных пингов */
+// 		{
+// 			printf("[DAG Node] Ping error!\nReboot...");
+// 			watchdog_reboot();
+// 		}
+		
+// 		PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&ping_timer));	/* Засыпаем до срабатывания таймера */
+		
+// 		non_answered_ping++;									/* Увеличиваем на еденицу. При ответе в pong_handler() должно обнулиться */		
+// 		ping_sender();											/* Отправляем ping */
+// 	}
+	
+// 	PROCESS_END();
+// }
 
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
 /* ПРОЦЕССЫ ROOT'а */

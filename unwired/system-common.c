@@ -30,6 +30,7 @@
  *         System functions for Unwired Devices mesh smart house system(UDMSHS %) <- this is smile
  * \author
  *         Vladislav Zaytsev vvzvlad@gmail.com vz@unwds.com
+ *         Manchenko Oleg man4enkoos@gmail.com
  *
  */
 /*---------------------------------------------------------------------------*/

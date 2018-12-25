@@ -1,7 +1,7 @@
 ENTRY(ResetISR)
 MEMORY
 {
-    FLASH (RX) : ORIGIN = (0x2000 +0x100), LENGTH = 0x19000
+    FLASH (RX) : ORIGIN = (0x3000 +0x100), LENGTH = 0x17000
     SRAM (RWX) : ORIGIN = 0x20000000, LENGTH = 0x00005000
     GPRAM (RWX) : ORIGIN = 0x11000000, LENGTH = 0x00002000
 }
@@ -43,7 +43,10 @@ SECTIONS
       . = . + _Min_Stack_Size;
       . = ALIGN(4);
     } > SRAM
-    .gpram :
+ .gpram :
     {
+  _gpram = .;
+  *(.gpram*)
+  _egpram = .;
     } > GPRAM
 }

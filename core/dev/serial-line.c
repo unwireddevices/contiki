@@ -56,7 +56,7 @@ static struct ringbuf rxbuf;
 __attribute__ ((section(".gpram.rxbuf_data"))) static uint8_t rxbuf_data[BUFSIZE];
 static bool uart = 0; /* Flag UART or SHELL */
 static struct ctimer uart_end_of_package; /* Timer end of data transfer */
-__attribute__ ((section(".gpram.buf"))) static char buf[BUFSIZE]; //
+__attribute__ ((section(".gpram.uart_buf"))) static char uart_buf[UART_BUFSIZE]; //
 static int ptr; //
 
 static void uart_receive_end(void *pt);
@@ -71,9 +71,9 @@ int serial_line_input_byte(unsigned char c)
 {
 	if(uart == 1)
 	{
-		if(ptr < BUFSIZE) 
+		if(ptr < UART_BUFSIZE) 
 		{
-			buf[ptr++] = (uint8_t)c;
+			uart_buf[ptr++] = (uint8_t)c;
 			ctimer_set(&uart_end_of_package, (CLOCK_SECOND * TIMEOUT_END_FRAME), uart_receive_end, NULL);
 			return 1;
 		}
@@ -141,7 +141,7 @@ PROCESS_THREAD(serial_line_process, ev, data)
 			{
 				if(ptr < BUFSIZE - 1) 
 				{
-					buf[ptr++] = (uint8_t)c;
+					uart_buf[ptr++] = (uint8_t)c;
 				} 
 				else 
 				{
@@ -151,10 +151,10 @@ PROCESS_THREAD(serial_line_process, ev, data)
 			else 
 			{
 				/* Terminate */
-				buf[ptr++] = (uint8_t)'\0';
+				uart_buf[ptr++] = (uint8_t)'\0';
 
 				/* Broadcast event */
-				process_post(PROCESS_BROADCAST, serial_line_event_message, buf);
+				process_post(PROCESS_BROADCAST, serial_line_event_message, uart_buf);
 
 				/* Wait until all processes have handled the serial line event */
 				if(PROCESS_ERR_OK ==
@@ -171,11 +171,11 @@ PROCESS_THREAD(serial_line_process, ev, data)
 /*---------------------------------------------------------------------------*/
 static void uart_receive_end(void *pt)
 {
-	buf[0] = ((uint8_t)(ptr - 1)); /*В нулевом элемента массива хранится размер принятого пакета*/
+	uart_buf[0] = ((uint8_t)(ptr - 1)); /*В нулевом элемента массива хранится размер принятого пакета*/
 	ptr = 1;
 	
 	/* Broadcast event */
-	process_post(PROCESS_BROADCAST, uart_event_message, buf);
+	process_post(PROCESS_BROADCAST, uart_event_message, uart_buf);
 }
 /*---------------------------------------------------------------------------*/
 void serial_line_init(void)

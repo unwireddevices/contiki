@@ -116,9 +116,12 @@ SECTIONS
       . = . + _Min_Stack_Size;
       . = ALIGN(4);
     } > SRAM
-
-    .gpram :
-    {
+	
+	.gpram :
+    { 
+		_gpram = .;
+		*(.gpram*)
+		_egpram = .;
     } > GPRAM
 
 }

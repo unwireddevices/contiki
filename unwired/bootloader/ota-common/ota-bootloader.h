@@ -13,16 +13,15 @@
 #include "driverlib/flash.h"
 #include "ota-common.h"
 
-
 /**
  *    OTA Image Memory Map
  */
 //  Internal Flash
-#define CURRENT_FIRMWARE               0x3          //  Address where the current system firmware is stored in internal flash
+#define CURRENT_FIRMWARE               0x3            //  Address where the current system firmware is stored in internal flash
 //  External Flash
-#define GOLDEN_IMAGE                   0x19           //  Address where the factory-given firmware is stored in external flash (for backup)
-#define OTA_ADDRESSES                  { 0x32, 0x4B, 0x64 }
-extern uint8_t ota_images[3]; //  Addresses where OTA updates are stored in external flash
+#define GOLDEN_IMAGE                   0x0            //  Address where the factory-given firmware is stored in external flash (for backup)
+#define OTA_ADDRESSES                  { 0x20, 0x40 }
+extern uint8_t ota_images[2];                         //  Addresses where OTA updates are stored in external flash
 
 #define OTA_RESET_VECTOR               0x4     //  RESET ISR Vector (see )
 

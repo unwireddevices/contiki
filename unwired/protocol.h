@@ -33,6 +33,7 @@
 */
 /*---------------------------------------------------------------------------*/
 #include "net/ip/uip.h"
+#include "ota-main.h"
 /*---------------------------------------------------------------------------*/
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
@@ -119,7 +120,7 @@ typedef struct {
 typedef struct {		
     u8_u16_t counter;			/*Счетчик пакетов*/ 
 	u8_u16_t crc;				/*CRC16*/ 
-	uint8_t length;				/*Размер пакета*/
+	u8_u16_t length;				/*Размер пакета*/
 } pack header_down_t;
 
 typedef struct {		
@@ -131,7 +132,7 @@ typedef struct {
 	uint8_t voltage;			/*Напряжение*/ 
 	u8_u16_t counter;			/*Счетчик пакетов*/ 
 	u8_u16_t crc;				/*CRC16*/ 
-	uint8_t length;				/*Размер пакета*/
+	u8_u16_t length;				/*Размер пакета*/
 } pack header_t; 
 
 /*---------------------------------------------------------------------------*/
@@ -163,6 +164,50 @@ typedef struct {
 typedef struct {		
 	uint8_t ciphertext[112];
 } pack crypto_7_block_t;
+
+typedef struct {		
+	uint8_t ciphertext[128];
+} pack crypto_8_block_t;
+
+typedef struct {		
+	uint8_t ciphertext[144];
+} pack crypto_9_block_t;
+
+typedef struct {		
+	uint8_t ciphertext[160];
+} pack crypto_10_block_t;
+
+typedef struct {		
+	uint8_t ciphertext[176];
+} pack crypto_11_block_t;
+
+typedef struct {		
+	uint8_t ciphertext[192];
+} pack crypto_12_block_t;
+
+typedef struct {		
+	uint8_t ciphertext[208];
+} pack crypto_13_block_t;
+
+typedef struct {		
+	uint8_t ciphertext[224];
+} pack crypto_14_block_t;
+
+typedef struct {		
+	uint8_t ciphertext[240];
+} pack crypto_15_block_t;
+
+typedef struct {		
+	uint8_t ciphertext[256];
+} pack crypto_16_block_t;
+
+typedef struct {		
+	uint8_t ciphertext[272];
+} pack crypto_17_block_t;
+
+typedef struct {		
+	uint8_t ciphertext[288];
+} pack crypto_18_block_t;
 
 /*---------------------------------------------------------------------------*/
 /*UNWDS-4BTN*/
@@ -214,8 +259,9 @@ typedef struct {
 /*UNWDS-6LOWPAN_SYSTEM*/
 
 /*Struct for JOIN_STAGE_1*/
-typedef struct {		
-	uint8_t module_id;		/*ID устройства: module_id = UNWDS_MODULE_ID*/	
+typedef struct {
+	OTAMetadata_t ota_metadata;
+	// uint8_t module_id;		/*ID устройства: module_id = UNWDS_MODULE_ID*/	
 } pack join_stage_1_t;
 
 /*Struct for JOIN_STAGE_2*/
@@ -253,10 +299,25 @@ typedef struct {
 	u8_u16_t counter;		/*Номер неподтвержденного пакета*/
 } pack nack_t;
 
+/*Struct for START_OTA*/
+typedef struct {		
+	OTAMetadata_t ota_metadata;		/* */
+} pack start_ota_t;
+
+/*Struct for DATA_FOR_OTA*/
+typedef struct {		
+	crypto_16_block_t data_for_ota;		/* */
+} pack data_for_ota_t;
+
+/*Struct for FINISH_OTA*/
+typedef struct {		
+	uint8_t status;			/* */
+} pack finish_ota_t;
+
 
 /*---------------------------------------------------------------------------*/
 /*Основные*/
-#define UDP_DATA_PORT					4004
+#define UDP_DATA_PORT					4004 //‭61616‬ port for compression 6LoWPAN
 #define UDBP_PROTOCOL_VERSION			1
 
 /*---------------------------------------------------------------------------*/
@@ -311,6 +372,10 @@ typedef struct {
 #define PONG						0x05 /*Pong*/
 #define ACK							0x07 /*ACK*/
 #define NACK						0x08 /*NACK*/
+
+#define START_OTA					0x10 /* */
+#define DATA_FOR_OTA				0x11 /* */
+#define FINISH_OTA					0x12 /* */
 
 /*UNWDS-4BTN*/
 #define BUTTON_STATUS				0x00 /*Пакет статусом нажатой кнопки*/
