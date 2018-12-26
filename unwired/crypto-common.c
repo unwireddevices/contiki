@@ -84,10 +84,10 @@ uint16_t iterator_to_byte(uint16_t iterator)
 		return 240;
 	if((iterator > 240) && (iterator <= 256))
 		return 256;
-	// if((iterator > 256) && (iterator <= 272))
-	// 	return 272;
-	// if((iterator > 272) && (iterator <= 288))
-	// 	return 288;
+	if((iterator > 256) && (iterator <= 272))
+		return 272;
+	if((iterator > 272) && (iterator <= 288))
+		return 288;
 	return 0;
 }
 

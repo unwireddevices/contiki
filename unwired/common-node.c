@@ -252,6 +252,9 @@ static void nack_sender(uint16_t counter);
 static bool dag_pwm_set(const uip_ipaddr_t *sender_addr,
 						pwm_set_t *pwm_set_pack);
 
+/* Команда запроса блока данных для OTA */
+static void dag_ota_req_data_sender(uint16_t ota_block);
+
 /*---------------------------------------------------------------------------*/
 /* ПРОТОТИПЫ ПРОЦЕССОВ */
 /*---------------------------------------------------------------------------*/
@@ -328,7 +331,7 @@ void pack_sender(const uip_ip6addr_t *dest_addr,
 			nonce_key[i+1] = nonce.u8[0];	
 		}
 	}
-	
+
 	/* Заполняем пакет */  
 	/* Header */ 
 	header_pack->protocol_version = UDBP_PROTOCOL_VERSION; 		/* Текущая версия протокола */ 
@@ -343,7 +346,11 @@ void pack_sender(const uip_ip6addr_t *dest_addr,
 		header_pack->counter.u16 = packet_counter_node.u16;		/* Счетчик пакетов DAG'а */ 
 	header_pack->length.u16 = payload_len;						/* Размер пакета (незашифрованного) */
 	
-	/* Payload */ 	
+	/* Payload */
+	/* Проверка что бы не улетел в бесконечный цикл */ 
+	if((crypto_length == 0) || ((crypto_length - HEADER_DOWN_LENGTH) <= 0))
+		return;
+
 	/* Pаполняем пакет, зашифровываем и отправляем его DAG'у. */ 
 	for(uint16_t i = 0; i < (crypto_length - HEADER_DOWN_LENGTH); i++)
 	{
@@ -820,19 +827,31 @@ void pwm_set_sender(const uip_ip6addr_t *dest_addr,
 static void send_pack_from_cr(uint8_t* data)
 {
 	/* Отражаем структуры на массивы */ 
-	uart_header_t *uart_header_pack = (uart_header_t*)&data[1];
+	uart_header_t *uart_header_pack = (uart_header_t*)&data[2];
+	// uint16_t *len = (uint16_t*)data;
+
+	// printf("len = %i\n", *len);
 	
-	/* Для отладки. Выводит содержимое пакета */
+	// /* Для отладки. Выводит содержимое пакета */
 	// printf("uart_event_message: ");	
-	// hexraw_print(data[0], (uint8_t*)&data[1]);
+	// hexraw_print(*len, (uint8_t*)&data[2]);
 	// printf("\n");
+
+	// printf("uart_header_pack->dest_addr: ");
+	// uip_debug_ipaddr_print((uip_ip6addr_t*)&uart_header_pack->dest_addr);
+	// printf("\n");
+	// printf("uart_header_pack->device_id: %i\n", uart_header_pack->device_id);
+	// printf("uart_header_pack->data_type: %i\n", uart_header_pack->data_type);
+	// printf("uart_header_pack->payload_len: %i\n", uart_header_pack->payload_len);
 	
 	/* Отправляем пакет */ 
 	pack_sender(&(uart_header_pack->dest_addr), 	/* Адрес модуля */
 				uart_header_pack->device_id, 		/* Индентификатор модуля */
 				uart_header_pack->data_type, 		/* Команда */
 				uart_header_pack->payload_len, 		/* Размер payload'а */
-				(uint8_t*)&data[20] );				/* Payload */
+				(uint8_t*)&data[22] );				/* Payload */
+
+	puts("[send_pack_from_cr] Pack sent");
 }
 
 /*---------------------------------------------------------------------------*/
@@ -1020,11 +1039,17 @@ static void dag_udp_data_receiver(struct simple_udp_connection *c,
 				else if(header_up_pack->data_type == START_OTA)
 				{
 					process_start(&ota_process, (start_ota_t*)&data[PAYLOAD_OFFSET]);
+					
+					led_mode_set(LED_FLASH);	/* Мигаем светодиодом */
+					return;
 				}
 
 				else if(header_up_pack->data_type == DATA_FOR_OTA)
 				{
 					process_post(PROCESS_BROADCAST, ota_event_message, (data_for_ota_t*)&data[PAYLOAD_OFFSET]);
+					
+					led_mode_set(LED_FLASH);	/* Мигаем светодиодом */
+					return;
 				}
 
 				else
@@ -1350,6 +1375,27 @@ static bool dag_pwm_set(const uip_ipaddr_t *sender_addr,
 	{
 		return pwm_stop(0);
 	}
+}
+
+/*---------------------------------------------------------------------------*/
+/* Команда запроса блока данных для OTA */
+static void dag_ota_req_data_sender(uint16_t ota_block)
+{
+	/* Создаем структуру */
+	req_data_for_ota_t req_data_for_ota_pack;		
+	
+	/* Заполняем payload */
+	req_data_for_ota_pack.ota_block = ota_block;	/* Номер запрашиваемого блока данных */
+	
+	/* Вывод информационного сообщения в консоль */
+	printf("[DAG Node] Request %i block data for OTA\n", ota_block);
+	
+	/* Отправляем пакет */	
+	pack_sender((const uip_ip6addr_t *)&root_addr,  /* Адрес ROOT'а */
+				UNWDS_6LOWPAN_SYSTEM_MODULE_ID,		/* ID модуля */
+				REQ_DATA_FOR_OTA, 					/* Команда ACK */
+				REQ_DATA_FOR_OTA_LENGTH, 			/* Размер payload'а */
+				(uint8_t*)&req_data_for_ota_pack);	/* Payload */	
 }
 
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
@@ -1965,19 +2011,24 @@ PROCESS_THREAD(ota_process, ev, data)
 	printf("\nOTA METADATA:\n");
 	print_metadata(&ota_metadata);
 	printf("\n");
-	// join_stage_1_pack->ota_metadata = ota_metadata;
 	//
 	
+	uint16_t num_blocks;
+	uint16_t blocks_counter = 0;
+
+
 	// static struct etimer ping_timer;							/* Создаём таймер для по истечении которого будет ROOT будет пинговаться */
 	
 	/* Цикл который ожидает события ota_event_message */
 	while (1)
 	{
+		/* Запрос блока данных для OTA */
+
 		PROCESS_YIELD(); 
 		if(ev == ota_event_message) 
 		{
 			/* Отражаем структуры на массивы */ 
-			data_for_ota_t *data_for_ota_pack = (data_for_ota_t*)data;
+			data_for_ota_t *data_for_ota_pack = (data_for_ota_t*)&((uint8_t*)data)[0];
 
 			printf("[OTA] Received %i block:\n", data_for_ota_pack->ota_block);
 			hexraw_print(256, (uint8_t*)(&data_for_ota_pack->data_for_ota));

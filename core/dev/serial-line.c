@@ -50,7 +50,8 @@
 #define IGNORE_CHAR(c) (c == 0x0d)
 #define END 0x0a
 
-#define TIMEOUT_END_FRAME 0.005
+// #define TIMEOUT_END_FRAME 0.005
+#define TIMEOUT_END_FRAME 0.100
 
 static struct ringbuf rxbuf;
 __attribute__ ((section(".gpram.rxbuf_data"))) static uint8_t rxbuf_data[BUFSIZE];
@@ -171,8 +172,10 @@ PROCESS_THREAD(serial_line_process, ev, data)
 /*---------------------------------------------------------------------------*/
 static void uart_receive_end(void *pt)
 {
-	uart_buf[0] = ((uint8_t)(ptr - 1)); /*В нулевом элемента массива хранится размер принятого пакета*/
-	ptr = 1;
+	/* В первых двух байтах хранится длина принятых данных */
+	uint16_t *len = (uint16_t*)uart_buf;
+	*len = (ptr - 2);
+	ptr = 2;
 	
 	/* Broadcast event */
 	process_post(PROCESS_BROADCAST, uart_event_message, uart_buf);
@@ -188,7 +191,7 @@ void serial_line_init(void)
 void set_uart(void)
 {
 	uart = 1;
-	ptr = 1;
+	ptr = 2;
 }
 /*---------------------------------------------------------------------------*/
 void unset_uart(void)
