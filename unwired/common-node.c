@@ -337,7 +337,10 @@ void pack_sender(const uip_ip6addr_t *dest_addr,
 	header_pack->rssi = get_parent_rssi();						/* RSSI */ 
 	header_pack->temperature = get_temperature();				/* Температура */ 
 	header_pack->voltage = get_voltage();						/* Напряжение */ 
-	header_pack->counter.u16 = packet_counter_root.u16;			/* Счетчик пакетов */ 
+	if(node_is_root())
+		header_pack->counter.u16 = packet_counter_root.u16;		/* Счетчик пакетов ROOT'а */ 
+	else
+		header_pack->counter.u16 = packet_counter_node.u16;		/* Счетчик пакетов DAG'а */ 
 	header_pack->length.u16 = payload_len;						/* Размер пакета (незашифрованного) */
 	
 	/* Payload */ 	
@@ -371,7 +374,12 @@ void pack_sender(const uip_ip6addr_t *dest_addr,
 	
 	/* Отправляем пакет */ 
 	simple_udp_sendto(&udp_connection, udp_buffer, (HEADER_UP_LENGTH + crypto_length), dest_addr);
-	packet_counter_root.u16++;		/* Инкрементируем счетчик пакетов */
+
+	/* Инкрементируем счетчик пакетов */
+	if(node_is_root())
+		packet_counter_root.u16++;
+	else
+		packet_counter_node.u16++;
 }
 
 /*---------------------------------------------------------------------------*/
@@ -972,7 +980,6 @@ static void dag_udp_data_receiver(struct simple_udp_connection *c,
 			/* Отражаем структуру на массив */ 
 			header_down_t *header_down_pack = (header_down_t*)&data[HEADER_DOWN_OFFSET];
 			
-			
 			/* CRC16 проверка */ 
 			if(header_down_pack->crc.u16 != crc16_arc((uint8_t*)&data[PAYLOAD_OFFSET], header_down_pack->length.u16))
 			{
@@ -989,7 +996,7 @@ static void dag_udp_data_receiver(struct simple_udp_connection *c,
 			{	
 				/* Вывод сообщения об ошибке счетчика пакетов */
 				printf("[DAG Node] Counter error!\n");
-				
+
 				led_mode_set(LED_FLASH);	/* Мигаем светодиодом */
 				return;
 			}

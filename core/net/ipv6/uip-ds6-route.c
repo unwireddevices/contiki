@@ -952,11 +952,11 @@ bool valid_counter(uip_ip6addr_t *addr, uint16_t counter)
 	
 	if(r != NULL)
 	{
-			if(r->counter < counter)//Проверка на активность. 
-			{
-				r->counter = counter;
-				return true;
-			}
+		if(r->counter < counter)//Проверка на активность. 
+		{
+			r->counter = counter;
+			return true;
+		}
 	}
 	return false;
 }
