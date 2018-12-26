@@ -2023,6 +2023,7 @@ PROCESS_THREAD(ota_process, ev, data)
 	while (1)
 	{
 		/* Запрос блока данных для OTA */
+		dag_ota_req_data_sender(blocks_counter);
 
 		PROCESS_YIELD(); 
 		if(ev == ota_event_message) 
