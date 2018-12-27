@@ -32,7 +32,10 @@
  *         Vladislav Zaytsev vvzvlad@gmail.com vz@unwds.com
  */
 /*---------------------------------------------------------------------------*/
+#ifndef SYSTEM_COMMON_H
+#define SYSTEM_COMMON_H
 
+/*---------------------------------------------------------------------------*/
 #include "contiki.h"
 #include "protocol.h"
 
@@ -76,3 +79,4 @@ str2int_errno_t dec_str2uint32(uint32_t *out, char *s);
 str2int_errno_t hex_str2uint8(uint8_t *out, char *s);
 
 /*---------------------------------------------------------------------------*/
+#endif	/* #ifndef SYSTEM_COMMON_H */

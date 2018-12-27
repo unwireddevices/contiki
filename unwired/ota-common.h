@@ -28,6 +28,10 @@
  *  @brief  OTA common funtions and defines
  *  @author Vlad Zaytsev <vvzvlad@gmail.com>
  */
+/*---------------------------------------------------------------------------*/
+#ifndef OTA_COMMON_H
+#define OTA_COMMON_H
+/*---------------------------------------------------------------------------*/
 
 #include <stdio.h>
 
@@ -60,3 +64,6 @@
 
 uint8_t write_fw_flag(uint8_t value);
 uint8_t read_fw_flag();
+
+/*---------------------------------------------------------------------------*/
+#endif  /* OTA_COMMON_H */

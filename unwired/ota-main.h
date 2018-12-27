@@ -2,10 +2,11 @@
  *  @brief  OTA Image R/W and Verification
  *  @author Mark Solters <msolters@gmail.com>
  */
+/*---------------------------------------------------------------------------*/
+#ifndef OTA_MAIN_H
+#define OTA_MAIN_H
 
-#ifndef OTA_H
-#define OTA_H
- 
+ /*---------------------------------------------------------------------------*/
 #include <stdio.h>
 
 #include "ti-lib.h"
@@ -111,4 +112,5 @@ erase_extflash_page( uint32_t ext_address );
 uint8_t
 spi_test();
 
-#endif
+/*---------------------------------------------------------------------------*/
+#endif  /* OTA_MAIN_H */

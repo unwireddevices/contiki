@@ -32,11 +32,12 @@
 *         Manchenko Oleg man4enkoos@gmail.com
 */
 /*---------------------------------------------------------------------------*/
-#include "net/ip/uip.h"
-#include "ota-main.h"
-/*---------------------------------------------------------------------------*/
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
+
+/*---------------------------------------------------------------------------*/
+#include "net/ip/uip.h"
+#include "ota-main.h"
 
 /*Упаковка структуры*/
 #define pack 		__attribute__((packed))
@@ -361,7 +362,7 @@ typedef struct {
 #define START_OTA_LENGTH 				sizeof(start_ota_t)
 #define REQ_DATA_FOR_OTA_LENGTH 		sizeof(req_data_for_ota_t)
 #define DATA_FOR_OTA_LENGTH 			sizeof(data_for_ota_t)
-#define FINISH_OTA 						sizeof(finish_ota_t)
+#define FINISH_OTA_LENGTH  				sizeof(finish_ota_t)
 #define BUTTON_STATUS_LENGTH 			sizeof(button_status_t)
 #define PWM_SETTINGS_LENGTH 			sizeof(pwm_settings_t)
 #define PWM_POWER_LENGTH 				sizeof(pwm_power_t)
@@ -380,13 +381,12 @@ typedef struct {
 #define JOIN_STAGE_4				0x03 /*Координатор отвечает ноде что она имеет право быть в сети*/
 #define PING						0x04 /*Ping*/
 #define PONG						0x05 /*Pong*/
-#define ACK							0x07 /*ACK*/
-#define NACK						0x08 /*NACK*/
-
-#define START_OTA					0x10 /* */
-#define REQ_DATA_FOR_OTA			0x11 /* */
-#define DATA_FOR_OTA				0x12 /* */
-#define FINISH_OTA					0x13 /* */
+#define ACK							0x06 /*ACK*/
+#define NACK						0x07 /*NACK*/
+#define START_OTA					0x08 /* */
+#define REQ_DATA_FOR_OTA			0x09 /* */
+#define DATA_FOR_OTA				0x0A /* */
+#define FINISH_OTA					0x0B /* */
 
 /*UNWDS-4BTN*/
 #define BUTTON_STATUS				0x00 /*Пакет статусом нажатой кнопки*/
@@ -407,5 +407,5 @@ typedef struct {
 #define SEND_BY_UART 				0x00 /*Команда отправки данных по UART'у*/
 
 /*---------------------------------------------------------------------------*/
-#endif
+#endif	/* #ifndef PROTOCOL_H */
 /*---------------------------------------------------------------------------*/

@@ -32,6 +32,10 @@
  *         Vladislav Zaytsev vvzvlad@gmail.com vz@unwds.com
  */
 /*---------------------------------------------------------------------------*/
+#ifndef INT_FLASH_COMMON_H
+#define INT_FLASH_COMMON_H
+
+/*---------------------------------------------------------------------------*/
 #include "contiki.h"
 #include "ecc.h"
 
@@ -90,3 +94,4 @@ void flash_read(uint8_t *pui8DataBuffer, uint32_t ui32Address, uint32_t ui32Coun
 uint32_t flash_write(uint8_t *pui8DataBuffer, uint32_t ui32Address, uint32_t ui32Count);
 
 /*---------------------------------------------------------------------------*/
+#endif  /* INT_FLASH_COMMON_H */

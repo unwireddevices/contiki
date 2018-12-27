@@ -199,11 +199,11 @@ main(void)
 //   uint16_t version;         //  Integer representing firmware version
 // } OTAMetadata_t;
 
-   for(uint8_t i = 0; i < sizeof(OTAMetadata_t); i++)
-   {
-      print_uart_byte(((uint8_t*)(&current_firmware))[i]);
-   }
-   print_uart("\n");
+   // for(uint8_t i = 0; i < sizeof(OTAMetadata_t); i++)
+   // {
+   //    print_uart_byte(((uint8_t*)(&current_firmware))[i]);
+   // }
+   // print_uart("\n");
    
    print_uart("get_current_metadata()\n");
    int8_t verify_result_int = verify_current_firmware( &current_firmware );

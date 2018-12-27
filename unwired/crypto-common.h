@@ -32,6 +32,10 @@
  *         Vladislav Zaytsev vvzvlad@gmail.com vz@unwds.com
  */
 /*---------------------------------------------------------------------------*/
+#ifndef CRYPTO_COMMON_H_
+#define CRYPTO_COMMON_H_
+
+/*---------------------------------------------------------------------------*/
 #include "contiki.h"
 
 /*---------------------------------------------------------------------------*/
@@ -44,3 +48,4 @@ void aes_ecb_encrypt(uint32_t *aes_key, uint32_t *input_data, uint32_t *output_d
 void aes_ecb_decrypt(uint32_t *aes_key, uint32_t *input_data, uint32_t *output_data);
 
 /*---------------------------------------------------------------------------*/
+#endif /* CRYPTO_COMMON_H_ */

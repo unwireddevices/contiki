@@ -32,6 +32,10 @@
  *         Vladislav Zaytsev vvzvlad@gmail.com vz@unwds.com
  */
 /*---------------------------------------------------------------------------*/
+#ifndef RTC_COMMON_H
+#define RTC_COMMON_H
+
+/*---------------------------------------------------------------------------*/
 #include "contiki.h"
 
 PROCESS_NAME(time_sync_process);
@@ -77,3 +81,6 @@ time_data_t get_epoch_time();
  * Установить значение глобального времени(секунды и миллисекунды).
  */
 void set_epoch_time(time_data_t time);
+
+/*---------------------------------------------------------------------------*/
+#endif	/* #ifndef RTC_COMMON_H */

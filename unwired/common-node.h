@@ -32,7 +32,6 @@
 *         Manchenko Oleg man4enkoos@gmail.com
 */
 /*---------------------------------------------------------------------------*/
-
 #ifndef COMMON_NODE_H_
 #define COMMON_NODE_H_
 

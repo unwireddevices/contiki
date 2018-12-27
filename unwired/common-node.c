@@ -857,8 +857,8 @@ static void send_pack_from_cr(uint8_t* data)
 /*---------------------------------------------------------------------------*/
 /*Вывод принятого пакета микрокомпьютеру*/ 
 static void print_cr(const uip_ip6addr_t *dest_addr, 
-					uint8_t *data, 
-					uint16_t length)
+					 uint8_t *data, 
+					 uint16_t length)
 {
 	/* Ожидаем завершения передачи */
 	while(ti_lib_uart_busy(UART0_BASE));
@@ -870,6 +870,9 @@ static void print_cr(const uip_ip6addr_t *dest_addr,
 
 	/*Присоединяем пин к UART'у*/ 
 	ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_TX, IOC_PORT_MCU_UART0_TX, IOC_STD_OUTPUT);
+
+	/*Небольшая задержка для того что бы UART успел переключиться*/
+	clock_wait(CLOCK_SECOND * 0.0025);
 
 	/* Выводим адрес отправителя */
 	for (uint8_t i = 0; i < sizeof(uip_ip6addr_t); i++)	
@@ -2013,9 +2016,18 @@ PROCESS_THREAD(ota_process, ev, data)
 	printf("\n");
 	//
 	
-	uint16_t num_blocks;
+	uint16_t num_blocks; //292
 	uint16_t blocks_counter = 0;
 
+	printf("ota_metadata.size = %lu\n", ota_metadata.size);
+	printf("ota_metadata.size/256 = %lu\n", ota_metadata.size/256);
+	printf("(ota_metadata.size/256)*256 = %lu\n", (ota_metadata.size/256)*256);
+	printf("%lu > %lu\n",ota_metadata.size, (ota_metadata.size/256)*256);
+	if(ota_metadata.size > (ota_metadata.size/256)*256)
+		num_blocks = (ota_metadata.size/256) + 1;
+	else
+		num_blocks = (ota_metadata.size/256);
+	printf("num_blocks = %i\n", num_blocks);
 
 	// static struct etimer ping_timer;							/* Создаём таймер для по истечении которого будет ROOT будет пинговаться */
 	
@@ -2035,8 +2047,9 @@ PROCESS_THREAD(ota_process, ev, data)
 			hexraw_print(256, (uint8_t*)(&data_for_ota_pack->data_for_ota));
 			printf("\n");
 
-			// /* Конструктор пакета из UART */
-			// send_pack_from_cr(data);
+			printf("blocks_counter: %i\n", blocks_counter);
+			blocks_counter++;
+			printf("blocks_counter++: %i\n", blocks_counter);
 		} 
 
 
