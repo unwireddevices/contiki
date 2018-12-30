@@ -174,7 +174,10 @@ volatile uint8_t led_mode;
 
 volatile uint8_t non_answered_ping = 0;	/* Количество неотвеченых пингов */
 
-static struct etimer maintenance_timer;	/* Таймер */		
+static struct etimer maintenance_timer;	/* Таймер */
+
+static uint16_t num_blocks;
+static uint16_t blocks_counter = 0;
 
 process_event_t ota_event_message; 		/* ota event */
 
@@ -2016,8 +2019,8 @@ PROCESS_THREAD(ota_process, ev, data)
 	printf("\n");
 	//
 	
-	uint16_t num_blocks; //292
-	uint16_t blocks_counter = 0;
+	// uint16_t num_blocks; //292
+	blocks_counter = 0;
 
 	printf("ota_metadata.size = %lu\n", ota_metadata.size);
 	printf("ota_metadata.size/256 = %lu\n", ota_metadata.size/256);

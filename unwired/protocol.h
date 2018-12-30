@@ -321,7 +321,6 @@ typedef struct {
 	uint8_t status;			/* */
 } pack finish_ota_t;
 
-
 /*---------------------------------------------------------------------------*/
 /*Основные*/
 #define UDP_DATA_PORT					4004 //‭61616‬ port for compression 6LoWPAN
