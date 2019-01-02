@@ -120,6 +120,8 @@
 #define ROOT_FIND_INTERVAL				(2 * CLOCK_SECOND)
 #define ROOT_FIND_LIMIT_TIME			(2 * 60 * CLOCK_SECOND)
 
+#define REQ_DATA_FOR_OTA_INTERVAL		(1 * CLOCK_SECOND)
+
 #define CC26XX_UART_INTERRUPT_ALL ( UART_INT_OE | UART_INT_BE | UART_INT_PE | \
 									UART_INT_FE | UART_INT_RT | UART_INT_TX | \
 									UART_INT_RX | UART_INT_CTS)
@@ -257,6 +259,9 @@ static bool dag_pwm_set(const uip_ipaddr_t *sender_addr,
 
 /* Команда запроса блока данных для OTA */
 static void dag_ota_req_data_sender(uint16_t ota_block);
+
+/* Команда отправки сообщения что прошивка обновлена */
+static void dag_finish_ota_sender(void);
 
 /*---------------------------------------------------------------------------*/
 /* ПРОТОТИПЫ ПРОЦЕССОВ */
@@ -549,6 +554,34 @@ void root_udp_data_receiver(struct simple_udp_connection *connection,
 					/* NACK */
 					nack_handler((uip_ip6addr_t*)sender_addr, (nack_t*)&data[PAYLOAD_OFFSET]);
 					
+					/* Мигаем светодиодом */
+					led_mode_set(LED_FLASH);
+					return;
+				}
+
+				else if(header_up_pack->data_type == REQ_DATA_FOR_OTA)
+				{
+					/* REQ_DATA_FOR_OTA */
+					/* Отражаем структуру на массив */
+					req_data_for_ota_t *req_data_for_ota_pack = (req_data_for_ota_t*)&data[PAYLOAD_OFFSET];
+
+					/* Вывод информационного сообщения в консоль */
+					printf("[");
+					uip_debug_ipaddr_print((uip_ip6addr_t*)sender_addr);
+					printf("] Request %i block data for OTA\n", req_data_for_ota_pack->ota_block);
+
+					/* Мигаем светодиодом */
+					led_mode_set(LED_FLASH);
+					return;
+				}
+
+				else if(header_up_pack->data_type == FINISH_OTA)
+				{
+					/* FINISH_OTA */
+					printf("[");
+					uip_debug_ipaddr_print((uip_ip6addr_t*)sender_addr);
+					printf("] Finish OTA!\n");
+
 					/* Мигаем светодиодом */
 					led_mode_set(LED_FLASH);
 					return;
@@ -854,7 +887,7 @@ static void send_pack_from_cr(uint8_t* data)
 				uart_header_pack->payload_len, 		/* Размер payload'а */
 				(uint8_t*)&data[22] );				/* Payload */
 
-	puts("[send_pack_from_cr] Pack sent");
+	puts("[ROOT Node] Pack from coordinator sent");
 }
 
 /*---------------------------------------------------------------------------*/
@@ -1399,9 +1432,24 @@ static void dag_ota_req_data_sender(uint16_t ota_block)
 	/* Отправляем пакет */	
 	pack_sender((const uip_ip6addr_t *)&root_addr,  /* Адрес ROOT'а */
 				UNWDS_6LOWPAN_SYSTEM_MODULE_ID,		/* ID модуля */
-				REQ_DATA_FOR_OTA, 					/* Команда ACK */
+				REQ_DATA_FOR_OTA, 					/* Команда запроса блока данных для OTA */
 				REQ_DATA_FOR_OTA_LENGTH, 			/* Размер payload'а */
 				(uint8_t*)&req_data_for_ota_pack);	/* Payload */	
+}
+
+/*---------------------------------------------------------------------------*/
+/* Команда отправки сообщения что прошивка обновлена */
+static void dag_finish_ota_sender(void)
+{	
+	/* Вывод информационного сообщения в консоль */
+	printf("[DAG Node] Finish OTA\n");
+	
+	/* Отправляем пакет */	
+	pack_sender((const uip_ip6addr_t *)&root_addr,  /* Адрес ROOT'а */
+				UNWDS_6LOWPAN_SYSTEM_MODULE_ID,		/* ID модуля */
+				FINISH_OTA, 						/* Команда отправки сообщения что прошивка обновлена */
+				FINISH_OTA_LENGTH, 					/* Размер payload'а */
+				NULL);								/* Payload */	
 }
 
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
@@ -2022,52 +2070,72 @@ PROCESS_THREAD(ota_process, ev, data)
 	// uint16_t num_blocks; //292
 	blocks_counter = 0;
 
-	printf("ota_metadata.size = %lu\n", ota_metadata.size);
-	printf("ota_metadata.size/256 = %lu\n", ota_metadata.size/256);
-	printf("(ota_metadata.size/256)*256 = %lu\n", (ota_metadata.size/256)*256);
-	printf("%lu > %lu\n",ota_metadata.size, (ota_metadata.size/256)*256);
+	// printf("ota_metadata.size = %lu\n", ota_metadata.size);
+	// printf("ota_metadata.size/256 = %lu\n", ota_metadata.size/256);
+	// printf("(ota_metadata.size/256)*256 = %lu\n", (ota_metadata.size/256)*256);
+	// printf("%lu > %lu\n",ota_metadata.size, (ota_metadata.size/256)*256);
 	if(ota_metadata.size > (ota_metadata.size/256)*256)
 		num_blocks = (ota_metadata.size/256) + 1;
 	else
 		num_blocks = (ota_metadata.size/256);
 	printf("num_blocks = %i\n", num_blocks);
 
-	// static struct etimer ping_timer;							/* Создаём таймер для по истечении которого будет ROOT будет пинговаться */
+	/* Создаём таймер для по истечении которого будет запрашиваться пакет с данными для OTA */
+	static struct etimer req_data_for_ota_timer;
+
+	while(erase_ota_image(2));
 	
+	/* Запрос блока данных для OTA */
+	dag_ota_req_data_sender(blocks_counter);
+
 	/* Цикл который ожидает события ota_event_message */
 	while (1)
 	{
-		/* Запрос блока данных для OTA */
-		dag_ota_req_data_sender(blocks_counter);
-
 		PROCESS_YIELD(); 
 		if(ev == ota_event_message) 
 		{
 			/* Отражаем структуры на массивы */ 
 			data_for_ota_t *data_for_ota_pack = (data_for_ota_t*)&((uint8_t*)data)[0];
 
-			printf("[OTA] Received %i block:\n", data_for_ota_pack->ota_block);
+			printf("[OTA] Received %i block\n", data_for_ota_pack->ota_block);
 			hexraw_print(256, (uint8_t*)(&data_for_ota_pack->data_for_ota));
 			printf("\n");
+			printf("Address: 0x%08x\n", (ota_images[1] << 12) + (data_for_ota_pack->ota_block * 256));
+			store_firmware_data((ota_images[1] << 12) + (data_for_ota_pack->ota_block * 256), 
+								(uint8_t*)(&data_for_ota_pack->data_for_ota), 
+								256);
 
-			printf("blocks_counter: %i\n", blocks_counter);
 			blocks_counter++;
-			printf("blocks_counter++: %i\n", blocks_counter);
 		} 
 
+		if(blocks_counter == num_blocks)
+		{
+			int8_t verify_result_ota_2 = verify_ota_slot(2);
+			if (verify_result_ota_2 == CORRECT_CRC)
+			{
+      			printf("[OTA] Correct CRC!\n");
+				dag_finish_ota_sender();
+			}
+   			else if (verify_result_ota_2 == NON_CORRECT_CRC)
+      			printf("[OTA] Non-correct CRC!\n");
+			else
+				printf("[OTA] Unknown error!\n");
 
-		// etimer_set(&ping_timer, (CLOCK_SECOND * 10));			/* Устанавливаем таймер на 10 минут */
-		
-		// if(non_answered_ping > 3)								/* Перезагрузить если больше трех неотвеченных пингов */
-		// {
-		// 	printf("[DAG Node] Ping error!\nReboot...");
-		// 	watchdog_reboot();
-		// }
-		
-		// PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&ping_timer));	/* Засыпаем до срабатывания таймера */
-		
-		// non_answered_ping++;									/* Увеличиваем на еденицу. При ответе в pong_handler() должно обнулиться */		
-		// ping_sender();											/* Отправляем ping */
+			process_exit(&ota_process);
+			return 1;
+		}
+
+		/* Запрос блока данных для OTA */
+		dag_ota_req_data_sender(blocks_counter);
+
+		/* Устанавливаем таймер на REQ_DATA_FOR_OTA_INTERVAL */
+		etimer_set(&req_data_for_ota_timer, REQ_DATA_FOR_OTA_INTERVAL);		
+
+		/* Засыпаем до любого события */
+		// PROCESS_WAIT_EVENT(); 	
+	
+		/* Засыпаем до срабатывания таймера */
+		// PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&req_data_for_ota_timer));	
 	}
 	
 	PROCESS_END();

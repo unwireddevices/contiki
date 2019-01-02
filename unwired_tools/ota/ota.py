@@ -123,9 +123,23 @@ def send_data_for_ota(dest_addr, block):
     if(offset > size):
         return
 
+    block_size = 0
+    if((size - offset) >= 256):
+        block_size = 256
+    else:
+        block_size = size - offset
+
+    # print(size)
+    # print(block_size)
+
     f.seek(offset)
     for i in range(0, 256):
-        data.append(ord(f.read(1)))
+        # print(i)
+        # print(block_size)
+        if(block_size > i):
+            data.append(ord(f.read(1)))
+        else:
+            data.append(0xFF)
 
     f.close()
 
@@ -155,7 +169,14 @@ if __name__ == "__main__":
     print("[OTA] Start")
 
     ip_addr_ota = [0xFD, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x12, 0x4B, 0x00, 0x17, 0xB7, 0xCE, 0xD6]
-    ota_metadata = [0x55, 0x1D, 0x55, 0x1D, 0xF4, 0x23, 0x01, 0x00, 0x01, 0x00, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00]
+    # ota_metadata = [0x55, 0x1D, 0x55, 0x1D, 0xF4, 0x23, 0x01, 0x00, 0x01, 0x00, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00]
+    ota_metadata = []
+
+    f = open(sys.argv[1], 'rb')
+    for i in range(0, 15):
+        ota_metadata.append(ord(f.read(1)))
+    f.close()
+
     start_ota(ip_addr_ota, ota_metadata)
 
     while True:
@@ -198,6 +219,9 @@ if __name__ == "__main__":
                 elif(data_type == NACK):
                     print("NACK")
                 elif(data_type == REQ_DATA_FOR_OTA):
+                    if(len(pack) <= 29):
+                        continue
+
                     block = uint16_to_int([ord(pack[28]), ord(pack[29])])
                     print('Request ' + str(block) + ' block data for OTA')
                     send_data_for_ota(ip_addr, block)

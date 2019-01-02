@@ -1,5 +1,5 @@
 @echo off
-title UNWDS FLASHER
+title UNWDS OTA
 color 0A
 set /p com="[OTA] COM port: "
 :start
