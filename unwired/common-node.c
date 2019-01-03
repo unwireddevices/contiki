@@ -2056,29 +2056,19 @@ PROCESS_THREAD(ota_process, ev, data)
 	if(data == NULL)
 		return 1;
 
-	//
-	/* ota_metadata */
+	/* Get OTA metadata */
 	OTAMetadata_t ota_metadata;
 	memcpy(&ota_metadata, &((start_ota_t*)data)->ota_metadata, sizeof(OTAMetadata_t));
-	get_current_metadata(&ota_metadata);
-
-	printf("\nOTA METADATA:\n");
+	printf("[OTA] Metadata:\n");
 	print_metadata(&ota_metadata);
-	printf("\n");
-	//
-	
-	// uint16_t num_blocks; //292
+
 	blocks_counter = 0;
 
-	// printf("ota_metadata.size = %lu\n", ota_metadata.size);
-	// printf("ota_metadata.size/256 = %lu\n", ota_metadata.size/256);
-	// printf("(ota_metadata.size/256)*256 = %lu\n", (ota_metadata.size/256)*256);
-	// printf("%lu > %lu\n",ota_metadata.size, (ota_metadata.size/256)*256);
-	if(ota_metadata.size > (ota_metadata.size/256)*256)
-		num_blocks = (ota_metadata.size/256) + 1;
+	if(ota_metadata.size > (ota_metadata.size / 256) * 256)
+		num_blocks = (ota_metadata.size / 256) + 1;
 	else
-		num_blocks = (ota_metadata.size/256);
-	printf("num_blocks = %i\n", num_blocks);
+		num_blocks = (ota_metadata.size / 256);
+	printf("[OTA] Number of blocks: %i\n", num_blocks);
 
 	/* Создаём таймер для по истечении которого будет запрашиваться пакет с данными для OTA */
 	static struct etimer req_data_for_ota_timer;
@@ -2097,27 +2087,32 @@ PROCESS_THREAD(ota_process, ev, data)
 			/* Отражаем структуры на массивы */ 
 			data_for_ota_t *data_for_ota_pack = (data_for_ota_t*)&((uint8_t*)data)[0];
 
-			printf("[OTA] Received %i block\n", data_for_ota_pack->ota_block);
-			hexraw_print(256, (uint8_t*)(&data_for_ota_pack->data_for_ota));
-			printf("\n");
-			printf("Address: 0x%08x\n", (ota_images[1] << 12) + (data_for_ota_pack->ota_block * 256));
-			store_firmware_data((ota_images[1] << 12) + (data_for_ota_pack->ota_block * 256), 
-								(uint8_t*)(&data_for_ota_pack->data_for_ota), 
-								256);
+			if(data_for_ota_pack->ota_block == blocks_counter)
+			{
+				printf("[OTA] Received %i block\n", data_for_ota_pack->ota_block);
+				// hexraw_print(256, (uint8_t*)(&data_for_ota_pack->data_for_ota));
+				// printf("\n");
+				// printf("Address: 0x%08x\n", (ota_images[1] << 12) + (data_for_ota_pack->ota_block * 256));
+				store_firmware_data((ota_images[1] << 12) + (data_for_ota_pack->ota_block * 256), 
+									(uint8_t*)(&data_for_ota_pack->data_for_ota), 
+									256);
 
-			blocks_counter++;
+				blocks_counter++;
+			}
+			else
+				printf("[OTA] ERROR NUM BLOCK!!! Took %i block instead of %i\n", data_for_ota_pack->ota_block, blocks_counter);
 		} 
 
-		if(blocks_counter == num_blocks)
+		if(blocks_counter > num_blocks)
 		{
 			int8_t verify_result_ota_2 = verify_ota_slot(2);
-			if (verify_result_ota_2 == CORRECT_CRC)
+			if (verify_result_ota_2 == VERIFY_SLOT_OK)
 			{
-      			printf("[OTA] Correct CRC!\n");
+				printf("[OTA] Correct CRC!\n");
 				dag_finish_ota_sender();
 			}
-   			else if (verify_result_ota_2 == NON_CORRECT_CRC)
-      			printf("[OTA] Non-correct CRC!\n");
+			else if (verify_result_ota_2 == VERIFY_SLOT_CRC_ERROR)
+				printf("[OTA] Non-correct CRC!\n");
 			else
 				printf("[OTA] Unknown error!\n");
 

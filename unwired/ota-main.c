@@ -288,7 +288,7 @@ backup_golden_image()
        while(store_firmware_data(ext_flash_address, firmware_page, chunk_size));
        chunk = chunk + chunk_size;
     }
-    PRINTF("Write GM page %"PRIu32"\n", page);
+    PRINTF("[OTA] Write GM page %"PRIu32"\n", page);
     watchdog_periodic();
 
   }
@@ -379,6 +379,9 @@ verify_ota_slot( uint8_t ota_slot )
   uint16_t imageCRC = 0;
   ota_image_address += OTA_METADATA_SPACE; // this is where the OTA binary starts
   uint32_t ota_image_end_address = ota_image_address + ota_metadata.size;
+  
+  // PRINTF("ota_image_address: 0x%08lx\n", ota_image_address); // 0x00040100
+  // PRINTF("ota_image_end_address: 0x%08lx\n", ota_image_end_address); //0x000529fc
 
   int eeprom_access = ext_flash_open();
   if(!eeprom_access) {
@@ -411,7 +414,8 @@ verify_ota_slot( uint8_t ota_slot )
 
   ext_flash_close();
 
-  //PRINTF("CRC Calculated: %#x\n", imageCRC);
+  // PRINTF("CRC Calculated: %#x\n", imageCRC);
+  // PRINTF("CRC Shadow: %#x\n", ota_metadata.crc_shadow);
 
   //  (6) Update the CRC shadow with our newly calculated value
 
@@ -697,15 +701,15 @@ erase_ota_image( uint8_t ota_slot )
   } else {
     ota_image_base_address = GOLDEN_IMAGE;
   }
-  PRINTF("[OTA]: Erasing OTA slot %u [%#x, %#x)...\n", ota_slot_for_erase, (ota_image_base_address<<12), ((ota_image_base_address+25)<<12));
+  PRINTF("[OTA] Erasing OTA slot %u [%#x, %#x)...\n", ota_slot_for_erase, (ota_image_base_address<<12), ((ota_image_base_address+25)<<12));
 
   //  (2) Erase each page in the OTA download slot!
   for (page=0; page<25; page++) {
-    PRINTF("[OTA]: Erasing page %"PRIu32" at 0x%"PRIX32"..\n", page, (( ota_image_base_address + page ) << 12));
+    PRINTF("[OTA] Erasing page %"PRIu32" at 0x%"PRIX32"..\n", page, (( ota_image_base_address + page ) << 12));
     while( erase_extflash_page( (( ota_image_base_address + page ) << 12) ) );
     watchdog_periodic();
   }
-  PRINTF("[OTA]: OTA slot erased");
+  PRINTF("[OTA] OTA slot erased\n");
 
   return 0;
 }
