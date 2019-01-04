@@ -316,10 +316,10 @@ typedef struct {
 	crypto_16_block_t data_for_ota;		/* */
 } pack data_for_ota_t;
 
-// /*Struct for FINISH_OTA*/
-// typedef struct {		
-// 	uint8_t status;			/* */
-// } pack finish_ota_t;
+/*Struct for FINISH_OTA*/
+typedef struct {		
+	int8_t status;			/* */
+} pack finish_ota_t;
 
 /*---------------------------------------------------------------------------*/
 /*Основные*/
@@ -361,7 +361,7 @@ typedef struct {
 #define START_OTA_LENGTH 				sizeof(start_ota_t)
 #define REQ_DATA_FOR_OTA_LENGTH 		sizeof(req_data_for_ota_t)
 #define DATA_FOR_OTA_LENGTH 			sizeof(data_for_ota_t)
-#define FINISH_OTA_LENGTH  				0     //sizeof(finish_ota_t)
+#define FINISH_OTA_LENGTH  				sizeof(finish_ota_t)
 #define BUTTON_STATUS_LENGTH 			sizeof(button_status_t)
 #define PWM_SETTINGS_LENGTH 			sizeof(pwm_settings_t)
 #define PWM_POWER_LENGTH 				sizeof(pwm_power_t)

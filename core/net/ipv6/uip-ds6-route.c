@@ -47,6 +47,7 @@
 
 #include "../../../unwired/system-common.h"
 #include "ota-main.h"
+#include "dev/watchdog.h"
 
 #include <string.h>
 
@@ -59,7 +60,7 @@
 #define ROUTELIST_SAFE_INTERVAL				(60 * CLOCK_SECOND)
 #define MIN_NUM_ROUTE_SAFE					(20)
 
-#define EEPROM_ADDR							(0x60000)
+#define EEPROM_ADDR							(0x00060000)
 #define MAGIC_BYTES_ADDR					(EEPROM_ADDR)
 #define MAGIC_BYTES							(0xBABECAFE)
 #define MAGIC_BYTES_LENGTH					(sizeof(uint32_t))
@@ -68,6 +69,8 @@
 
 /* Safe routelist to EEPROM process */
 PROCESS(safe_routelist_process, "Safe routelist process");
+
+route_table_eeprom_t *eeprom_flash = (route_table_eeprom_t*)EEPROM_ADDR;
 #endif
 ////////////////////////////////////////////////////////////////////
 
@@ -89,26 +92,32 @@ void NETSTACK_CONF_ROUTING_NEIGHBOR_REMOVED_CALLBACK(const linkaddr_t *addr);
    tables in the system. */
 __attribute__ ((section(".gpram._nbr_routes_mem"))) static struct uip_ds6_route_neighbor_routes _nbr_routes_mem[NBR_TABLE_MAX_NEIGHBORS];
 
-static nbr_table_t nbr_routes_struct = { 0, sizeof(struct uip_ds6_route_neighbor_routes), NULL, (nbr_table_item_t *)_nbr_routes_mem }; 
+static nbr_table_t nbr_routes_struct = {0, 
+										sizeof(struct uip_ds6_route_neighbor_routes), 
+										NULL, 
+										(nbr_table_item_t *)_nbr_routes_mem }; 
+
 nbr_table_t *nbr_routes = &nbr_routes_struct;
 
 __attribute__ ((section(".gpram.neighborroutememb_memb_count"))) static char neighborroutememb_memb_count[UIP_DS6_ROUTE_NB]; 
 __attribute__ ((section(".gpram.neighborroutememb_memb_mem"))) static struct uip_ds6_route_neighbor_route neighborroutememb_memb_mem[UIP_DS6_ROUTE_NB]; 
 static struct memb neighborroutememb = {sizeof(struct uip_ds6_route_neighbor_route), 
-					UIP_DS6_ROUTE_NB, 
-					neighborroutememb_memb_count, 
-					(void *)neighborroutememb_memb_mem};
+										UIP_DS6_ROUTE_NB, 
+										neighborroutememb_memb_count, 
+										(void *)neighborroutememb_memb_mem};
 
 /* Each route is repressented by a uip_ds6_route_t structure and
    memory for each route is allocated from the routememb memory
    block. These routes are maintained on the routelist. */
-LIST(routelist);
+static void *routelist_list = NULL;
+static list_t routelist = (list_t)&routelist_list;
+
 __attribute__ ((section(".gpram.routememb_memb_count"))) static char routememb_memb_count[UIP_DS6_ROUTE_NB]; 
 static uip_ds6_route_t routememb_memb_mem[UIP_DS6_ROUTE_NB]; 
 static struct memb routememb = {sizeof(uip_ds6_route_t), 
-				UIP_DS6_ROUTE_NB, 
-				routememb_memb_count, 
-				(void *)routememb_memb_mem};
+								UIP_DS6_ROUTE_NB, 
+								routememb_memb_count, 
+								(void *)routememb_memb_mem};
 
 static int num_routes = 0;
 static void rm_routelist_callback(nbr_table_item_t *ptr);
@@ -117,13 +126,15 @@ static void rm_routelist_callback(nbr_table_item_t *ptr);
 
 /* Default routes are held on the defaultrouterlist and their
    structures are allocated from the defaultroutermemb memory block.*/
-LIST(defaultrouterlist);
+static void *defaultrouterlist_list = NULL;
+static list_t defaultrouterlist = (list_t)&defaultrouterlist_list;
+
 static char defaultroutermemb_memb_count[UIP_DS6_DEFRT_NB]; 
 __attribute__ ((section(".gpram.defaultroutermemb_memb_mem"))) static uip_ds6_defrt_t defaultroutermemb_memb_mem[UIP_DS6_DEFRT_NB]; 
 static struct memb defaultroutermemb = {sizeof(uip_ds6_defrt_t), 
-					UIP_DS6_DEFRT_NB, 
-					defaultroutermemb_memb_count, 
-					(void *)defaultroutermemb_memb_mem};
+										UIP_DS6_DEFRT_NB, 
+										defaultroutermemb_memb_count, 
+										(void *)defaultroutermemb_memb_mem};
 
 #if UIP_DS6_NOTIFICATIONS
 LIST(notificationlist);
@@ -149,14 +160,16 @@ static void assert_nbr_routes_list_sane(void)
 		r = uip_ds6_route_next(r),
 		count++);
 
-	if(count > UIP_DS6_ROUTE_NB) {
-	printf("uip-ds6-route.c: assert_nbr_routes_list_sane route list is in infinite loop\n");
+	if(count > UIP_DS6_ROUTE_NB) 
+	{
+		printf("uip-ds6-route.c: assert_nbr_routes_list_sane route list is in infinite loop\n");
 	}
 
 	/* Make sure that the route list has as many entries as the
 	num_routes vairable. */
-	if(count < num_routes) {
-	printf("uip-ds6-route.c: assert_nbr_routes_list_sane too few entries on route list: should be %d, is %d, max %d\n",
+	if(count < num_routes) 
+	{
+		printf("uip-ds6-route.c: assert_nbr_routes_list_sane too few entries on route list: should be %d, is %d, max %d\n",
 			num_routes, count, UIP_CONF_MAX_ROUTES);
 	}
 }
@@ -220,13 +233,15 @@ void uip_ds6_route_init(void)
 
 ////////////////////////////////////////////////////////////////////
 #ifdef UNWDS_ROOT 
-	if(load_routelist())
-		printf("load_routelist: ok\n");
+	if(spi_test())
+	{
+		if(load_routelist())
+			printf("Load routetable: ok\n");
+		else
+			printf("Load routetable: error\n");
+	}
 	else
-		printf("load_routelist: error\n");
-
-	/* Load and safe routelist to EEPROM process */
-	process_start(&safe_routelist_process, NULL);
+		printf("Load routetable: could not access EEPROM\n");
 #endif
 ////////////////////////////////////////////////////////////////////
 }
@@ -516,7 +531,6 @@ uip_ds6_route_t *uip_ds6_route_add(uip_ipaddr_t *ipaddr,
 	//PRINTF("***COMPRESS ADD***\n");
 	//PRINT6ADDR(ipaddr);
 	compress_uip_ipaddr_t(ipaddr, &(r->ipaddr)); 
-	
 	
 	r->length = length;
 ////////////////////////////////////////////////////////////////////
@@ -976,42 +990,68 @@ bool load_routelist(void)
 		uint32_t magic_bytes; 
 
 		/* Считываем магические байты */
-		eeprom_access = ext_flash_read(MAGIC_BYTES_ADDR, MAGIC_BYTES_LENGTH, (uint8_t*)&magic_bytes);
+		ext_flash_read((uint32_t)&eeprom_flash->magic_bytes, sizeof(eeprom_flash->magic_bytes), (uint8_t*)&magic_bytes);
 
-		/* Проверка */
-		if(eeprom_access) 
+		if(magic_bytes != MAGIC_BYTES)
 		{
-			PRINTF("load_routelist: read magic_bytes: %lu\n", magic_bytes);
+			PRINTF("load_routelist: flash is empty\n");
+			
+			/* Start safe routelist to EEPROM process */
+			process_start(&safe_routelist_process, NULL);
+
+			ext_flash_close();
+			return false;
+		}
+
+		ext_flash_read((uint32_t)&eeprom_flash->num_routes, sizeof(eeprom_flash->num_routes), (uint8_t*)&num_routes);
+		ext_flash_read((uint32_t)&eeprom_flash->routememb_memb_mem[0], sizeof(eeprom_flash->routememb_memb_mem), (uint8_t*)&routememb_memb_mem[0]);
+		ext_flash_read((uint32_t)&eeprom_flash->neighborroutememb_memb_mem[0], sizeof(eeprom_flash->neighborroutememb_memb_mem), (uint8_t*)&neighborroutememb_memb_mem[0]);
+
+		/* Start safe routelist to EEPROM process */
+		process_start(&safe_routelist_process, NULL);
+		ext_flash_close();
+		return true;
+
+	// 	/* Проверка */
+	// 	if(eeprom_access) 
+	// 	{
+	// 		PRINTF("load_routelist: read magic_bytes: %lu\n", magic_bytes);
 		
-			if(magic_bytes != MAGIC_BYTES)
-			{
-				PRINTF("load_routelist: flash is empty\n");
-				ext_flash_close();
-				return false;
-			}
-		}
-		else
-		{
-			PRINTF("load_routelist: Read error\n");
-			ext_flash_close();
-			return false;
-		}
+	// 		if(magic_bytes != MAGIC_BYTES)
+	// 		{
+	// 			PRINTF("load_routelist: flash is empty\n");
+	// 			ext_flash_close();
 
-		eeprom_access = ext_flash_read(ROUTELIST_EEPROM_ADDR, (sizeof(uip_ds6_route_t) * UIP_CONF_MAX_ROUTES), (uint8_t*)routelist_list);
+	// 			/* Start safe routelist to EEPROM process */
+	// 			process_start(&safe_routelist_process, NULL);
+	// 			return false;
+	// 		}
+	// 	}
+	// 	else
+	// 	{
+	// 		PRINTF("load_routelist: Read error\n");
+	// 		ext_flash_close();
+	// 		return false;
+	// 	}
 
-		if(eeprom_access) 
-		{
-			printf("[uip-ds6-route] Load routelist ok\n");
-			printf("[uip-ds6-route] Loaded %i routes\n", uip_ds6_route_num_routes());
-			ext_flash_close();
-			return true;
-		}
-		else
-		{
-			PRINTF("load_routelist: Read error\n");
-			ext_flash_close();
-			return false;
-		}
+	// 	eeprom_access = ext_flash_read(ROUTELIST_EEPROM_ADDR, (sizeof(uip_ds6_route_t) * UIP_CONF_MAX_ROUTES), (uint8_t*)routelist_list);
+
+	// 	if(eeprom_access) 
+	// 	{
+	// 		printf("[uip-ds6-route] Load routelist ok\n");
+	// 		printf("[uip-ds6-route] Loaded %i routes\n", uip_ds6_route_num_routes());
+	// 		ext_flash_close();
+
+	// 		/* Start safe routelist to EEPROM process */
+	// 		process_start(&safe_routelist_process, NULL);
+	// 		return true;
+	// 	}
+	// 	else
+	// 	{
+	// 		PRINTF("load_routelist: Read error\n");
+	// 		ext_flash_close();
+	// 		return false;
+	// 	}
 	}
 	else
 	{
@@ -1032,53 +1072,75 @@ bool safe_routelist(void)
 	bool eeprom_access = ext_flash_open();
 	if(eeprom_access)
 	{
-		eeprom_access = ext_flash_erase(EEPROM_ADDR, MAGIC_BYTES_LENGTH + ROUTELIST_LENGTH);
-		if(eeprom_access) 
-		{
-			PRINTF("safe_routelist: erase ok\n");
+		printf("eeprom_flash addr: 0x%08lx len: 0x%08x\n", (uint32_t)eeprom_flash, sizeof(*eeprom_flash));
+		printf("magic_bytes addr: 0x%08lx len: 0x%08x\n", (uint32_t)&eeprom_flash->magic_bytes, sizeof(eeprom_flash->magic_bytes));
+		printf("num_routes addr: 0x%08lx len: 0x%08x\n", (uint32_t)&eeprom_flash->num_routes, sizeof(eeprom_flash->num_routes));
+		printf("routememb_memb_mem[UIP_DS6_ROUTE_NB] addr: 0x%08lx len: 0x%08x\n", (uint32_t)&eeprom_flash->routememb_memb_mem[0], sizeof(eeprom_flash->routememb_memb_mem));
+		printf("neighborroutememb_memb_mem[UIP_DS6_ROUTE_NB] addr: 0x%08lx len: 0x%08x\n", (uint32_t)&eeprom_flash->neighborroutememb_memb_mem[0], sizeof(eeprom_flash->neighborroutememb_memb_mem));
 
-			eeprom_access = ext_flash_write(ROUTELIST_EEPROM_ADDR, ROUTELIST_LENGTH, (uint8_t*)routelist_list);
-			if(eeprom_access) 
-			{
-				PRINTF("safe_routelist: write routelist_list ok\n");
+		/* ERASE FLASH */
+		ext_flash_erase((uint32_t)eeprom_flash, sizeof(*eeprom_flash));
+		watchdog_periodic();
 
-				/* MAGIC BYTES */
-				uint32_t magic_bytes = MAGIC_BYTES;
+		/* SAFE ROUTE TABLE */
+		ext_flash_write((uint32_t)&eeprom_flash->num_routes, sizeof(eeprom_flash->num_routes), (uint8_t*)&num_routes);
+		ext_flash_write((uint32_t)&eeprom_flash->routememb_memb_mem[0], sizeof(eeprom_flash->routememb_memb_mem), (uint8_t*)&routememb_memb_mem[0]);
+		ext_flash_write((uint32_t)&eeprom_flash->neighborroutememb_memb_mem[0], sizeof(eeprom_flash->neighborroutememb_memb_mem), (uint8_t*)&neighborroutememb_memb_mem[0]);
 
-				eeprom_access = ext_flash_write(MAGIC_BYTES_ADDR, MAGIC_BYTES_LENGTH, (uint8_t*)&magic_bytes);
-				if(eeprom_access) 
-				{
-					PRINTF("safe_routelist: write magic_bytes ok\n");
+		/* MAGIC BYTES */
+		uint32_t magic_bytes = MAGIC_BYTES;
+		ext_flash_write((uint32_t)&eeprom_flash->magic_bytes, sizeof(eeprom_flash->magic_bytes), (uint8_t*)&magic_bytes);
 
-					printf("[uip-ds6-route] Safe routelist ok\n");
-					printf("[uip-ds6-route] Saved %i routes\n", uip_ds6_route_num_routes());
+		ext_flash_close();
+		return true;
 
-					ext_flash_close();
-					return true;
-				}
-				else
-				{
-					PRINTF("safe_routelist: write magic_bytes error\n");
-					ext_flash_close();
-					return false;
-				}
 
-				ext_flash_close();
-				return true;
-			}
-			else
-			{
-				PRINTF("safe_routelist: write routelist_list error\n");
-				ext_flash_close();
-				return false;
-			}
-		}
-		else
-		{
-			PRINTF("safe_routelist: erase error\n");
-			ext_flash_close();
-			return false;
-		}
+		// if(eeprom_access) 
+		// {
+		// 	PRINTF("safe_routelist: erase ok\n");
+
+		// 	eeprom_access = ext_flash_write(ROUTELIST_EEPROM_ADDR, ROUTELIST_LENGTH, (uint8_t*)routelist_list);
+		// 	if(eeprom_access) 
+		// 	{
+		// 		PRINTF("safe_routelist: write routelist_list ok\n");
+
+		// 		/* MAGIC BYTES */
+		// 		uint32_t magic_bytes = MAGIC_BYTES;
+
+		// 		eeprom_access = ext_flash_write(MAGIC_BYTES_ADDR, MAGIC_BYTES_LENGTH, (uint8_t*)&magic_bytes);
+		// 		if(eeprom_access) 
+		// 		{
+		// 			PRINTF("safe_routelist: write magic_bytes ok\n");
+
+		// 			printf("[uip-ds6-route] Safe routelist ok\n");
+		// 			printf("[uip-ds6-route] Saved %i routes\n", uip_ds6_route_num_routes());
+
+		// 			ext_flash_close();
+		// 			return true;
+		// 		}
+		// 		else
+		// 		{
+		// 			PRINTF("safe_routelist: write magic_bytes error\n");
+		// 			ext_flash_close();
+		// 			return false;
+		// 		}
+
+		// 		ext_flash_close();
+		// 		return true;
+		// 	}
+		// 	else
+		// 	{
+		// 		PRINTF("safe_routelist: write routelist_list error\n");
+		// 		ext_flash_close();
+		// 		return false;
+		// 	}
+		// }
+		// else
+		// {
+		// 	PRINTF("safe_routelist: erase error\n");
+		// 	ext_flash_close();
+		// 	return false;
+		// }
 	}
 	else
 	{

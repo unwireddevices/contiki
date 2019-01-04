@@ -109,8 +109,7 @@ jump_to_image(uint32_t destination_address);
 int
 erase_extflash_page( uint32_t ext_address );
 
-uint8_t
-spi_test();
+bool spi_test(void);
 
 /*---------------------------------------------------------------------------*/
 #endif  /* OTA_MAIN_H */

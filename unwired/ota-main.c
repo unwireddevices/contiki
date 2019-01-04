@@ -90,20 +90,13 @@ crc16(uint16_t crc, uint8_t val)
  */
 /*******************************************************************************/
 
-uint8_t
-spi_test()
+bool spi_test(void)
 {
-   int status = verify_ota_slot(1);
+	/* Проверяем установлена ли флешка */
+	bool eeprom_access = ext_flash_open();
+  ext_flash_close();
 
-   if (status == -1)
-   {
-      return SPI_EXT_FLASH_NON_ACTIVE;
-   }
-   else
-   {
-      return SPI_EXT_FLASH_ACTIVE;
-   }
-
+  return eeprom_access;
 }
 
 /**

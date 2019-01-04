@@ -261,7 +261,7 @@ static bool dag_pwm_set(const uip_ipaddr_t *sender_addr,
 static void dag_ota_req_data_sender(uint16_t ota_block);
 
 /* Команда отправки сообщения что прошивка обновлена */
-static void dag_finish_ota_sender(void);
+static void dag_finish_ota_sender(int8_t status);
 
 /*---------------------------------------------------------------------------*/
 /* ПРОТОТИПЫ ПРОЦЕССОВ */
@@ -1439,8 +1439,14 @@ static void dag_ota_req_data_sender(uint16_t ota_block)
 
 /*---------------------------------------------------------------------------*/
 /* Команда отправки сообщения что прошивка обновлена */
-static void dag_finish_ota_sender(void)
+static void dag_finish_ota_sender(int8_t status)
 {	
+	/* Создаем структуру */
+	finish_ota_t finish_ota_pack;		
+	
+	/* Заполняем payload */
+	finish_ota_pack.status = status;	/*  */
+
 	/* Вывод информационного сообщения в консоль */
 	printf("[DAG Node] Finish OTA\n");
 	
@@ -1449,7 +1455,7 @@ static void dag_finish_ota_sender(void)
 				UNWDS_6LOWPAN_SYSTEM_MODULE_ID,		/* ID модуля */
 				FINISH_OTA, 						/* Команда отправки сообщения что прошивка обновлена */
 				FINISH_OTA_LENGTH, 					/* Размер payload'а */
-				NULL);								/* Payload */	
+				(uint8_t*)&finish_ota_pack);		/* Payload */	
 }
 
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
@@ -2029,21 +2035,6 @@ PROCESS_THREAD(dag_node_process, ev, data)
 
 /*---------------------------------------------------------------------------*/
 /* Процесс обновления по воздуху */
-
-/*
-Принимаем метададу.
-Считаем количество блоков.
-	Запрашиваем нужный блок
-	//Если в течении минуты блок не пришел, то завершаем процесс
-	Записываем полученный блок
-*/
-
-
-
-					// process_event_t ota_event_message; /* UART receive event */
-					// ota_event_message = process_alloc_event();
-					// process_post(PROCESS_BROADCAST, ota_event_message, uart_buf);
-
 PROCESS_THREAD(ota_process, ev, data)
 {
 	PROCESS_BEGIN();
@@ -2068,6 +2059,8 @@ PROCESS_THREAD(ota_process, ev, data)
 		num_blocks = (ota_metadata.size / 256) + 1;
 	else
 		num_blocks = (ota_metadata.size / 256);
+
+	/* Вывод информационного сообщения в консоль */
 	printf("[OTA] Number of blocks: %i\n", num_blocks);
 
 	/* Создаём таймер для по истечении которого будет запрашиваться пакет с данными для OTA */
@@ -2089,33 +2082,44 @@ PROCESS_THREAD(ota_process, ev, data)
 
 			if(data_for_ota_pack->ota_block == blocks_counter)
 			{
+				/* Вывод информационного сообщения в консоль */
 				printf("[OTA] Received %i block\n", data_for_ota_pack->ota_block);
 				// hexraw_print(256, (uint8_t*)(&data_for_ota_pack->data_for_ota));
 				// printf("\n");
 				// printf("Address: 0x%08x\n", (ota_images[1] << 12) + (data_for_ota_pack->ota_block * 256));
+				
+				/* Сохраняем блок с данными для OTA в EEPROM */
 				store_firmware_data((ota_images[1] << 12) + (data_for_ota_pack->ota_block * 256), 
 									(uint8_t*)(&data_for_ota_pack->data_for_ota), 
 									256);
-
+				
+				/* Инкрементируем счетчик блоков */
 				blocks_counter++;
 			}
 			else
+			{
+				/* Вывод информационного сообщения в консоль */
 				printf("[OTA] ERROR NUM BLOCK!!! Took %i block instead of %i\n", data_for_ota_pack->ota_block, blocks_counter);
+			}
 		} 
 
+		/* Завершение обновления по воздуху */
 		if(blocks_counter > num_blocks)
 		{
 			int8_t verify_result_ota_2 = verify_ota_slot(2);
+
+			/* Отправка о завершении OTA */
+			dag_finish_ota_sender(verify_result_ota_2);
+
+			/* Вывод информационного сообщения в консоль */
 			if (verify_result_ota_2 == VERIFY_SLOT_OK)
-			{
 				printf("[OTA] Correct CRC!\n");
-				dag_finish_ota_sender();
-			}
 			else if (verify_result_ota_2 == VERIFY_SLOT_CRC_ERROR)
 				printf("[OTA] Non-correct CRC!\n");
 			else
 				printf("[OTA] Unknown error!\n");
 
+			/* Вывод информационного сообщения в консоль */
 			process_exit(&ota_process);
 			return 1;
 		}

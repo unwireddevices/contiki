@@ -144,10 +144,10 @@ struct uip_ds6_route_neighbor_routes {
   LIST_STRUCT(route_list);
 };
 
-typedef union uip_ipaddr_compressed_t {	//
-  uint8_t  u8[8];                      	//
-  uint16_t u16[4];						//
-} uip_ipaddr_compressed_t;				//
+typedef union uip_ipaddr_compressed_t {	
+  uint8_t  u8[8];                      	
+  uint16_t u16[4];						          
+} uip_ipaddr_compressed_t;				      
 
 /** \brief An entry in the routing table */
 typedef struct __attribute__((__packed__)) uip_ds6_route {
@@ -225,6 +225,15 @@ void unlock_addr(uip_ip6addr_t *addr);
 bool valid_counter(uip_ip6addr_t *addr, uint16_t counter);
 bool load_routelist(void);
 bool safe_routelist(void);
+
+/* Struct for route table to EEPROM */
+typedef struct 
+{		
+	uint32_t magic_bytes;
+  int num_routes;
+  uip_ds6_route_t routememb_memb_mem[UIP_DS6_ROUTE_NB];
+  struct uip_ds6_route_neighbor_route neighborroutememb_memb_mem[UIP_DS6_ROUTE_NB];
+} __attribute__((packed)) route_table_eeprom_t;
 
 PROCESS_NAME(safe_routelist_process);
 #endif
