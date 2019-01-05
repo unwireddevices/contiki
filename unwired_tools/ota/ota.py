@@ -99,14 +99,12 @@ def send_pack(dest_addr, device_id, data_type, payload_len, payload):
     pack.append(data_type)
     pack.extend(int_to_uint16(payload_len))
     pack.extend(payload)
-
     
-    # print pack
-    pack_str = ''
-    for i in pack:
-        pack_str += '0x{} '.format(chr(i).encode('hex'))
-     
-    print(pack_str)
+    #### print pack ###
+    # pack_str = ''
+    # for i in pack:
+    #     pack_str += '0x{} '.format(chr(i).encode('hex'))
+    # print(pack_str)
 
     return ser.write(pack)
 
@@ -129,13 +127,8 @@ def send_data_for_ota(dest_addr, block):
     else:
         block_size = size - offset
 
-    # print(size)
-    # print(block_size)
-
     f.seek(offset)
     for i in range(0, 256):
-        # print(i)
-        # print(block_size)
         if(block_size > i):
             data.append(ord(f.read(1)))
         else:
@@ -169,7 +162,6 @@ if __name__ == "__main__":
     print("[OTA] Start")
 
     ip_addr_ota = [0xFD, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x12, 0x4B, 0x00, 0x17, 0xB7, 0xCE, 0xD6]
-    # ota_metadata = [0x55, 0x1D, 0x55, 0x1D, 0xF4, 0x23, 0x01, 0x00, 0x01, 0x00, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00]
     ota_metadata = []
 
     f = open(sys.argv[1], 'rb')

@@ -2061,7 +2061,7 @@ PROCESS_THREAD(ota_process, ev, data)
 		num_blocks = (ota_metadata.size / 256);
 
 	/* Вывод информационного сообщения в консоль */
-	printf("[OTA] Number of blocks: %i\n", num_blocks);
+	printf("[OTA] Number of blocks: %i\n", num_blocks + 1);
 
 	/* Создаём таймер для по истечении которого будет запрашиваться пакет с данными для OTA */
 	static struct etimer req_data_for_ota_timer;
@@ -2129,6 +2129,10 @@ PROCESS_THREAD(ota_process, ev, data)
 
 		/* Устанавливаем таймер на REQ_DATA_FOR_OTA_INTERVAL */
 		etimer_set(&req_data_for_ota_timer, REQ_DATA_FOR_OTA_INTERVAL);		
+
+
+
+
 
 		/* Засыпаем до любого события */
 		// PROCESS_WAIT_EVENT(); 	
