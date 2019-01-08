@@ -187,22 +187,14 @@ int main(void)
 	}
 
 	uint8_t fw_flag = read_fw_flag();
-	print_uart("read_fw_flag()\n");
 
 	OTAMetadata_t current_firmware;
 	get_current_metadata( &current_firmware );
-	print_uart("get_current_metadata()\n");
-	int8_t verify_result_int = verify_current_firmware( &current_firmware );
-	print_uart("verify_current_firmware()\n");
 
+	int8_t verify_result_int = verify_current_firmware(&current_firmware);
 	int8_t verify_result_ota_0 = verify_ota_slot(0);
-	print_uart("verify_ota_slot(0)\n");
-
 	int8_t verify_result_ota_1 = verify_ota_slot(1);
-	print_uart("verify_ota_slot(1)\n");
-
 	int8_t verify_result_ota_2 = verify_ota_slot(2);
-	print_uart("verify_ota_slot(2)\n");
 
 	print_uart_bl("FW flag: ");
 	print_uart_byte(fw_flag);
@@ -242,25 +234,21 @@ int main(void)
 
 	switch(fw_flag) 
 	{
-		/* Сброс флага после процесса обновления и перезагрузка */
-		case FW_FLAG_PING_OK: 
-			print_uart_bl("OTA Update ok(PING_OK), change flag, reboot\n");
-			write_fw_flag(FW_FLAG_NON_UPDATE); 
-			ti_lib_sys_ctrl_system_reset();
-			break;
-
 		/* Прыжок на основную программу, если процесса обновления нет */
 		case FW_FLAG_NON_UPDATE: 
 			print_uart_bl("Jump to main image(FW_FLAG_NON_UPDATE)\n\n");
 			deinitialize_uart();
 			jump_to_image(CURRENT_FIRMWARE << 12);
 			break;
-		
-		/* Прыжок на основную программу после неудачного обновления */
-		case FW_FLAG_ERROR_GI_LOADED: 
-			print_uart_bl("Jump to main image(ERROR_GI_LOADED)\n\n");
-			deinitialize_uart();
-			jump_to_image(CURRENT_FIRMWARE << 12);
+
+		/* Шьем обновление, если у нас флаг новой прошивки */
+		case FW_FLAG_NEW_IMG_EXT:
+			print_uart_bl("Flash OTA image(NEW_IMG_EXT)\n");
+			update_firmware(2);
+			print_uart_bl("Set flag to FW_FLAG_NEW_IMG_INT_RST\n");
+			write_fw_flag(FW_FLAG_NEW_IMG_INT_RST);
+			//print_uart_bl("Need reboot\n");
+			ti_lib_sys_ctrl_system_reset();
 			break;
 
 		/* Прыжок на основную программу после перезагрузки после обновления */
@@ -280,14 +268,18 @@ int main(void)
 			ti_lib_sys_ctrl_system_reset();
 			break;
 
-		/* Шьем обновление, если у нас флаг новой прошивки */
-		case FW_FLAG_NEW_IMG_EXT:
-			print_uart_bl("Flash OTA image(NEW_IMG_EXT)\n");
-			update_firmware(2);
-			print_uart_bl("Set flag to FW_FLAG_NEW_IMG_INT_RST\n");
-			write_fw_flag(FW_FLAG_NEW_IMG_INT_RST);
-			//print_uart_bl("Need reboot\n");
+		/* Сброс флага после процесса обновления и перезагрузка */
+		case FW_FLAG_PING_OK: 
+			print_uart_bl("OTA Update ok(PING_OK), change flag, reboot\n");
+			write_fw_flag(FW_FLAG_NON_UPDATE); 
 			ti_lib_sys_ctrl_system_reset();
+			break;
+
+		/* Прыжок на основную программу после неудачного обновления */
+		case FW_FLAG_ERROR_GI_LOADED: 
+			print_uart_bl("Jump to main image(ERROR_GI_LOADED)\n\n");
+			deinitialize_uart();
+			jump_to_image(CURRENT_FIRMWARE << 12);
 			break;
 
 		default:
