@@ -1,16 +1,49 @@
-/** @file   ota-common.h
- *  @brief  OTA common funtions and defines
- *  @author Vlad Zaytsev <vvzvlad@gmail.com>
+/*
+ * Copyright (c) 2016, Unwired Devices LLC - http://www.unwireddevices.com/
+ * All rights reserved.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. Neither the name of the Unwired Devices nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
  */
+/*---------------------------------------------------------------------------*/
+/*
+ * \file
+ *         OTA common funtions and defines
+ * \author
+ *         Manchenko Oleg man4enkoos@gmail.com
+ *
+ */
+/*---------------------------------------------------------------------------*/
+#ifndef OTA_COMMON_H
+#define OTA_COMMON_H
 
+/*---------------------------------------------------------------------------*/
 #include <stdio.h>
 
+#include "ota-bootloader.h"
 #include "ti-lib.h"
 #include "driverlib/flash.h"
 
-
 #define FLASH_PAGE_SIZE                0x1000
-
 
 #define NON_CORRECT_CRC                -2
 #define NON_READ_FLASH                 -1
@@ -18,12 +51,6 @@
 
 #define FLAG_OK_WRITE                  1
 #define FLAG_ERROR_WRITE               0
-
-/**
- *    NEW_FW_FLAG — Флаг статуса процесса обновления
- */
-#define FW_FLAG                        0x42
-#define FW_FLAG_ADRESS                 0x1000
 
 #define FW_FLAG_NON_UPDATE             0x30 //Процесс обновления завершен или не начат("0" в ANSCII)
 #define FW_FLAG_NEW_IMG_EXT            0x31 //Новый образ загружен во внешнюю память("1" в ANSCII)
@@ -33,20 +60,8 @@
 #define FW_FLAG_ERROR_GI_LOADED        0x35 //Ошибка обновления, загружен Golden Image("5" в ANSCII)
 #define FW_FLAG_NONE                   0xFF //На месте флага пустая память
 
-#define FLAG_SIZE                      1
+bool write_fw_flag(uint8_t flag_value);
+uint8_t read_fw_flag(void);
 
-#define USER_FLASH_LENGTH              100
-
-#define START_USER_FLASH               0x1C000
-#define END_USER_FLASH                 USER_FLASH_LENGTH + START_USER_FLASH
-
-#define OTA_STATUS_FLAG                0x05
-
-
-uint8_t write_fw_flag(uint8_t value);
-uint8_t read_fw_flag();
-void user_flash_update_byte(uint8_t offset, uint8_t data);
-uint8_t user_flash_read_byte(uint8_t offset);
-void int_flash_read(uint8_t *pui8DataBuffer, uint32_t ui32Address, uint32_t ui32Count);
-uint32_t int_flash_write(uint8_t *pui8DataBuffer, uint32_t ui32Address, uint32_t ui32Count);
-
+/*---------------------------------------------------------------------------*/
+#endif  /* OTA_COMMON_H */

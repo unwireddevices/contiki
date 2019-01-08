@@ -24,55 +24,95 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-/** @file   ota-common.c
- *  @brief  OTA common funtions and defines
- *  @author Vlad Zaytsev <vvzvlad@gmail.com>
+/*---------------------------------------------------------------------------*/
+/*
+ * \file
+ *         OTA common funtions and defines
+ * \author
+ *         Manchenko Oleg man4enkoos@gmail.com
+ *
  */
+/*---------------------------------------------------------------------------*/
 
 #include "string.h"
 #include <stdbool.h>
 #include "ota-common.h"
-#include "int-flash-common.h"
-#include "xxf_types_helper.h"
+#include "dev/watchdog.h"
 
-uint8_t
-write_fw_flag(uint8_t value)
+#define EEPROM_FLAG_ADDR			(0x00070000)
+#define MAGIC_BYTES_ADDR			(EEPROM_FLAG_ADDR)
+#define MAGIC_BYTES					(0xBABECAFE)
+#define MAGIC_BYTES_LENGTH			(sizeof(uint32_t))
+#define FLAG_FW_ADDR				(EEPROM_FLAG_ADDR + MAGIC_BYTES_LENGTH)
+#define FLAG_FW_LENGTH				(sizeof(uint8_t))
+
+/*---------------------------------------------------------------------------*/
+
+bool write_fw_flag(uint8_t flag_value)
 {
-   if (value != FW_FLAG_NON_UPDATE &&
-       value != FW_FLAG_NEW_IMG_EXT &&
-       value != FW_FLAG_NEW_IMG_INT &&
-       value != FW_FLAG_ERROR_GI_LOAD &&
-       value != FW_FLAG_NEW_IMG_INT_RST &&
-       value != FW_FLAG_PING_OK)
-      return FLAG_ERROR_WRITE;
+	/* Проверяем установлена ли флешка */
+	bool eeprom_access = ext_flash_open();
+	if(eeprom_access)
+	{
+		/* ERASE FLASH */
+		ext_flash_erase(EEPROM_FLAG_ADDR, (MAGIC_BYTES_LENGTH + FLAG_FW_LENGTH));
+		watchdog_periodic();
 
-   user_flash_update_byte(OTA_STATUS_FLAG, value);
-   uint8_t new_value = user_flash_read_byte(OTA_STATUS_FLAG);
-   if (new_value == value)
-      return FLAG_OK_WRITE;
-   else
-      return FLAG_ERROR_WRITE;
+		/* Записываем флаг в EEPROM */
+		ext_flash_write(FLAG_FW_ADDR, FLAG_FW_LENGTH, (uint8_t*)&flag_value);
+
+		/* MAGIC BYTES */
+		uint32_t magic_bytes = MAGIC_BYTES;
+    	ext_flash_write(MAGIC_BYTES_ADDR, MAGIC_BYTES_LENGTH, (uint8_t*)&magic_bytes);
+		ext_flash_close();
+
+		return FLAG_OK_WRITE;
+	}
+	else
+	{
+		// print_uart("Could not access EEPROM\n");
+		ext_flash_close();
+
+		return FLAG_ERROR_WRITE;
+	}
 }
 
 /*---------------------------------------------------------------------------*/
 
-uint8_t
-read_fw_flag()
+uint8_t read_fw_flag(void)
 {
-   uint8_t flag_value = user_flash_read_byte(OTA_STATUS_FLAG);
+	/* Проверяем установлена ли флешка */
+	bool eeprom_access = ext_flash_open();
+	if(eeprom_access)
+	{
+		/* Проверяет есть ли сохранённый флаг */
+		uint32_t magic_bytes; 
 
-   if (flag_value != FW_FLAG_NON_UPDATE &&
-       flag_value != FW_FLAG_NEW_IMG_EXT &&
-       flag_value != FW_FLAG_NEW_IMG_INT &&
-       flag_value != FW_FLAG_ERROR_GI_LOAD &&
-       flag_value != FW_FLAG_NEW_IMG_INT_RST &&
-       flag_value != FW_FLAG_PING_OK)
-   {
-      write_fw_flag(FW_FLAG_NON_UPDATE);
-      return FW_FLAG_NON_UPDATE;
-   }
+		/* Считываем магические байты */
+		ext_flash_read(MAGIC_BYTES_ADDR, MAGIC_BYTES_LENGTH, (uint8_t*)&magic_bytes);
 
-   return flag_value;
+		if(magic_bytes != MAGIC_BYTES)
+		{
+			ext_flash_close();
+			write_fw_flag(FW_FLAG_NON_UPDATE);
+
+			return FW_FLAG_NON_UPDATE;
+		}
+
+		/* Считываем флаг */
+		uint8_t flag_value;
+		ext_flash_read(FLAG_FW_ADDR, FLAG_FW_LENGTH, (uint8_t*)&flag_value);
+		ext_flash_close();
+
+		return flag_value;
+	}
+	else
+	{
+		// print_uart("Could not access EEPROM\n");
+		ext_flash_close();
+
+		return FW_FLAG_NON_UPDATE;
+	}   
 }
 
 /*---------------------------------------------------------------------------*/

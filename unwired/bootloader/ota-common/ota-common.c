@@ -1,106 +1,117 @@
-/** @file   ota-common.c
- *  @brief  OTA common funtions and defines
- *  @author Vlad Zaytsev <vvzvlad@gmail.com>
+/*
+ * Copyright (c) 2016, Unwired Devices LLC - http://www.unwireddevices.com/
+ * All rights reserved.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. Neither the name of the Unwired Devices nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
  */
+/*---------------------------------------------------------------------------*/
+/*
+ * \file
+ *         OTA common funtions and defines
+ * \author
+ *         Manchenko Oleg man4enkoos@gmail.com
+ *
+ */
+/*---------------------------------------------------------------------------*/
 
 #include "string.h"
 #include <stdbool.h>
 #include "ota-common.h"
 
-#include "driverlib/flash.h"
-#include "driverlib/vims.h"
+#define EEPROM_FLAG_ADDR			(0x00070000)
+#define MAGIC_BYTES_ADDR			(EEPROM_FLAG_ADDR)
+#define MAGIC_BYTES					(0xBABECAFE)
+#define MAGIC_BYTES_LENGTH			(sizeof(uint32_t))
+#define FLAG_FW_ADDR				(EEPROM_FLAG_ADDR + MAGIC_BYTES_LENGTH)
+#define FLAG_FW_LENGTH				(sizeof(uint8_t))
 
 /*---------------------------------------------------------------------------*/
 
-void user_flash_update_byte(uint8_t offset, uint8_t data)
+bool write_fw_flag(uint8_t flag_value)
 {
-   uint32_t old_vims_state = ti_lib_vims_mode_get(VIMS_BASE);
-   ti_lib_vims_mode_set(VIMS_BASE, VIMS_MODE_DISABLED);
+	/* Проверяем установлена ли флешка */
+	bool eeprom_access = ext_flash_open();
+	if(eeprom_access)
+	{
+		/* ERASE FLASH */
+		ext_flash_erase(EEPROM_FLAG_ADDR, (MAGIC_BYTES_LENGTH + FLAG_FW_LENGTH));
+		// watchdog_periodic();
 
-   uint8_t buffer[USER_FLASH_LENGTH];
-   int_flash_read(buffer, START_USER_FLASH, USER_FLASH_LENGTH);
-   buffer[offset] = data;
+		/* Записываем флаг в EEPROM */
+		ext_flash_write(FLAG_FW_ADDR, FLAG_FW_LENGTH, (uint8_t*)&flag_value);
 
-   ti_lib_vims_mode_set(VIMS_BASE, old_vims_state);
+		/* MAGIC BYTES */
+		uint32_t magic_bytes = MAGIC_BYTES;
+    	ext_flash_write(MAGIC_BYTES_ADDR, MAGIC_BYTES_LENGTH, (uint8_t*)&magic_bytes);
+		ext_flash_close();
 
-   ti_lib_flash_sector_erase(START_USER_FLASH);
-   ti_lib_flash_program(buffer, START_USER_FLASH, USER_FLASH_LENGTH);
+		return FLAG_OK_WRITE;
+	}
+	else
+	{
+		// print_uart("Could not access EEPROM\n");
+		ext_flash_close();
+
+		return FLAG_ERROR_WRITE;
+	}
 }
 
 /*---------------------------------------------------------------------------*/
 
-uint8_t user_flash_read_byte(uint8_t offset)
+uint8_t read_fw_flag(void)
 {
-   uint32_t old_vims_state = ti_lib_vims_mode_get(VIMS_BASE);
-   ti_lib_vims_mode_set(VIMS_BASE, VIMS_MODE_DISABLED);
-   uint32_t address = offset + START_USER_FLASH;
-   uint8_t data = *(uint8_t *)address;
-   ti_lib_vims_mode_set(VIMS_BASE, old_vims_state);
-   return data;
+	/* Проверяем установлена ли флешка */
+	bool eeprom_access = ext_flash_open();
+	if(eeprom_access)
+	{
+		/* Проверяет есть ли сохранённый флаг */
+		uint32_t magic_bytes; 
+
+		/* Считываем магические байты */
+		ext_flash_read(MAGIC_BYTES_ADDR, MAGIC_BYTES_LENGTH, (uint8_t*)&magic_bytes);
+
+		if(magic_bytes != MAGIC_BYTES)
+		{
+			ext_flash_close();
+			write_fw_flag(FW_FLAG_NON_UPDATE);
+
+			return FW_FLAG_NON_UPDATE;
+		}
+
+		/* Считываем флаг */
+		uint8_t flag_value;
+		ext_flash_read(FLAG_FW_ADDR, FLAG_FW_LENGTH, (uint8_t*)&flag_value);
+		ext_flash_close();
+
+		return flag_value;
+	}
+	else
+	{
+		// print_uart("Could not access EEPROM\n");
+		ext_flash_close();
+
+		return FW_FLAG_NON_UPDATE;
+	}   
 }
 
 /*---------------------------------------------------------------------------*/
-
-void int_flash_read(uint8_t *pui8DataBuffer, uint32_t ui32Address, uint32_t ui32Count)
-{
-   uint32_t old_vims_state = ti_lib_vims_mode_get(VIMS_BASE);
-   ti_lib_vims_mode_set(VIMS_BASE, VIMS_MODE_DISABLED);
-   uint8_t *pui8ReadAddress = (uint8_t *)ui32Address;
-   while (ui32Count--)
-   {
-      *pui8DataBuffer++ = *pui8ReadAddress++;
-   }
-   ti_lib_vims_mode_set(VIMS_BASE, old_vims_state);
-}
-
-/*---------------------------------------------------------------------------*/
-
-uint32_t int_flash_write(uint8_t *pui8DataBuffer, uint32_t ui32Address, uint32_t ui32Count)
-{
-   uint32_t write_status = ti_lib_flash_program(pui8DataBuffer, ui32Address, ui32Count);
-   return write_status;
-}
-
-/*---------------------------------------------------------------------------*/
-
-uint8_t write_fw_flag(uint8_t value)
-{
-   if (value != FW_FLAG_NON_UPDATE &&
-         value != FW_FLAG_NEW_IMG_EXT &&
-         value != FW_FLAG_NEW_IMG_INT &&
-         value != FW_FLAG_ERROR_GI_LOADED &&
-         value != FW_FLAG_NEW_IMG_INT_RST &&
-         value != FW_FLAG_PING_OK)
-            return FLAG_ERROR_WRITE;
-
-      user_flash_update_byte(OTA_STATUS_FLAG, value);
-      uint8_t new_value = user_flash_read_byte(OTA_STATUS_FLAG);
-      if (new_value == value)
-            return FLAG_OK_WRITE;
-      else
-            return FLAG_ERROR_WRITE;
-}
-
-/*---------------------------------------------------------------------------*/
-
-uint8_t read_fw_flag()
-{
-   uint8_t flag_value = user_flash_read_byte(OTA_STATUS_FLAG);
-
-   if (flag_value != FW_FLAG_NON_UPDATE &&
-         flag_value != FW_FLAG_NEW_IMG_EXT &&
-         flag_value != FW_FLAG_NEW_IMG_INT &&
-         flag_value != FW_FLAG_ERROR_GI_LOADED &&
-         flag_value != FW_FLAG_NEW_IMG_INT_RST &&
-         flag_value != FW_FLAG_PING_OK)
-   {
-      write_fw_flag(FW_FLAG_NON_UPDATE);
-      return FW_FLAG_NON_UPDATE;
-   }
-
-   return flag_value;
-}
-
-/*---------------------------------------------------------------------------*/
-
-

@@ -120,7 +120,7 @@
 #define ROOT_FIND_INTERVAL				(2 * CLOCK_SECOND)
 #define ROOT_FIND_LIMIT_TIME			(2 * 60 * CLOCK_SECOND)
 
-#define REQ_DATA_FOR_OTA_INTERVAL		(1 * CLOCK_SECOND)
+#define REQ_DATA_FOR_OTA_INTERVAL		(3 * CLOCK_SECOND)
 
 #define CC26XX_UART_INTERRUPT_ALL ( UART_INT_OE | UART_INT_BE | UART_INT_PE | \
 									UART_INT_FE | UART_INT_RT | UART_INT_TX | \
@@ -1306,6 +1306,11 @@ static void join_stage_4_handler(const uip_ipaddr_t *sender_addr,
 		etimer_set(&maintenance_timer, 0);								/* Устанавливаем таймер */ 
 		process_post(&dag_node_process, PROCESS_EVENT_CONTINUE, NULL);	/* Передаем управление dag_node_process */ 
 		process_start(&ping_process, NULL);
+		
+		/* Устанавливаем флаг OTA */
+		if(read_fw_flag() == FW_FLAG_ERROR_GI_LOADED)
+			write_fw_flag(FW_FLAG_PING_OK);
+
 		return;
 	}
 	
@@ -2113,7 +2118,10 @@ PROCESS_THREAD(ota_process, ev, data)
 
 			/* Вывод информационного сообщения в консоль */
 			if (verify_result_ota_2 == VERIFY_SLOT_OK)
+			{
 				printf("[OTA] Correct CRC!\n");
+				write_fw_flag(FW_FLAG_NEW_IMG_EXT);
+			}
 			else if (verify_result_ota_2 == VERIFY_SLOT_CRC_ERROR)
 				printf("[OTA] Non-correct CRC!\n");
 			else
