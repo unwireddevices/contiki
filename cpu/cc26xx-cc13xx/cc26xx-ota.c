@@ -45,7 +45,12 @@ MEMORY
      *  256 byte offset is the minimum VTOR offset that seems to work.
      *  OTA Metadata only requires 16 bytes, however.
      */
-    FLASH (RX) : ORIGIN = (OTA_IMAGE_OFFSET+OTA_METADATA_SPACE), LENGTH = OTA_IMAGE_LENGTH
+    FLASH (RX) : ORIGIN = (OTA_IMAGE_OFFSET+OTA_METADATA_SPACE), LENGTH = OTA_IMAGE_LENGTH /* 0x3100, 0x18F00*/
+
+    /* 0x0001C000 - SPECIAL EEPROM */
+    /* 0x0001D000 - LICENCE */ 
+    /* 0x0001E000 - EEPROM */
+    /* 0x0001F000 - CCFG? */ 
 
     /*
      * Customer Configuration Area and Bootloader Backdoor configuration
