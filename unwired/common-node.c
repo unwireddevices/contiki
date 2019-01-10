@@ -44,8 +44,8 @@
 #include "cc26xx/board.h"
 
 #include "net/ip/uip.h"
-#include "net/ipv6/uip-ds6.h"
 #include "net/ipv6/uip-ds6-route.h"
+#include "net/ipv6/uip-ds6.h"
 #include "net/ip/uip-debug.h"
 #include "simple-udp.h"
 #include "net/rpl/rpl.h"

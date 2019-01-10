@@ -41,9 +41,10 @@
 #define UIP_DS6_ROUTE_H
 
 #include "net/ip/uip.h"
-#include "net/nbr-table.h"
 #include "sys/stimer.h"
 #include "lib/list.h"
+#include "lib/memb.h"
+#include "net/nbr-table.h"
 
 NBR_TABLE_DECLARE(nbr_routes);
 
@@ -230,9 +231,23 @@ bool safe_routelist(void);
 typedef struct 
 {		
 	uint32_t magic_bytes;
+  uint16_t crc16;
+  struct memb defaultroutermemb;
+  nbr_table_t *nbr_routes;
+  nbr_table_t nbr_routes_struct;
+  struct memb neighborroutememb;
+  struct memb routememb;
+  void *defaultrouterlist_list;
+  char defaultroutermemb_memb_count[2]; //defaultroutermemb_memb_count[UIP_DS6_DEFRT_NB]
+  void *notificationlist_list;
   int num_routes;
+  void *routelist_list;
   uip_ds6_route_t routememb_memb_mem[UIP_DS6_ROUTE_NB];
+  struct uip_ds6_route_neighbor_routes _nbr_routes_mem[NBR_TABLE_MAX_NEIGHBORS];
+  uip_ds6_defrt_t defaultroutermemb_memb_mem[2]; //defaultroutermemb_memb_count[UIP_DS6_DEFRT_NB]
+  char neighborroutememb_memb_count[UIP_DS6_ROUTE_NB];
   struct uip_ds6_route_neighbor_route neighborroutememb_memb_mem[UIP_DS6_ROUTE_NB];
+  char routememb_memb_count[UIP_DS6_ROUTE_NB];
 } __attribute__((packed)) route_table_eeprom_t;
 
 PROCESS_NAME(safe_routelist_process);

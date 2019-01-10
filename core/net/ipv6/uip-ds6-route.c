@@ -137,7 +137,8 @@ static struct memb defaultroutermemb = {sizeof(uip_ds6_defrt_t),
 										(void *)defaultroutermemb_memb_mem};
 
 #if UIP_DS6_NOTIFICATIONS
-LIST(notificationlist);
+static void *notificationlist_list = NULL;
+static list_t notificationlist = (list_t)&notificationlist_list;
 #endif
 
 #define DEBUG DEBUG_NONE
@@ -978,10 +979,6 @@ bool valid_counter(uip_ip6addr_t *addr, uint16_t counter)
 /*---------------------------------------------------------------------------*/
 bool load_routelist(void)
 {
-	// Загружаем 
-	// Addr: routelist_list
-	// Len: (sizeof(uip_ds6_route_t) * UIP_CONF_MAX_ROUTES)
-
 	/* Проверяем установлена ли флешка */
 	bool eeprom_access = ext_flash_open();
 	if(eeprom_access)
@@ -1003,55 +1000,27 @@ bool load_routelist(void)
 			return false;
 		}
 
+		ext_flash_read((uint32_t)&eeprom_flash->defaultroutermemb, sizeof(eeprom_flash->defaultroutermemb), (uint8_t*)&defaultroutermemb);
+		ext_flash_read((uint32_t)&eeprom_flash->nbr_routes, sizeof(eeprom_flash->nbr_routes), (uint8_t*)&nbr_routes);
+		ext_flash_read((uint32_t)&eeprom_flash->nbr_routes_struct, sizeof(eeprom_flash->nbr_routes_struct), (uint8_t*)&nbr_routes_struct);
+		ext_flash_read((uint32_t)&eeprom_flash->neighborroutememb, sizeof(eeprom_flash->neighborroutememb), (uint8_t*)&neighborroutememb);
+		ext_flash_read((uint32_t)&eeprom_flash->routememb, sizeof(eeprom_flash->routememb), (uint8_t*)&routememb);
+		ext_flash_read((uint32_t)&eeprom_flash->defaultrouterlist_list, sizeof(eeprom_flash->defaultrouterlist_list), (uint8_t*)&defaultrouterlist_list);
+		ext_flash_read((uint32_t)&eeprom_flash->defaultroutermemb_memb_count, sizeof(eeprom_flash->defaultroutermemb_memb_count), (uint8_t*)&defaultroutermemb_memb_count[0]);
+		ext_flash_read((uint32_t)&eeprom_flash->notificationlist_list, sizeof(eeprom_flash->notificationlist_list), (uint8_t*)&notificationlist_list);
 		ext_flash_read((uint32_t)&eeprom_flash->num_routes, sizeof(eeprom_flash->num_routes), (uint8_t*)&num_routes);
-		ext_flash_read((uint32_t)&eeprom_flash->routememb_memb_mem[0], sizeof(eeprom_flash->routememb_memb_mem), (uint8_t*)&routememb_memb_mem[0]);
-		ext_flash_read((uint32_t)&eeprom_flash->neighborroutememb_memb_mem[0], sizeof(eeprom_flash->neighborroutememb_memb_mem), (uint8_t*)&neighborroutememb_memb_mem[0]);
+		ext_flash_read((uint32_t)&eeprom_flash->routelist_list, sizeof(eeprom_flash->routelist_list), (uint8_t*)&routelist_list);
+		ext_flash_read((uint32_t)&eeprom_flash->routememb_memb_mem, sizeof(eeprom_flash->routememb_memb_mem), (uint8_t*)&routememb_memb_mem[0]);
+		ext_flash_read((uint32_t)&eeprom_flash->_nbr_routes_mem, sizeof(eeprom_flash->_nbr_routes_mem), (uint8_t*)&_nbr_routes_mem[0]);
+		ext_flash_read((uint32_t)&eeprom_flash->defaultroutermemb_memb_mem, sizeof(eeprom_flash->defaultroutermemb_memb_mem), (uint8_t*)&defaultroutermemb_memb_mem[0]);
+		ext_flash_read((uint32_t)&eeprom_flash->neighborroutememb_memb_count, sizeof(eeprom_flash->neighborroutememb_memb_count), (uint8_t*)&neighborroutememb_memb_count[0]);
+		ext_flash_read((uint32_t)&eeprom_flash->neighborroutememb_memb_mem, sizeof(eeprom_flash->neighborroutememb_memb_mem), (uint8_t*)&neighborroutememb_memb_mem[0]);
+		ext_flash_read((uint32_t)&eeprom_flash->routememb_memb_count, sizeof(eeprom_flash->routememb_memb_count), (uint8_t*)&routememb_memb_count[0]);
 
 		/* Start safe routelist to EEPROM process */
 		process_start(&safe_routelist_process, NULL);
 		ext_flash_close();
 		return true;
-
-	// 	/* Проверка */
-	// 	if(eeprom_access) 
-	// 	{
-	// 		PRINTF("load_routelist: read magic_bytes: %lu\n", magic_bytes);
-		
-	// 		if(magic_bytes != MAGIC_BYTES)
-	// 		{
-	// 			PRINTF("load_routelist: flash is empty\n");
-	// 			ext_flash_close();
-
-	// 			/* Start safe routelist to EEPROM process */
-	// 			process_start(&safe_routelist_process, NULL);
-	// 			return false;
-	// 		}
-	// 	}
-	// 	else
-	// 	{
-	// 		PRINTF("load_routelist: Read error\n");
-	// 		ext_flash_close();
-	// 		return false;
-	// 	}
-
-	// 	eeprom_access = ext_flash_read(ROUTELIST_EEPROM_ADDR, (sizeof(uip_ds6_route_t) * UIP_CONF_MAX_ROUTES), (uint8_t*)routelist_list);
-
-	// 	if(eeprom_access) 
-	// 	{
-	// 		printf("[uip-ds6-route] Load routelist ok\n");
-	// 		printf("[uip-ds6-route] Loaded %i routes\n", uip_ds6_route_num_routes());
-	// 		ext_flash_close();
-
-	// 		/* Start safe routelist to EEPROM process */
-	// 		process_start(&safe_routelist_process, NULL);
-	// 		return true;
-	// 	}
-	// 	else
-	// 	{
-	// 		PRINTF("load_routelist: Read error\n");
-	// 		ext_flash_close();
-	// 		return false;
-	// 	}
 	}
 	else
 	{
@@ -1064,28 +1033,51 @@ bool load_routelist(void)
 /*---------------------------------------------------------------------------*/
 bool safe_routelist(void)
 {
-	// Сохраняем
-	// Addr: routelist_list
-	// Len: (sizeof(uip_ds6_route_t) * UIP_CONF_MAX_ROUTES)
-
 	/* Проверяем установлена ли флешка */
 	bool eeprom_access = ext_flash_open();
 	if(eeprom_access)
 	{
 		printf("eeprom_flash addr: 0x%08lx len: 0x%08x\n", (uint32_t)eeprom_flash, sizeof(*eeprom_flash));
 		printf("magic_bytes addr: 0x%08lx len: 0x%08x\n", (uint32_t)&eeprom_flash->magic_bytes, sizeof(eeprom_flash->magic_bytes));
-		printf("num_routes addr: 0x%08lx len: 0x%08x\n", (uint32_t)&eeprom_flash->num_routes, sizeof(eeprom_flash->num_routes));
-		printf("routememb_memb_mem[UIP_DS6_ROUTE_NB] addr: 0x%08lx len: 0x%08x\n", (uint32_t)&eeprom_flash->routememb_memb_mem[0], sizeof(eeprom_flash->routememb_memb_mem));
-		printf("neighborroutememb_memb_mem[UIP_DS6_ROUTE_NB] addr: 0x%08lx len: 0x%08x\n", (uint32_t)&eeprom_flash->neighborroutememb_memb_mem[0], sizeof(eeprom_flash->neighborroutememb_memb_mem));
+		printf("crc16 addr: 0x%08lx len: 0x%08x\n", (uint32_t)&eeprom_flash->crc16, sizeof(eeprom_flash->crc16));
+		printf("Copy from 0x%08lx to 0x%08lx len: 0x%08x (defaultroutermemb)\n", (uint32_t)&defaultroutermemb, (uint32_t)&eeprom_flash->defaultroutermemb, sizeof(eeprom_flash->defaultroutermemb));
+		printf("Copy from 0x%08lx to 0x%08lx len: 0x%08x (nbr_routes)\n", (uint32_t)&nbr_routes, (uint32_t)&eeprom_flash->nbr_routes, sizeof(eeprom_flash->nbr_routes));
+		printf("Copy from 0x%08lx to 0x%08lx len: 0x%08x (nbr_routes_struct)\n", (uint32_t)&nbr_routes_struct, (uint32_t)&eeprom_flash->nbr_routes_struct, sizeof(eeprom_flash->nbr_routes_struct));
+		printf("Copy from 0x%08lx to 0x%08lx len: 0x%08x (neighborroutememb)\n", (uint32_t)&neighborroutememb, (uint32_t)&eeprom_flash->neighborroutememb, sizeof(eeprom_flash->neighborroutememb));
+		printf("Copy from 0x%08lx to 0x%08lx len: 0x%08x (routememb)\n", (uint32_t)&routememb, (uint32_t)&eeprom_flash->routememb, sizeof(eeprom_flash->routememb));
+		printf("Copy from 0x%08lx to 0x%08lx len: 0x%08x (defaultrouterlist_list)\n", (uint32_t)&defaultrouterlist_list, (uint32_t)&eeprom_flash->defaultrouterlist_list, sizeof(eeprom_flash->defaultrouterlist_list));
+		printf("Copy from 0x%08lx to 0x%08lx len: 0x%08x (defaultroutermemb_memb_count)\n", (uint32_t)&defaultroutermemb_memb_count[0], (uint32_t)&eeprom_flash->defaultroutermemb_memb_count[0], sizeof(eeprom_flash->defaultroutermemb_memb_count));
+		printf("Copy from 0x%08lx to 0x%08lx len: 0x%08x (notificationlist_list)\n", (uint32_t)&notificationlist_list, (uint32_t)&eeprom_flash->notificationlist_list, sizeof(eeprom_flash->notificationlist_list));
+		printf("Copy from 0x%08lx to 0x%08lx len: 0x%08x (num_routes)\n", (uint32_t)&num_routes, (uint32_t)&eeprom_flash->num_routes, sizeof(eeprom_flash->num_routes));
+		printf("Copy from 0x%08lx to 0x%08lx len: 0x%08x (routelist_list)\n", (uint32_t)&routelist_list, (uint32_t)&eeprom_flash->routelist_list, sizeof(eeprom_flash->routelist_list));
+		printf("Copy from 0x%08lx to 0x%08lx len: 0x%08x (routememb_memb_mem)\n", (uint32_t)&routememb_memb_mem[0], (uint32_t)&eeprom_flash->routememb_memb_mem, sizeof(eeprom_flash->routememb_memb_mem));
+		printf("Copy from 0x%08lx to 0x%08lx len: 0x%08x (_nbr_routes_mem)\n", (uint32_t)&_nbr_routes_mem[0], (uint32_t)&eeprom_flash->_nbr_routes_mem, sizeof(eeprom_flash->_nbr_routes_mem));
+		printf("Copy from 0x%08lx to 0x%08lx len: 0x%08x (defaultroutermemb_memb_mem)\n", (uint32_t)&defaultroutermemb_memb_mem[0], (uint32_t)&eeprom_flash->defaultroutermemb_memb_mem, sizeof(eeprom_flash->defaultroutermemb_memb_mem));
+		printf("Copy from 0x%08lx to 0x%08lx len: 0x%08x (neighborroutememb_memb_count)\n", (uint32_t)&neighborroutememb_memb_count[0], (uint32_t)&eeprom_flash->neighborroutememb_memb_count, sizeof(eeprom_flash->neighborroutememb_memb_count));
+		printf("Copy from 0x%08lx to 0x%08lx len: 0x%08x (neighborroutememb_memb_mem)\n", (uint32_t)&neighborroutememb_memb_mem[0], (uint32_t)&eeprom_flash->neighborroutememb_memb_mem, sizeof(eeprom_flash->neighborroutememb_memb_mem));
+		printf("Copy from 0x%08lx to 0x%08lx len: 0x%08x (routememb_memb_count)\n", (uint32_t)&routememb_memb_count[0], (uint32_t)&eeprom_flash->routememb_memb_count, sizeof(eeprom_flash->routememb_memb_count));
 
 		/* ERASE FLASH */
 		ext_flash_erase((uint32_t)eeprom_flash, sizeof(*eeprom_flash));
 		watchdog_periodic();
 
 		/* SAFE ROUTE TABLE */
+		ext_flash_write((uint32_t)&eeprom_flash->defaultroutermemb, sizeof(eeprom_flash->defaultroutermemb), (uint8_t*)&defaultroutermemb);
+		ext_flash_write((uint32_t)&eeprom_flash->nbr_routes, sizeof(eeprom_flash->nbr_routes), (uint8_t*)&nbr_routes);
+		ext_flash_write((uint32_t)&eeprom_flash->nbr_routes_struct, sizeof(eeprom_flash->nbr_routes_struct), (uint8_t*)&nbr_routes_struct);
+		ext_flash_write((uint32_t)&eeprom_flash->neighborroutememb, sizeof(eeprom_flash->neighborroutememb), (uint8_t*)&neighborroutememb);
+		ext_flash_write((uint32_t)&eeprom_flash->routememb, sizeof(eeprom_flash->routememb), (uint8_t*)&routememb);
+		ext_flash_write((uint32_t)&eeprom_flash->defaultrouterlist_list, sizeof(eeprom_flash->defaultrouterlist_list), (uint8_t*)&defaultrouterlist_list);
+		ext_flash_write((uint32_t)&eeprom_flash->defaultroutermemb_memb_count, sizeof(eeprom_flash->defaultroutermemb_memb_count), (uint8_t*)&defaultroutermemb_memb_count[0]);
+		ext_flash_write((uint32_t)&eeprom_flash->notificationlist_list, sizeof(eeprom_flash->notificationlist_list), (uint8_t*)&notificationlist_list);
 		ext_flash_write((uint32_t)&eeprom_flash->num_routes, sizeof(eeprom_flash->num_routes), (uint8_t*)&num_routes);
-		ext_flash_write((uint32_t)&eeprom_flash->routememb_memb_mem[0], sizeof(eeprom_flash->routememb_memb_mem), (uint8_t*)&routememb_memb_mem[0]);
-		ext_flash_write((uint32_t)&eeprom_flash->neighborroutememb_memb_mem[0], sizeof(eeprom_flash->neighborroutememb_memb_mem), (uint8_t*)&neighborroutememb_memb_mem[0]);
+		ext_flash_write((uint32_t)&eeprom_flash->routelist_list, sizeof(eeprom_flash->routelist_list), (uint8_t*)&routelist_list);
+		ext_flash_write((uint32_t)&eeprom_flash->routememb_memb_mem, sizeof(eeprom_flash->routememb_memb_mem), (uint8_t*)&routememb_memb_mem[0]);
+		ext_flash_write((uint32_t)&eeprom_flash->_nbr_routes_mem, sizeof(eeprom_flash->_nbr_routes_mem), (uint8_t*)&_nbr_routes_mem[0]);
+		ext_flash_write((uint32_t)&eeprom_flash->defaultroutermemb_memb_mem, sizeof(eeprom_flash->defaultroutermemb_memb_mem), (uint8_t*)&defaultroutermemb_memb_mem[0]);
+		ext_flash_write((uint32_t)&eeprom_flash->neighborroutememb_memb_count, sizeof(eeprom_flash->neighborroutememb_memb_count), (uint8_t*)&neighborroutememb_memb_count[0]);
+		ext_flash_write((uint32_t)&eeprom_flash->neighborroutememb_memb_mem, sizeof(eeprom_flash->neighborroutememb_memb_mem), (uint8_t*)&neighborroutememb_memb_mem[0]);
+		ext_flash_write((uint32_t)&eeprom_flash->routememb_memb_count, sizeof(eeprom_flash->routememb_memb_count), (uint8_t*)&routememb_memb_count[0]);
 
 		/* MAGIC BYTES */
 		uint32_t magic_bytes = MAGIC_BYTES;
@@ -1093,54 +1085,6 @@ bool safe_routelist(void)
 
 		ext_flash_close();
 		return true;
-
-
-		// if(eeprom_access) 
-		// {
-		// 	PRINTF("safe_routelist: erase ok\n");
-
-		// 	eeprom_access = ext_flash_write(ROUTELIST_EEPROM_ADDR, ROUTELIST_LENGTH, (uint8_t*)routelist_list);
-		// 	if(eeprom_access) 
-		// 	{
-		// 		PRINTF("safe_routelist: write routelist_list ok\n");
-
-		// 		/* MAGIC BYTES */
-		// 		uint32_t magic_bytes = MAGIC_BYTES;
-
-		// 		eeprom_access = ext_flash_write(MAGIC_BYTES_ADDR, MAGIC_BYTES_LENGTH, (uint8_t*)&magic_bytes);
-		// 		if(eeprom_access) 
-		// 		{
-		// 			PRINTF("safe_routelist: write magic_bytes ok\n");
-
-		// 			printf("[uip-ds6-route] Safe routelist ok\n");
-		// 			printf("[uip-ds6-route] Saved %i routes\n", uip_ds6_route_num_routes());
-
-		// 			ext_flash_close();
-		// 			return true;
-		// 		}
-		// 		else
-		// 		{
-		// 			PRINTF("safe_routelist: write magic_bytes error\n");
-		// 			ext_flash_close();
-		// 			return false;
-		// 		}
-
-		// 		ext_flash_close();
-		// 		return true;
-		// 	}
-		// 	else
-		// 	{
-		// 		PRINTF("safe_routelist: write routelist_list error\n");
-		// 		ext_flash_close();
-		// 		return false;
-		// 	}
-		// }
-		// else
-		// {
-		// 	PRINTF("safe_routelist: erase error\n");
-		// 	ext_flash_close();
-		// 	return false;
-		// }
 	}
 	else
 	{
@@ -1171,11 +1115,11 @@ PROCESS_THREAD(safe_routelist_process, ev, data)
 		PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&safe_routelist_timer));
 
 		/* TEST PRINTF */		
-		printf("[safe_routelist_process] num_routes: %i\n", uip_ds6_route_num_routes());
+		printf("[DAG Node] Number of routes: %i\n", uip_ds6_route_num_routes());
 		if(safe_routelist())
-			printf("safe_routelist: ok\n");
+			printf("[DAG Node] Safe route table: ok\n");
 		else
-			printf("safe_routelist: error\n");
+			printf("[DAG Node] Safe route table: error\n");
 		
 		/* Если прошел 1ч и устройств > MIN_NUM_ROUTE_SAFE, то сохраняем таблицу маршрутизации */
 		// if(uip_ds6_route_num_routes() > MIN_NUM_ROUTE_SAFE)								
