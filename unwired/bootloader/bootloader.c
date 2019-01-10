@@ -247,12 +247,13 @@ int main(void)
 			update_firmware(2);
 			print_uart_bl("Set flag to FW_FLAG_NEW_IMG_INT_RST\n");
 			write_fw_flag(FW_FLAG_NEW_IMG_INT_RST);
-			//print_uart_bl("Need reboot\n");
+			print_uart_bl("Reboot...\n");
 			ti_lib_sys_ctrl_system_reset();
 			break;
 
 		/* Прыжок на основную программу после перезагрузки после обновления */
 		case FW_FLAG_NEW_IMG_INT_RST:
+			print_uart_bl("Set flag to FW_FLAG_NEW_IMG_INT\n");
 			write_fw_flag(FW_FLAG_NEW_IMG_INT);
 			print_uart_bl("Jump to main image(NEW_IMG_INT)\n\n");
 			deinitialize_uart();
@@ -265,18 +266,22 @@ int main(void)
 			update_firmware(0);
 			print_uart_bl("Set flag to ERROR_GI_LOADED\n");
 			write_fw_flag(FW_FLAG_ERROR_GI_LOADED);
+			print_uart_bl("Reboot...\n");
 			ti_lib_sys_ctrl_system_reset();
 			break;
 
 		/* Сброс флага после процесса обновления и перезагрузка */
 		case FW_FLAG_PING_OK: 
-			print_uart_bl("OTA Update ok(PING_OK), change flag, reboot\n");
+			print_uart_bl("OTA Update ok(PING_OK)\n");
+			print_uart_bl("Set flag to FW_FLAG_NON_UPDATE\n");
 			write_fw_flag(FW_FLAG_NON_UPDATE); 
 			ti_lib_sys_ctrl_system_reset();
 			break;
 
 		/* Прыжок на основную программу после неудачного обновления */
 		case FW_FLAG_ERROR_GI_LOADED: 
+			print_uart_bl("Set flag to FW_FLAG_NON_UPDATE\n");
+			write_fw_flag(FW_FLAG_NON_UPDATE); 
 			print_uart_bl("Jump to main image(ERROR_GI_LOADED)\n\n");
 			deinitialize_uart();
 			jump_to_image(CURRENT_FIRMWARE << 12);

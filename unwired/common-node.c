@@ -1311,7 +1311,7 @@ static void join_stage_4_handler(const uip_ipaddr_t *sender_addr,
 		if(read_fw_flag() == FW_FLAG_NEW_IMG_INT)
 		{
 			write_fw_flag(FW_FLAG_PING_OK);
-			printf("[DAG Node] Set flag to PING_OK\n")
+			printf("[DAG Node] Set flag to PING_OK\n");
 		}
 
 		return;
@@ -2123,6 +2123,7 @@ PROCESS_THREAD(ota_process, ev, data)
 			if (verify_result_ota_2 == VERIFY_SLOT_OK)
 			{
 				printf("[OTA] Correct CRC!\n");
+				printf("[DAG Node] Set flag to NEW_IMG_EXT\n");
 				write_fw_flag(FW_FLAG_NEW_IMG_EXT);
 				printf("[DAG Node] Reboot...\n");
 				watchdog_reboot();
