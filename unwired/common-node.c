@@ -183,6 +183,8 @@ static uint16_t blocks_counter = 0;
 
 process_event_t ota_event_message; 		/* ota event */
 
+static uint32_t pointer_on_last_state = NULL;
+
 /*---------------------------------------------------------------------------*/
 /* ПРОТОТИПЫ ОБЩИХ ФУНКЦИЙ */
 /*---------------------------------------------------------------------------*/
@@ -254,14 +256,19 @@ static void ack_sender(uint16_t counter);
 static void nack_sender(uint16_t counter);
 
 /* Команда включения/выключения канала ШИМ'а c заданным duty cycle */
-static bool dag_pwm_set(const uip_ipaddr_t *sender_addr,
-						pwm_set_t *pwm_set_pack);
+static bool dag_pwm_set(pwm_set_t *pwm_set_pack);
 
 /* Команда запроса блока данных для OTA */
 static void dag_ota_req_data_sender(uint16_t ota_block);
 
 /* Команда отправки сообщения что прошивка обновлена */
 static void dag_finish_ota_sender(int8_t status);
+
+/**/
+static void restore_last_state_of_lighting(void);
+
+/**/
+static void save_last_state_of_lighting(uint8_t state);
 
 /*---------------------------------------------------------------------------*/
 /* ПРОТОТИПЫ ПРОЦЕССОВ */
@@ -1111,7 +1118,7 @@ static void dag_udp_data_receiver(struct simple_udp_connection *c,
 				if(header_up_pack->data_type == PWM_SET)
 				{
 					/* Включение/выключение канала ШИМ'а */
-					if(dag_pwm_set(sender_addr, (pwm_set_t*)&data[PAYLOAD_OFFSET]))
+					if(dag_pwm_set((pwm_set_t*)&data[PAYLOAD_OFFSET]))
 						ack_sender(header_down_pack->counter.u16);		/* Отправляем пакет о подтверждении */
 					else
 						nack_sender(header_down_pack->counter.u16);		/* Отправляем пакет об ошибке */
@@ -1407,8 +1414,7 @@ static void nack_sender(uint16_t counter)
 
 /*---------------------------------------------------------------------------*/
 /* Команда включения/выключения канала ШИМ'а c заданным duty cycle */
-static bool dag_pwm_set(const uip_ipaddr_t *sender_addr,
-						pwm_set_t *pwm_set_pack)
+static bool dag_pwm_set(pwm_set_t *pwm_set_pack)
 {
 	if(pwm_set_pack->pwm_power)
 	{
@@ -1466,6 +1472,59 @@ static void dag_finish_ota_sender(int8_t status)
 				(uint8_t*)&finish_ota_pack);		/* Payload */	
 }
 
+/*---------------------------------------------------------------------------*/
+/**/
+static void restore_last_state_of_lighting(void)
+{
+	pointer_on_last_state = 0x0001C000;
+
+	if((uint8_t*)*pointer_on_last_state == 0xFF)
+	{
+		/* Установка первого состояния */
+		(uint8_t*)*pointer_on_last_state = 0x00;
+
+		uint8_t state = (uint8_t*)*pointer_on_last_state;
+		dag_pwm_set((pwm_set_t*)&state);
+		return;
+	}
+
+	for(pointer_on_last_state = 0x0001C001; pointer_on_last_state < 0x0001D000; pointer_on_last_state++)
+	{
+		if((uint8_t*)*pointer_on_last_state == 0xFF);
+		{
+			break;
+		}
+	}
+
+	pointer_on_last_state--;
+	uint8_t state = (uint8_t*)*pointer_on_last_state;
+	
+	/* Установка состояния */
+	dag_pwm_set((pwm_set_t*)&state);
+}
+
+/*---------------------------------------------------------------------------*/
+/**/
+static void save_last_state_of_lighting(uint8_t state)
+{
+	if(pointer_on_last_state == NULL)
+		return;
+
+	if(state == (uint8_t*)*pointer_on_last_state)
+		return;
+	
+	pointer_on_last_state++;
+
+	if(pointer_on_last_state == 0x0001D000)
+	{
+		/* Стираем страницу */
+		ti_lib_flash_sector_erase(START_USER_FLASH);
+		pointer_on_last_state = 0x0001C000;
+	}
+
+	//uint32_t FlashProgram(uint8_t *pui8DataBuffer, uint32_t ui32Address, uint32_t ui32Count);
+	ti_lib_flash_program(&state, pointer_on_last_state, sizeof(uint8_t));
+}
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
 /* ОБЩИЕ ПРОЦЕССЫ */
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
@@ -1568,6 +1627,9 @@ PROCESS_THREAD(settings_init, ev, data)
 	/* Чтение GPIO и установка режима работы */
 	ti_lib_ioc_pin_type_gpio_input(IOID_23);
 	mode_node = ti_lib_gpio_read_dio(IOID_23);
+
+	if(!node_is_root())
+		restore_last_state_of_lighting();
 
 	/* Передаем управление main_process */
 	process_post(&main_process, PROCESS_EVENT_CONTINUE, NULL);
