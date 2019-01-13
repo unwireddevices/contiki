@@ -183,7 +183,7 @@ static uint16_t blocks_counter = 0;
 
 process_event_t ota_event_message; 		/* ota event */
 
-static uint32_t pointer_on_last_state = NULL;
+static uint32_t pointer_on_last_state = 0;
 
 /*---------------------------------------------------------------------------*/
 /* ПРОТОТИПЫ ОБЩИХ ФУНКЦИЙ */
@@ -1416,6 +1416,8 @@ static void nack_sender(uint16_t counter)
 /* Команда включения/выключения канала ШИМ'а c заданным duty cycle */
 static bool dag_pwm_set(pwm_set_t *pwm_set_pack)
 {
+	// save_last_state_of_lighting((uint8_t)pwm_set_pack->pwm_power);
+	
 	if(pwm_set_pack->pwm_power)
 	{
 		bool pwm_config_res = pwm_config(0, 500, pwm_set_pack->duty, IOID_5); //ch, frec, duty, pin
@@ -1478,26 +1480,29 @@ static void restore_last_state_of_lighting(void)
 {
 	pointer_on_last_state = 0x0001C000;
 
-	if((uint8_t*)*pointer_on_last_state == 0xFF)
+	if(*((uint8_t*)(pointer_on_last_state)) == 0xFF)
 	{
-		/* Установка первого состояния */
-		(uint8_t*)*pointer_on_last_state = 0x00;
+		printf("[debug] Init flash\n");
+		printf("[debug] Pointer: 0x%08lx, state: %x\n", pointer_on_last_state, *((uint8_t*)(pointer_on_last_state)));
 
-		uint8_t state = (uint8_t*)*pointer_on_last_state;
+		/* Установка первого состояния */
+		uint8_t state = 0x00;
+		ti_lib_flash_program(&state, pointer_on_last_state, sizeof(uint8_t));
 		dag_pwm_set((pwm_set_t*)&state);
+
 		return;
 	}
 
 	for(pointer_on_last_state = 0x0001C001; pointer_on_last_state < 0x0001D000; pointer_on_last_state++)
 	{
-		if((uint8_t*)*pointer_on_last_state == 0xFF);
+		if(*((uint8_t*)(pointer_on_last_state)) == 0xFF)
 		{
 			break;
 		}
 	}
 
 	pointer_on_last_state--;
-	uint8_t state = (uint8_t*)*pointer_on_last_state;
+	uint8_t state = *((uint8_t*)(pointer_on_last_state));
 	
 	/* Установка состояния */
 	dag_pwm_set((pwm_set_t*)&state);
@@ -1507,10 +1512,10 @@ static void restore_last_state_of_lighting(void)
 /**/
 static void save_last_state_of_lighting(uint8_t state)
 {
-	if(pointer_on_last_state == NULL)
+	if(pointer_on_last_state == 0)
 		return;
 
-	if(state == (uint8_t*)*pointer_on_last_state)
+	if(state == *((uint8_t*)(pointer_on_last_state)))
 		return;
 	
 	pointer_on_last_state++;
@@ -1522,7 +1527,6 @@ static void save_last_state_of_lighting(uint8_t state)
 		pointer_on_last_state = 0x0001C000;
 	}
 
-	//uint32_t FlashProgram(uint8_t *pui8DataBuffer, uint32_t ui32Address, uint32_t ui32Count);
 	ti_lib_flash_program(&state, pointer_on_last_state, sizeof(uint8_t));
 }
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
@@ -1628,6 +1632,7 @@ PROCESS_THREAD(settings_init, ev, data)
 	ti_lib_ioc_pin_type_gpio_input(IOID_23);
 	mode_node = ti_lib_gpio_read_dio(IOID_23);
 
+	/*  */
 	if(!node_is_root())
 		restore_last_state_of_lighting();
 
