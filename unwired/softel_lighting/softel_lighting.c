@@ -98,7 +98,7 @@ PROCESS_THREAD(main_process, ev, data)
 	
 	printf("Start Softel lighting.\n");
 	
-	if (BOARD_IOID_UART_RX == IOID_UNUSED)
+	if (BOARD_IOID_UART_SHELL_RX == IOID_UNUSED)
 	{
 		printf("[Node] Shell not active, uart RX set to IOID_UNUSED\n");
 		cc26xx_uart_set_input(NULL);
@@ -129,8 +129,8 @@ PROCESS_THREAD(main_process, ev, data)
 		root_node_initialize();
 
 		printf("[ROOT Node] Command line is lock. For unlock, press the button E\n");
-		ti_lib_ioc_port_configure_set(BOARD_IOID_UART_RX, IOC_PORT_GPIO, IOC_INPUT_PULL_UP);
-		ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_RX, IOC_PORT_MCU_UART0_RX, IOC_INPUT_PULL_UP);
+		ti_lib_ioc_port_configure_set(BOARD_IOID_UART_SHELL_RX, IOC_PORT_GPIO, IOC_INPUT_PULL_UP);
+		ti_lib_ioc_port_configure_set(BOARD_IOID_UART_COORDINATOR_RX, IOC_PORT_MCU_UART0_RX, IOC_INPUT_PULL_UP);
 		set_uart();	
 	}
 	else
@@ -158,16 +158,16 @@ PROCESS_THREAD(main_process, ev, data)
 			if(ev == sensors_event && data == &button_e_sensor_click)
 			{	
 				// printf("[ROOT Node] Command line is unlocked for 15 seconds\n");
-				// ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_RX, IOC_PORT_GPIO, IOC_INPUT_PULL_UP);
-				// ti_lib_ioc_port_configure_set(BOARD_IOID_UART_RX , IOC_PORT_MCU_UART0_RX, IOC_INPUT_PULL_UP);
+				// ti_lib_ioc_port_configure_set(BOARD_IOID_UART_COORDINATOR_RX, IOC_PORT_GPIO, IOC_INPUT_PULL_UP);
+				// ti_lib_ioc_port_configure_set(BOARD_IOID_UART_SHELL_RX , IOC_PORT_MCU_UART0_RX, IOC_INPUT_PULL_UP);
 				// unset_uart();		
 		
 				// etimer_set(&shell_off, CLOCK_SECOND * 15);
 				// PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&shell_off));
 				
 				// printf("[ROOT Node] Command line is lock\n");
-				// ti_lib_ioc_port_configure_set(BOARD_IOID_UART_RX, IOC_PORT_GPIO, IOC_INPUT_PULL_UP);
-				// ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_RX, IOC_PORT_MCU_UART0_RX, IOC_INPUT_PULL_UP);
+				// ti_lib_ioc_port_configure_set(BOARD_IOID_UART_SHELL_RX, IOC_PORT_GPIO, IOC_INPUT_PULL_UP);
+				// ti_lib_ioc_port_configure_set(BOARD_IOID_UART_COORDINATOR_RX, IOC_PORT_MCU_UART0_RX, IOC_INPUT_PULL_UP);
 				// set_uart();	
 	
 		

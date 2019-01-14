@@ -39,7 +39,7 @@ ifeq ($(CPU),cc26xx)
 endif
 
 TI_XXWARE = $(CPU_ABS_PATH)/$(TI_XXWARE_PATH)
-CFLAGS += -I$(CPU_ABS_PATH) -I$(OTA_SOURCE) -I./ext-flash -I$(TI_XXWARE) -I$(TI_XXWARE)/driverlib -I$(TI_XXWARE)/inc
+CFLAGS += -I$(CPU_ABS_PATH) -I$(OTA_SOURCE) -I./ext-flash -I$(TI_XXWARE) -I$(TI_XXWARE)/driverlib -I$(TI_XXWARE)/inc -I../../platform/unwired/$(BOARD)
 SOURCEDIRS = . ./ota-common $(TI_XXWARE)/startup_files $(TI_XXWARE)/driverlib
 vpath %.c $(SOURCEDIRS)
 SOURCE_FILES = $(foreach dir, $(SOURCEDIRS), $(notdir $(wildcard $(dir)/*.c)))

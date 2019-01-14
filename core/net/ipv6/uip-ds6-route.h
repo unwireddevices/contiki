@@ -225,7 +225,7 @@ uint16_t get_nonce(uip_ip6addr_t *addr);
 void unlock_addr(uip_ip6addr_t *addr);
 bool valid_counter(uip_ip6addr_t *addr, uint16_t counter);
 bool load_routelist(void);
-bool safe_routelist(void);
+bool save_routelist(void);
 
 /* Struct for route table to EEPROM */
 typedef struct 
@@ -250,7 +250,7 @@ typedef struct
   char routememb_memb_count[UIP_DS6_ROUTE_NB];
 } __attribute__((packed)) route_table_eeprom_t;
 
-PROCESS_NAME(safe_routelist_process);
+PROCESS_NAME(save_routelist_process);
 #endif
 ////////////////////////////////////////////////////////////////////
 /** @} */

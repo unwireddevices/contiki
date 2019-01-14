@@ -1416,20 +1416,37 @@ static void nack_sender(uint16_t counter)
 /* Команда включения/выключения канала ШИМ'а c заданным duty cycle */
 static bool dag_pwm_set(pwm_set_t *pwm_set_pack)
 {
-	// save_last_state_of_lighting((uint8_t)pwm_set_pack->pwm_power);
+
+	uint8_t state;//(pwm_set_pack->pwm_power << 7) || pwm_set_pack->pwm_power;
+	memcpy(&state, pwm_set_pack, sizeof(uint8_t));
+	printf("State: %x\n", state);
+
+	/* Сохраняем значение во flash */
+	save_last_state_of_lighting(state);
 	
+	/* Вывод информационного сообщения в консоль */
+	printf("[DAG Node] Relay: %s, PWM duty: %i%%\n", pwm_set_pack->pwm_power ? "on" : "off", pwm_set_pack->duty);
+	
+	/* Конфигурируем пин который управляет реле */
+	ti_lib_ioc_pin_type_gpio_output(BOARD_IOID_RELAY);
 	if(pwm_set_pack->pwm_power)
 	{
-		bool pwm_config_res = pwm_config(0, 500, pwm_set_pack->duty, IOID_5); //ch, frec, duty, pin
-		if(pwm_config_res)
-			return pwm_start(0);
-		else 
-			return false;
+		/* On */
+		ti_lib_gpio_set_dio(BOARD_IOID_RELAY);
 	}
 	else
 	{
-		return pwm_stop(0);
+		/* Off */
+		ti_lib_gpio_clear_dio(BOARD_IOID_RELAY);
 	}
+
+	bool pwm_config_res = pwm_config(0, 500, pwm_set_pack->duty, BOARD_IOID_PWM); //ch, frec, duty, pin
+	if(pwm_config_res)
+		return pwm_start(0);
+	else 
+		return false;
+
+	//pwm_stop(0);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -1629,8 +1646,8 @@ PROCESS_THREAD(settings_init, ev, data)
 	}
 	
 	/* Чтение GPIO и установка режима работы */
-	ti_lib_ioc_pin_type_gpio_input(IOID_23);
-	mode_node = ti_lib_gpio_read_dio(IOID_23);
+	ti_lib_ioc_pin_type_gpio_input(BOARD_IOID_BOOT_MODE); 
+	mode_node = ti_lib_gpio_read_dio(BOARD_IOID_BOOT_MODE);
 
 	/*  */
 	if(!node_is_root())

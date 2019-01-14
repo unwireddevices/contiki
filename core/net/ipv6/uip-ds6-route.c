@@ -57,8 +57,8 @@
 ////////////////////////////////////////////////////////////////////
 #ifdef UNWDS_ROOT 
 /* Define some settings */
-#define ROUTELIST_SAFE_INTERVAL				(60 * CLOCK_SECOND)
-#define MIN_NUM_ROUTE_SAFE					(20)
+#define ROUTELIST_SAVE_INTERVAL				(60 * CLOCK_SECOND)
+#define MIN_NUM_ROUTE_SAVE					(20)
 
 #define EEPROM_ADDR							(0x00060000)
 #define MAGIC_BYTES_ADDR					(EEPROM_ADDR)
@@ -67,8 +67,8 @@
 #define ROUTELIST_EEPROM_ADDR				(EEPROM_ADDR + MAGIC_BYTES_LENGTH)
 #define ROUTELIST_LENGTH					(sizeof(uip_ds6_route_t) * UIP_CONF_MAX_ROUTES)
 
-/* Safe routelist to EEPROM process */
-PROCESS(safe_routelist_process, "Safe routelist process");
+/* Save routelist to EEPROM process */
+PROCESS(save_routelist_process, "Save routelist process");
 
 route_table_eeprom_t *eeprom_flash = (route_table_eeprom_t*)EEPROM_ADDR;
 #endif
@@ -993,8 +993,8 @@ bool load_routelist(void)
 		{
 			PRINTF("load_routelist: flash is empty\n");
 			
-			/* Start safe routelist to EEPROM process */
-			process_start(&safe_routelist_process, NULL);
+			/* Start save routelist to EEPROM process */
+			process_start(&save_routelist_process, NULL);
 
 			ext_flash_close();
 			return false;
@@ -1017,8 +1017,8 @@ bool load_routelist(void)
 		ext_flash_read((uint32_t)&eeprom_flash->neighborroutememb_memb_mem, sizeof(eeprom_flash->neighborroutememb_memb_mem), (uint8_t*)&neighborroutememb_memb_mem[0]);
 		ext_flash_read((uint32_t)&eeprom_flash->routememb_memb_count, sizeof(eeprom_flash->routememb_memb_count), (uint8_t*)&routememb_memb_count[0]);
 
-		/* Start safe routelist to EEPROM process */
-		process_start(&safe_routelist_process, NULL);
+		/* Start save routelist to EEPROM process */
+		process_start(&save_routelist_process, NULL);
 		ext_flash_close();
 		return true;
 	}
@@ -1031,7 +1031,7 @@ bool load_routelist(void)
 }
 
 /*---------------------------------------------------------------------------*/
-bool safe_routelist(void)
+bool save_routelist(void)
 {
 	/* Проверяем установлена ли флешка */
 	bool eeprom_access = ext_flash_open();
@@ -1061,7 +1061,7 @@ bool safe_routelist(void)
 		ext_flash_erase((uint32_t)eeprom_flash, sizeof(*eeprom_flash));
 		watchdog_periodic();
 
-		/* SAFE ROUTE TABLE */
+		/* SAVE ROUTE TABLE */
 		ext_flash_write((uint32_t)&eeprom_flash->defaultroutermemb, sizeof(eeprom_flash->defaultroutermemb), (uint8_t*)&defaultroutermemb);
 		ext_flash_write((uint32_t)&eeprom_flash->nbr_routes, sizeof(eeprom_flash->nbr_routes), (uint8_t*)&nbr_routes);
 		ext_flash_write((uint32_t)&eeprom_flash->nbr_routes_struct, sizeof(eeprom_flash->nbr_routes_struct), (uint8_t*)&nbr_routes_struct);
@@ -1088,15 +1088,15 @@ bool safe_routelist(void)
 	}
 	else
 	{
-		PRINTF("safe_routelist: could not access EEPROM\n");
+		PRINTF("save_routelist: could not access EEPROM\n");
 		ext_flash_close();
 		return false;
 	}
 }
 
 /*---------------------------------------------------------------------------*/
-/* Safe routelist to EEPROM process */
-PROCESS_THREAD(safe_routelist_process, ev, data)
+/* Save routelist to EEPROM process */
+PROCESS_THREAD(save_routelist_process, ev, data)
 {
 	PROCESS_BEGIN();
 	
@@ -1104,30 +1104,30 @@ PROCESS_THREAD(safe_routelist_process, ev, data)
 		return 1;
 	
 	/* Создаём таймер для по истечении которого будет сохранятся таблица маршрутизации */
-	static struct etimer safe_routelist_timer;	
+	static struct etimer save_routelist_timer;	
 	
 	while (1)
 	{
-		/* Устанавливаем таймер на срабатывание с раз в ROUTELIST_SAFE_INTERVAL */
-		etimer_set(&safe_routelist_timer, ROUTELIST_SAFE_INTERVAL);	
+		/* Устанавливаем таймер на срабатывание с раз в ROUTELIST_SAVE_INTERVAL */
+		etimer_set(&save_routelist_timer, ROUTELIST_SAVE_INTERVAL);	
 
 		/* Засыпаем до срабатывания таймера */
-		PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&safe_routelist_timer));
+		PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&save_routelist_timer));
 
 		/* TEST PRINTF */		
 		printf("[DAG Node] Number of routes: %i\n", uip_ds6_route_num_routes());
-		if(safe_routelist())
-			printf("[DAG Node] Safe route table: ok\n");
+		if(save_routelist())
+			printf("[DAG Node] Save route table: ok\n");
 		else
-			printf("[DAG Node] Safe route table: error\n");
+			printf("[DAG Node] Save route table: error\n");
 		
-		/* Если прошел 1ч и устройств > MIN_NUM_ROUTE_SAFE, то сохраняем таблицу маршрутизации */
-		// if(uip_ds6_route_num_routes() > MIN_NUM_ROUTE_SAFE)								
+		/* Если прошел 1ч и устройств > MIN_NUM_ROUTE_SAVE, то сохраняем таблицу маршрутизации */
+		// if(uip_ds6_route_num_routes() > MIN_NUM_ROUTE_SAVE)								
 		// {
-		// 	if(safe_routelist())
-		// 		printf("safe_routelist: ok\n");
+		// 	if(save_routelist())
+		// 		printf("save_routelist: ok\n");
 		// 	else
-		// 		printf("safe_routelist: error\n");
+		// 		printf("save_routelist: error\n");
 		// }
 	}
 	

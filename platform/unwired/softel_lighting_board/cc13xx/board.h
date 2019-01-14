@@ -75,21 +75,33 @@
  * SPI_CLK_FLASH: IOID_14
  */
 
-// #define BOARD_IOID_  IOID_0
-#define BOARD_IOID_BOOT  IOID_1ss
-#define BOARD_IOID_UART_SHELL_RX  IOID_2
-#define BOARD_IOID_UART_SHELL_TX  IOID_3
-#define BOARD_IOID_LED  IOID_4
-#define BOARD_IOID_PWM  IOID_5
-#define BOARD_IOID_GPIO_RELAY  IOID_6
-#define BOARD_IOID_BOOT_MODE  IOID_7
-#define BOARD_IOID_UART_COORDINATOR_TX  IOID_8
-#define BOARD_IOID_UART_COORDINATOR_RX  IOID_9
-// #define BOARD_IOID_  IOID_10
-#define BOARD_IOID_FLASH_CS  IOID_11
-#define BOARD_IOID_FLASH_SPI_MISO  IOID_12
-#define BOARD_IOID_FLASH_SPI_MOSI  IOID_13
-#define BOARD_IOID_FLASH_SPI_CLK_FLASH  IOID_14
+// #define BOARD_IOID_BOOT  IOID_1
+// #define BOARD_IOID_UART_SHELL_RX  IOID_2
+// #define BOARD_IOID_UART_SHELL_TX  IOID_3
+// #define BOARD_IOID_LED  IOID_4
+// #define BOARD_IOID_PWM  IOID_5
+// #define BOARD_IOID_RELAY  IOID_6
+// #define BOARD_IOID_BOOT_MODE  IOID_7
+// #define BOARD_IOID_UART_COORDINATOR_TX  IOID_8
+// #define BOARD_IOID_UART_COORDINATOR_RX  IOID_9
+// #define BOARD_IOID_FLASH_CS  IOID_11
+// #define BOARD_IOID_FLASH_SPI_MISO  IOID_12
+// #define BOARD_IOID_FLASH_SPI_MOSI  IOID_13
+// #define BOARD_IOID_FLASH_SPI_CLK_FLASH  IOID_14
+
+#define BOARD_IOID_BOOT  IOID_23 //+
+#define BOARD_IOID_UART_SHELL_RX  IOID_2 //+
+#define BOARD_IOID_UART_SHELL_TX  IOID_3 //+
+#define BOARD_IOID_LED  IOID_22 //+
+#define BOARD_IOID_PWM  IOID_5 //+
+#define BOARD_IOID_RELAY  IOID_6 //+
+#define BOARD_IOID_BOOT_MODE  IOID_23 //+
+#define BOARD_IOID_UART_COORDINATOR_TX  IOID_25 //+
+#define BOARD_IOID_UART_COORDINATOR_RX  IOID_26 //+
+#define BOARD_IOID_FLASH_SPI_CS  IOID_4 //+
+#define BOARD_IOID_FLASH_SPI_MISO  IOID_5 //+
+#define BOARD_IOID_FLASH_SPI_MOSI  IOID_24 //+
+#define BOARD_IOID_FLASH_SPI_CLK  IOID_25 //+
 
 /*---------------------------------------------------------------------------*/
 /**
@@ -121,7 +133,7 @@
  * \name LED IOID mappings
 
  */
-#define BOARD_IOID_LED_A          IOID_1 //led on radio-board
+#define BOARD_IOID_LED_A          BOARD_IOID_LED //led on radio-board
 #define BOARD_IOID_LED_B          IOID_25 //on UMDK-BUTTON
 #define BOARD_IOID_LED_C          IOID_26 //on UMDK-BUTTON
 #define BOARD_IOID_LED_D          IOID_28 //on UMDK-BUTTON
@@ -163,10 +175,10 @@
  *
  */
 
-#define BOARD_IOID_UART_TX        IOID_3
-#define BOARD_IOID_UART_RX        IOID_2
-#define BOARD_IOID_ALT_UART_TX    IOID_25
-#define BOARD_IOID_ALT_UART_RX    IOID_26
+#define BOARD_IOID_UART_TX        BOARD_IOID_UART_SHELL_TX
+#define BOARD_IOID_UART_RX        BOARD_IOID_UART_SHELL_RX
+#define BOARD_IOID_ALT_UART_TX    BOARD_IOID_UART_COORDINATOR_TX
+#define BOARD_IOID_ALT_UART_RX    BOARD_IOID_UART_COORDINATOR_RX
 #define BOARD_IOID_UART_CTS       IOID_UNUSED
 #define BOARD_IOID_UART_RTS       IOID_UNUSED
 #define BOARD_UART_RX             (1 << BOARD_IOID_UART_RX)
@@ -183,7 +195,7 @@
 #define BOARD_IOID_KEY_B            IOID_5 //on UMDK-BUTTON
 #define BOARD_IOID_KEY_C            IOID_6 //on UMDK-BUTTON
 #define BOARD_IOID_KEY_D            IOID_7 //on UMDK-BUTTON
-#define BOARD_IOID_KEY_E            IOID_1 //generic connect/prog
+#define BOARD_IOID_KEY_E            BOARD_IOID_BOOT //generic connect/prog
 #define BOARD_KEY_A                 (1 << BOARD_IOID_KEY_A)
 #define BOARD_KEY_B                 (1 << BOARD_IOID_KEY_B)
 #define BOARD_KEY_C                 (1 << BOARD_IOID_KEY_C)
@@ -216,14 +228,16 @@
 
 
 
-#define BOARD_IOID_SPI_SCK        IOID_25
+#define BOARD_IOID_SPI_SCK        BOARD_IOID_FLASH_SPI_CLK
 #define BOARD_IOID_SPI_CLK_FLASH  BOARD_IOID_SPI_SCK
-#define BOARD_IOID_SPI_MOSI       IOID_24
-#define BOARD_IOID_SPI_MISO       IOID_5
-#define BOARD_IOID_FLASH_CS       IOID_4
+#define BOARD_IOID_SPI_MOSI       BOARD_IOID_FLASH_SPI_MOSI
+#define BOARD_IOID_SPI_MISO       BOARD_IOID_FLASH_SPI_MISO
+#define BOARD_IOID_FLASH_CS       BOARD_IOID_FLASH_SPI_CS
+#define BOARD_FLASH_CS            (1 << BOARD_IOID_FLASH_CS)
 #define BOARD_SPI_SCK             (1 << BOARD_IOID_SPI_SCK)
 #define BOARD_SPI_MOSI            (1 << BOARD_IOID_SPI_MOSI)
 #define BOARD_SPI_MISO            (1 << BOARD_IOID_SPI_MISO)
+
 /** @} */
 /*---------------------------------------------------------------------------*/
 /**
