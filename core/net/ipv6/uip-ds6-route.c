@@ -48,6 +48,7 @@
 #include "../../../unwired/system-common.h"
 #include "ota-main.h"
 #include "dev/watchdog.h"
+#include "system-common.h"
 
 #include <string.h>
 
@@ -219,19 +220,6 @@ void uip_ds6_notification_rm(struct uip_ds6_notification *n)
 /*---------------------------------------------------------------------------*/
 void uip_ds6_route_init(void)
 {
-#if(UIP_CONF_MAX_ROUTES != 0)
-	memb_init(&routememb);
-	list_init(routelist);
-	nbr_table_register(nbr_routes, (nbr_table_callback *)rm_routelist_callback);
-#endif /* (UIP_CONF_MAX_ROUTES != 0) */
-
-	memb_init(&defaultroutermemb);
-	list_init(defaultrouterlist);
-
-#if UIP_DS6_NOTIFICATIONS
-	list_init(notificationlist);
-#endif
-
 ////////////////////////////////////////////////////////////////////
 #ifdef UNWDS_ROOT 
 	if(spi_test())
@@ -1017,6 +1005,56 @@ bool load_routelist(void)
 		ext_flash_read((uint32_t)&eeprom_flash->neighborroutememb_memb_mem, sizeof(eeprom_flash->neighborroutememb_memb_mem), (uint8_t*)&neighborroutememb_memb_mem[0]);
 		ext_flash_read((uint32_t)&eeprom_flash->routememb_memb_count, sizeof(eeprom_flash->routememb_memb_count), (uint8_t*)&routememb_memb_count[0]);
 
+		/* CRC16 */
+		uint16_t crc16, crc16_eeprom;
+
+		crc16 = crc16_add((uint8_t*)&defaultroutermemb, sizeof(eeprom_flash->defaultroutermemb), 0x0000);
+		crc16 = crc16_add((uint8_t*)&nbr_routes, sizeof(eeprom_flash->nbr_routes), crc16);
+		crc16 = crc16_add((uint8_t*)&nbr_routes_struct, sizeof(eeprom_flash->nbr_routes_struct), crc16);
+		crc16 = crc16_add((uint8_t*)&neighborroutememb, sizeof(eeprom_flash->neighborroutememb), crc16);
+		crc16 = crc16_add((uint8_t*)&routememb, sizeof(eeprom_flash->routememb), crc16);
+		crc16 = crc16_add((uint8_t*)&defaultrouterlist_list, sizeof(eeprom_flash->defaultrouterlist_list), crc16);
+		crc16 = crc16_add((uint8_t*)&defaultroutermemb_memb_count[0], sizeof(eeprom_flash->defaultroutermemb_memb_count), crc16);
+		crc16 = crc16_add((uint8_t*)&notificationlist_list, sizeof(eeprom_flash->notificationlist_list), crc16);
+		crc16 = crc16_add((uint8_t*)&num_routes, sizeof(eeprom_flash->num_routes), crc16);
+		crc16 = crc16_add((uint8_t*)&routelist_list, sizeof(eeprom_flash->routelist_list), crc16);
+		crc16 = crc16_add((uint8_t*)&routememb_memb_mem[0], sizeof(eeprom_flash->routememb_memb_mem), crc16);
+		crc16 = crc16_add((uint8_t*)&_nbr_routes_mem[0], sizeof(eeprom_flash->_nbr_routes_mem), crc16);
+		crc16 = crc16_add((uint8_t*)&defaultroutermemb_memb_mem[0], sizeof(eeprom_flash->defaultroutermemb_memb_mem), crc16);
+		crc16 = crc16_add((uint8_t*)&neighborroutememb_memb_count[0], sizeof(eeprom_flash->neighborroutememb_memb_count), crc16);
+		crc16 = crc16_add((uint8_t*)&neighborroutememb_memb_mem[0], sizeof(eeprom_flash->neighborroutememb_memb_mem), crc16);
+		crc16 = crc16_add((uint8_t*)&routememb_memb_count[0], sizeof(eeprom_flash->routememb_memb_count), crc16);
+
+		ext_flash_read((uint32_t)&eeprom_flash->crc16, sizeof(eeprom_flash->crc16), (uint8_t*)&crc16_eeprom);
+		printf("crc16_route_table: 0x%04x == 0x%04x\n", crc16, crc16_eeprom);
+
+		if(crc16 != crc16_eeprom)
+		{
+			/* Контрольная сумма не верна */
+			/* Очищаем странницу с таблицей маршрутизации */
+			ext_flash_erase((uint32_t)eeprom_flash, sizeof(*eeprom_flash));
+
+			/* Инициализируемся с нуля */
+#if(UIP_CONF_MAX_ROUTES != 0)
+			memb_init(&routememb);
+			list_init(routelist);
+			nbr_table_register(nbr_routes, (nbr_table_callback *)rm_routelist_callback);
+#endif /* (UIP_CONF_MAX_ROUTES != 0) */
+
+			memb_init(&defaultroutermemb);
+			list_init(defaultrouterlist);
+
+#if UIP_DS6_NOTIFICATIONS
+			list_init(notificationlist);
+#endif
+
+			/* Start save routelist to EEPROM process */
+			process_start(&save_routelist_process, NULL);
+			ext_flash_close();
+
+			return false;
+		}
+
 		/* Start save routelist to EEPROM process */
 		process_start(&save_routelist_process, NULL);
 		ext_flash_close();
@@ -1078,6 +1116,29 @@ bool save_routelist(void)
 		ext_flash_write((uint32_t)&eeprom_flash->neighborroutememb_memb_count, sizeof(eeprom_flash->neighborroutememb_memb_count), (uint8_t*)&neighborroutememb_memb_count[0]);
 		ext_flash_write((uint32_t)&eeprom_flash->neighborroutememb_memb_mem, sizeof(eeprom_flash->neighborroutememb_memb_mem), (uint8_t*)&neighborroutememb_memb_mem[0]);
 		ext_flash_write((uint32_t)&eeprom_flash->routememb_memb_count, sizeof(eeprom_flash->routememb_memb_count), (uint8_t*)&routememb_memb_count[0]);
+
+		/* CRC16 */
+		uint16_t crc16;
+
+		crc16 = crc16_add((uint8_t*)&defaultroutermemb, sizeof(eeprom_flash->defaultroutermemb), 0x0000);
+		crc16 = crc16_add((uint8_t*)&nbr_routes, sizeof(eeprom_flash->nbr_routes), crc16);
+		crc16 = crc16_add((uint8_t*)&nbr_routes_struct, sizeof(eeprom_flash->nbr_routes_struct), crc16);
+		crc16 = crc16_add((uint8_t*)&neighborroutememb, sizeof(eeprom_flash->neighborroutememb), crc16);
+		crc16 = crc16_add((uint8_t*)&routememb, sizeof(eeprom_flash->routememb), crc16);
+		crc16 = crc16_add((uint8_t*)&defaultrouterlist_list, sizeof(eeprom_flash->defaultrouterlist_list), crc16);
+		crc16 = crc16_add((uint8_t*)&defaultroutermemb_memb_count[0], sizeof(eeprom_flash->defaultroutermemb_memb_count), crc16);
+		crc16 = crc16_add((uint8_t*)&notificationlist_list, sizeof(eeprom_flash->notificationlist_list), crc16);
+		crc16 = crc16_add((uint8_t*)&num_routes, sizeof(eeprom_flash->num_routes), crc16);
+		crc16 = crc16_add((uint8_t*)&routelist_list, sizeof(eeprom_flash->routelist_list), crc16);
+		crc16 = crc16_add((uint8_t*)&routememb_memb_mem[0], sizeof(eeprom_flash->routememb_memb_mem), crc16);
+		crc16 = crc16_add((uint8_t*)&_nbr_routes_mem[0], sizeof(eeprom_flash->_nbr_routes_mem), crc16);
+		crc16 = crc16_add((uint8_t*)&defaultroutermemb_memb_mem[0], sizeof(eeprom_flash->defaultroutermemb_memb_mem), crc16);
+		crc16 = crc16_add((uint8_t*)&neighborroutememb_memb_count[0], sizeof(eeprom_flash->neighborroutememb_memb_count), crc16);
+		crc16 = crc16_add((uint8_t*)&neighborroutememb_memb_mem[0], sizeof(eeprom_flash->neighborroutememb_memb_mem), crc16);
+		crc16 = crc16_add((uint8_t*)&routememb_memb_count[0], sizeof(eeprom_flash->routememb_memb_count), crc16);
+
+		ext_flash_write((uint32_t)&eeprom_flash->crc16, sizeof(eeprom_flash->crc16), (uint8_t*)&crc16);
+		printf("crc16_route_table: 0x%04x\n", crc16);
 
 		/* MAGIC BYTES */
 		uint32_t magic_bytes = MAGIC_BYTES;

@@ -93,6 +93,22 @@ bool pwm_config(uint8_t channel, uint32_t frequency, uint8_t duty, uint32_t pin)
 		
 		return false;		
 	}
+
+	if(duty == 100)
+	{
+		ti_lib_ioc_pin_type_gpio_output(pin);
+		ti_lib_gpio_set_dio(pin);
+
+		return true;
+	}
+
+	if(duty == 0)
+	{
+		ti_lib_ioc_pin_type_gpio_output(pin);
+		ti_lib_gpio_clear_dio(pin);
+
+		return true;
+	}
 	
 	/*Вычисляем количество тиков за период*/
 	uint32_t frequency_tick = GET_MCU_CLOCK / frequency; 
@@ -153,7 +169,6 @@ bool pwm_config(uint8_t channel, uint32_t frequency, uint8_t duty, uint32_t pin)
 		HWREG(GPT_Base + GPT_O_TAILR) = (frequency_tick & 0x0000FFFF);
 		HWREG(GPT_Base + GPT_O_TAPMR) = ((duty_tick & 0x00FF0000) >> 16);
 		HWREG(GPT_Base + GPT_O_TAMATCHR) = (duty_tick & 0x0000FFFF);
-		
 	}
 	
 	/*Timer B*/
@@ -187,7 +202,7 @@ bool pwm_config(uint8_t channel, uint32_t frequency, uint8_t duty, uint32_t pin)
 	settings_pwm |= (1 << channel);
 	
 	/*Вывод информационного сообщения в консоль*/
-	printf("[PWM] Channel %i is configured: %lu Hz, duty %i percent, %lu pin\n", channel, frequency, duty, pin);
+	printf("[PWM] Channel %i is configured: %lu Hz, duty %i%%, %lu pin\n", channel, frequency, duty, pin);
 	
 	return true;
 }

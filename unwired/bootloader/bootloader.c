@@ -40,10 +40,11 @@
 
 #include "ota-bootloader.h"
 #include "ecc.h"
+#include "board.h"
 
-#define UART_TX_IOID     IOID_3
+#define UART_TX_IOID     BOARD_IOID_UART_SHELL_TX
 #define UART_SPEED       115200
-#define LED_IOID         IOID_22
+#define LED_IOID         BOARD_IOID_LED
 #define MAC_15_4  		 0x500012F0
 
 #define START_LICENSE_FLASH 	0x1D000
@@ -188,47 +189,47 @@ int main(void)
 
 	uint8_t fw_flag = read_fw_flag();
 
-	OTAMetadata_t current_firmware;
-	get_current_metadata( &current_firmware );
-
-	int8_t verify_result_int = verify_current_firmware(&current_firmware);
-	int8_t verify_result_ota_0 = verify_ota_slot(0);
-	int8_t verify_result_ota_1 = verify_ota_slot(1);
-	int8_t verify_result_ota_2 = verify_ota_slot(2);
-
 	print_uart_bl("FW flag: ");
 	print_uart_byte(fw_flag);
 	print_uart("\n");
 
-	print_uart_bl("Internal firmware: ");
-	if (verify_result_int == CORRECT_CRC)
-		print_uart("correct CRC\n");
-	else if (verify_result_int == NON_CORRECT_CRC)
-		print_uart("non-correct CRC\n");
+	// OTAMetadata_t current_firmware;
+	// get_current_metadata( &current_firmware );
 
-	print_uart_bl("OTA slot GI: ");
-	if (verify_result_ota_0 == NON_CORRECT_CRC)
-		print_uart("non-correct CRC\n");
-	else if (verify_result_ota_0 == NON_READ_FLASH)
-		print_uart("non-read flash\n");
-	else if (verify_result_ota_0 == CORRECT_CRC)
-		print_uart("correct CRC\n");
+	// int8_t verify_result_int = verify_current_firmware(&current_firmware);
+	// int8_t verify_result_ota_0 = verify_ota_slot(0);
+	// int8_t verify_result_ota_1 = verify_ota_slot(1);
+	// int8_t verify_result_ota_2 = verify_ota_slot(2);
 
-	print_uart_bl("OTA slot 1 update: ");
-	if (verify_result_ota_1 == NON_CORRECT_CRC)
-		print_uart("non-correct CRC\n");
-	else if (verify_result_ota_1 == NON_READ_FLASH)
-		print_uart("non-read flash\n");
-	else if (verify_result_ota_1 == CORRECT_CRC)
-		print_uart("correct CRC\n");
+	// print_uart_bl("Internal firmware: ");
+	// if (verify_result_int == CORRECT_CRC)
+	// 	print_uart("correct CRC\n");
+	// else if (verify_result_int == NON_CORRECT_CRC)
+	// 	print_uart("non-correct CRC\n");
 
-	print_uart_bl("OTA slot 2 update: ");
-	if (verify_result_ota_2 == NON_CORRECT_CRC)
-		print_uart("non-correct CRC\n");
-	else if (verify_result_ota_2 == NON_READ_FLASH)
-		print_uart("non-read flash\n");
-	else if (verify_result_ota_2 == CORRECT_CRC)
-		print_uart("correct CRC\n");
+	// print_uart_bl("OTA slot GI: ");
+	// if (verify_result_ota_0 == NON_CORRECT_CRC)
+	// 	print_uart("non-correct CRC\n");
+	// else if (verify_result_ota_0 == NON_READ_FLASH)
+	// 	print_uart("non-read flash\n");
+	// else if (verify_result_ota_0 == CORRECT_CRC)
+	// 	print_uart("correct CRC\n");
+
+	// print_uart_bl("OTA slot 1 update: ");
+	// if (verify_result_ota_1 == NON_CORRECT_CRC)
+	// 	print_uart("non-correct CRC\n");
+	// else if (verify_result_ota_1 == NON_READ_FLASH)
+	// 	print_uart("non-read flash\n");
+	// else if (verify_result_ota_1 == CORRECT_CRC)
+	// 	print_uart("correct CRC\n");
+
+	// print_uart_bl("OTA slot 2 update: ");
+	// if (verify_result_ota_2 == NON_CORRECT_CRC)
+	// 	print_uart("non-correct CRC\n");
+	// else if (verify_result_ota_2 == NON_READ_FLASH)
+	// 	print_uart("non-read flash\n");
+	// else if (verify_result_ota_2 == CORRECT_CRC)
+	// 	print_uart("correct CRC\n");
 
 	ti_lib_gpio_clear_dio(LED_IOID);
 

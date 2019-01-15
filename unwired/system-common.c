@@ -169,6 +169,29 @@ void hexview_print(uint32_t flash_length, uint8_t *flash_read_data_buffer, uint3
 }
 
 /*---------------------------------------------------------------------------*/
+/*Считает CRC16 со любым стартовым значением*/
+uint16_t crc16_add(uint8_t *data, uint16_t len, uint16_t _crc)
+{
+	uint16_t crc = _crc;
+	uint16_t j;
+	int i;
+	// Note: 0xA001 is the reflection of 0x8005
+	for (j = len; j > 0; j--)
+	{
+		crc ^= *data++;
+		for (i = 0; i < 8; i++)
+		{
+			if (crc & 1)
+				crc = (crc >> 1) ^ 0xA001;
+			else
+				crc >>= 1;
+		}
+	}
+	
+	return (crc);
+}
+
+/*---------------------------------------------------------------------------*/
 /*Считает CRC16 со стартовым значением 0x0000*/
 uint16_t crc16_arc(uint8_t *data, uint16_t len)
 {

@@ -846,26 +846,6 @@ void pwm_power_channel_sender ( const uip_ip6addr_t *dest_addr,
 }
 
 /*---------------------------------------------------------------------------*/
-/* Отправка команды включения/выключения канала ШИМ'а c заданным duty cycle */
-void pwm_set_sender(const uip_ip6addr_t *dest_addr,
-					bool pwm_power,
-					uint8_t duty)
-{
-	/* Заполняем payload */
-	pwm_set_t pwm_set_pack;					/* Создаем структуру */
-
-	pwm_set_pack.pwm_power = pwm_power;		/* Включить/выключить */
-	pwm_set_pack.duty = duty;				/* Коэффицент заполненния */
-
-	/* Отправляем пакет */
-	pack_sender(dest_addr, 					/* Адрес модуля UMDK-6FET */
-				UNWDS_6FET_MODULE_ID, 		/* Индентификатор модуля UMDK-6FET */
-				PWM_SET, 					/* Команда включения канала ШИМ'а */
-				PWM_POWER_LENGTH, 			/* Размер payload'а */
-				(uint8_t*)&pwm_set_pack);	/* Payload */
-}
-
-/*---------------------------------------------------------------------------*/
 /* Конструктор пакета из UART */
 static void send_pack_from_cr(uint8_t* data)
 {
@@ -1417,19 +1397,18 @@ static void nack_sender(uint16_t counter)
 static bool dag_pwm_set(pwm_set_t *pwm_set_pack)
 {
 
-	uint8_t state;//(pwm_set_pack->pwm_power << 7) || pwm_set_pack->pwm_power;
-	memcpy(&state, pwm_set_pack, sizeof(uint8_t));
-	printf("State: %x\n", state);
+	uint8_t state = pwm_set_pack->state;
+	printf("[debug] Pointer: 0x%08lx State: %x\n", pointer_on_last_state, state);
 
 	/* Сохраняем значение во flash */
 	save_last_state_of_lighting(state);
 	
 	/* Вывод информационного сообщения в консоль */
-	printf("[DAG Node] Relay: %s, PWM duty: %i%%\n", pwm_set_pack->pwm_power ? "on" : "off", pwm_set_pack->duty);
+	printf("[DAG Node] Relay: %s, PWM duty: %i%%\n", (pwm_set_pack->state >> 7) ? "on" : "off", (pwm_set_pack->state & 0x7F));
 	
 	/* Конфигурируем пин который управляет реле */
 	ti_lib_ioc_pin_type_gpio_output(BOARD_IOID_RELAY);
-	if(pwm_set_pack->pwm_power)
+	if(pwm_set_pack->state >> 7)
 	{
 		/* On */
 		ti_lib_gpio_set_dio(BOARD_IOID_RELAY);
@@ -1440,7 +1419,7 @@ static bool dag_pwm_set(pwm_set_t *pwm_set_pack)
 		ti_lib_gpio_clear_dio(BOARD_IOID_RELAY);
 	}
 
-	bool pwm_config_res = pwm_config(0, 500, pwm_set_pack->duty, BOARD_IOID_PWM); //ch, frec, duty, pin
+	bool pwm_config_res = pwm_config(0, 500, (pwm_set_pack->state & 0x7F), BOARD_IOID_PWM); //ch, frec, duty, pin
 	if(pwm_config_res)
 		return pwm_start(0);
 	else 
@@ -1499,8 +1478,8 @@ static void restore_last_state_of_lighting(void)
 
 	if(*((uint8_t*)(pointer_on_last_state)) == 0xFF)
 	{
-		printf("[debug] Init flash\n");
-		printf("[debug] Pointer: 0x%08lx, state: %x\n", pointer_on_last_state, *((uint8_t*)(pointer_on_last_state)));
+		printf("[restore_last_state_of_lighting] Init flash\n");
+		printf("[restore_last_state_of_lighting] Pointer: 0x%08lx, state: %x\n", pointer_on_last_state, *((uint8_t*)(pointer_on_last_state)));
 
 		/* Установка первого состояния */
 		uint8_t state = 0x00;
@@ -1520,6 +1499,8 @@ static void restore_last_state_of_lighting(void)
 
 	pointer_on_last_state--;
 	uint8_t state = *((uint8_t*)(pointer_on_last_state));
+
+	printf("[restore_last_state_of_lighting] Pointer: 0x%08lx, state: %x\n", pointer_on_last_state, *((uint8_t*)(pointer_on_last_state)));
 	
 	/* Установка состояния */
 	dag_pwm_set((pwm_set_t*)&state);

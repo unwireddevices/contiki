@@ -99,11 +99,6 @@ void root_udp_data_receiver(struct simple_udp_connection *connection,
                        		uint16_t receiver_port,
                        		const uint8_t *data,
                        		uint16_t datalen);
-
-/* Отправка команды включения/выключения канала ШИМ'а c заданным duty cycle */
-void pwm_set_sender(const uip_ip6addr_t *dest_addr,
-					bool pwm_power,
-					uint8_t duty);
 				
 /* Иннициализация RPL */
 void rpl_initialize();

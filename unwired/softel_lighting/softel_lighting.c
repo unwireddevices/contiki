@@ -157,18 +157,18 @@ PROCESS_THREAD(main_process, ev, data)
 			/* Разблокировка командной строки на 15 секунд. */
 			if(ev == sensors_event && data == &button_e_sensor_click)
 			{	
-				// printf("[ROOT Node] Command line is unlocked for 15 seconds\n");
-				// ti_lib_ioc_port_configure_set(BOARD_IOID_UART_COORDINATOR_RX, IOC_PORT_GPIO, IOC_INPUT_PULL_UP);
-				// ti_lib_ioc_port_configure_set(BOARD_IOID_UART_SHELL_RX , IOC_PORT_MCU_UART0_RX, IOC_INPUT_PULL_UP);
-				// unset_uart();		
+				printf("[ROOT Node] Command line is unlocked for 15 seconds\n");
+				ti_lib_ioc_port_configure_set(BOARD_IOID_UART_COORDINATOR_RX, IOC_PORT_GPIO, IOC_INPUT_PULL_UP);
+				ti_lib_ioc_port_configure_set(BOARD_IOID_UART_SHELL_RX , IOC_PORT_MCU_UART0_RX, IOC_INPUT_PULL_UP);
+				unset_uart();		
 		
-				// etimer_set(&shell_off, CLOCK_SECOND * 15);
-				// PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&shell_off));
+				etimer_set(&shell_off, CLOCK_SECOND * 15);
+				PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&shell_off));
 				
-				// printf("[ROOT Node] Command line is lock\n");
-				// ti_lib_ioc_port_configure_set(BOARD_IOID_UART_SHELL_RX, IOC_PORT_GPIO, IOC_INPUT_PULL_UP);
-				// ti_lib_ioc_port_configure_set(BOARD_IOID_UART_COORDINATOR_RX, IOC_PORT_MCU_UART0_RX, IOC_INPUT_PULL_UP);
-				// set_uart();	
+				printf("[ROOT Node] Command line is lock\n");
+				ti_lib_ioc_port_configure_set(BOARD_IOID_UART_SHELL_RX, IOC_PORT_GPIO, IOC_INPUT_PULL_UP);
+				ti_lib_ioc_port_configure_set(BOARD_IOID_UART_COORDINATOR_RX, IOC_PORT_MCU_UART0_RX, IOC_INPUT_PULL_UP);
+				set_uart();	
 	
 		
 		
@@ -177,10 +177,10 @@ PROCESS_THREAD(main_process, ev, data)
 
 				
 				/*Адрес DAG'а*/
-				static uip_ipaddr_t dest_addr;
-				uip_ip6addr(&dest_addr, 0xFD00, 0x0, 0x0, 0x0, 0x0212, 0x4B00, 0x17B7, 0xCEEA);		
+				// static uip_ipaddr_t dest_addr;
+				// uip_ip6addr(&dest_addr, 0xFD00, 0x0, 0x0, 0x0, 0x0212, 0x4B00, 0x17B7, 0xCEEA);		
 
-				pwm_set_sender(&dest_addr, true, 50);	
+				// pwm_set_sender(&dest_addr, true, 50);	
 
 
 
@@ -245,27 +245,14 @@ PROCESS_THREAD(main_process, ev, data)
 			{
 				if (data == &button_e_sensor_long_click)
 				{
-					printf("[BCP] Button e long click\nReboot...");
+					printf("[DAG Node] Button E long click\nReboot...");
 					watchdog_reboot();
 				} /* if (data == &button_e_sensor_long_click) */
 				
 				if (data == &button_e_sensor_click)
 				{
-					pwm_config(0, 100, 20, IOID_5); //channel, frequency, duty, pin
-					pwm_config(1, 100, 30, IOID_6); //channel, frequency, duty, pin
-					pwm_config(2, 100, 40, IOID_7); //channel, frequency, duty, pin
-					pwm_config(3, 100, 50, IOID_24); //channel, frequency, duty, pin
-					pwm_config(4, 100, 60, IOID_25); //channel, frequency, duty, pin
-					pwm_config(5, 100, 70, IOID_26); //channel, frequency, duty, pin
 
-					pwm_start(0);
-					pwm_start(1);
-					pwm_start(2);
-					pwm_start(3);
-					pwm_start(4);
-					pwm_start(5);
 
-					// printf("[UMDK-LIT] Luminocity: %lu lux\n", opt3001_measure());
 
 				} /* if (data == &button_e_sensor_click) */
 			} /* if(ev == sensors_event) */

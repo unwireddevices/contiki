@@ -235,8 +235,9 @@ typedef struct {
 
 /*Struct for PWM_SET*/
 typedef struct {
-	unsigned pwm_power:1;	/*Включить/выключить*/
-	unsigned duty:7;		/*Коэффицент заполнения от 0% до 100%*/
+	uint8_t state;
+	// unsigned pwm_power:1;	/*Включить/выключить*/
+	// unsigned duty:7;		/*Коэффицент заполнения от 0% до 100%*/
 } pack pwm_set_t;
 
 /*---------------------------------------------------------------------------*/
