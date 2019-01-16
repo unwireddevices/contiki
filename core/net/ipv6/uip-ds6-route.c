@@ -225,13 +225,35 @@ void uip_ds6_route_init(void)
 	if(spi_test())
 	{
 		if(load_routelist())
+		{
 			printf("Load routetable: ok\n");
+			return;
+		}
 		else
+		{
 			printf("Load routetable: error\n");
+		}
 	}
 	else
+	{
 		printf("Load routetable: could not access EEPROM\n");
+	}
+
+	/* Инициализируемся с нуля */
+#if(UIP_CONF_MAX_ROUTES != 0)
+	memb_init(&routememb);
+	list_init(routelist);
+	nbr_table_register(nbr_routes, (nbr_table_callback *)rm_routelist_callback);
+#endif /* (UIP_CONF_MAX_ROUTES != 0) */
+
+	memb_init(&defaultroutermemb);
+	list_init(defaultrouterlist);
+
+#if UIP_DS6_NOTIFICATIONS
+	list_init(notificationlist);
 #endif
+
+#endif /* UNWDS_ROOT  */
 ////////////////////////////////////////////////////////////////////
 }
 #if (UIP_CONF_MAX_ROUTES != 0)
@@ -1033,25 +1055,11 @@ bool load_routelist(void)
 			/* Контрольная сумма не верна */
 			/* Очищаем странницу с таблицей маршрутизации */
 			ext_flash_erase((uint32_t)eeprom_flash, sizeof(*eeprom_flash));
-
-			/* Инициализируемся с нуля */
-#if(UIP_CONF_MAX_ROUTES != 0)
-			memb_init(&routememb);
-			list_init(routelist);
-			nbr_table_register(nbr_routes, (nbr_table_callback *)rm_routelist_callback);
-#endif /* (UIP_CONF_MAX_ROUTES != 0) */
-
-			memb_init(&defaultroutermemb);
-			list_init(defaultrouterlist);
-
-#if UIP_DS6_NOTIFICATIONS
-			list_init(notificationlist);
-#endif
+			ext_flash_close();
 
 			/* Start save routelist to EEPROM process */
 			process_start(&save_routelist_process, NULL);
-			ext_flash_close();
-
+			
 			return false;
 		}
 

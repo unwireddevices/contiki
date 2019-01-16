@@ -887,9 +887,9 @@ static void print_cr(const uip_ip6addr_t *dest_addr,
 	while(ti_lib_uart_busy(UART0_BASE));
 
 	/* Отсоединяем пин от UART'а */ 
-	ti_lib_gpio_set_dio(BOARD_IOID_UART_TX);
-	ti_lib_gpio_set_output_enable_dio(BOARD_IOID_UART_TX, GPIO_OUTPUT_ENABLE);
-	ti_lib_ioc_port_configure_set(BOARD_IOID_UART_TX, IOC_PORT_GPIO, IOC_OUTPUT_PULL_UP);
+	ti_lib_gpio_set_dio(BOARD_IOID_UART_SHELL_TX);
+	ti_lib_gpio_set_output_enable_dio(BOARD_IOID_UART_SHELL_TX, GPIO_OUTPUT_ENABLE);
+	ti_lib_ioc_port_configure_set(BOARD_IOID_UART_SHELL_TX, IOC_PORT_GPIO, IOC_OUTPUT_PULL_UP);
 
 	/*Присоединяем пин к UART'у*/ 
 	ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_TX, IOC_PORT_MCU_UART0_TX, IOC_STD_OUTPUT);
@@ -913,12 +913,12 @@ static void print_cr(const uip_ip6addr_t *dest_addr,
 	while(ti_lib_uart_busy(UART0_BASE));
 	
 	/* Отсоединяем пин от UART'а */ 
-	ti_lib_gpio_set_dio(BOARD_IOID_ALT_UART_TX);
-	ti_lib_gpio_set_output_enable_dio(BOARD_IOID_ALT_UART_TX, GPIO_OUTPUT_ENABLE);
-	ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_TX, IOC_PORT_GPIO, IOC_OUTPUT_PULL_UP);
+	ti_lib_gpio_set_dio(BOARD_IOID_UART_COORDINATOR_TX);
+	ti_lib_gpio_set_output_enable_dio(BOARD_IOID_UART_COORDINATOR_TX, GPIO_OUTPUT_ENABLE);
+	ti_lib_ioc_port_configure_set(BOARD_IOID_UART_COORDINATOR_TX, IOC_PORT_GPIO, IOC_OUTPUT_PULL_UP);
 
 	/* Присоединяем пин к UART'у */ 
-	ti_lib_ioc_port_configure_set(BOARD_IOID_UART_TX, IOC_PORT_MCU_UART0_TX, IOC_STD_OUTPUT);
+	ti_lib_ioc_port_configure_set(BOARD_IOID_UART_SHELL_TX, IOC_PORT_MCU_UART0_TX, IOC_STD_OUTPUT);
 }
 
 /*---------------------------------------------------------------------------*/
