@@ -1398,7 +1398,7 @@ static bool dag_pwm_set(pwm_set_t *pwm_set_pack)
 {
 
 	uint8_t state = pwm_set_pack->state;
-	printf("[debug] Pointer: 0x%08lx State: %x\n", pointer_on_last_state, state);
+	// printf("[debug] Pointer: 0x%08lx State: %x\n", pointer_on_last_state, state);
 
 	/* Сохраняем значение во flash */
 	save_last_state_of_lighting(state);
@@ -1478,8 +1478,8 @@ static void restore_last_state_of_lighting(void)
 
 	if(*((uint8_t*)(pointer_on_last_state)) == 0xFF)
 	{
-		printf("[restore_last_state_of_lighting] Init flash\n");
-		printf("[restore_last_state_of_lighting] Pointer: 0x%08lx, state: %x\n", pointer_on_last_state, *((uint8_t*)(pointer_on_last_state)));
+		printf("[DAG Node] Init flash for save last state of lighting\n");
+		// printf("[DAG Node] Pointer: 0x%08lx, state: %x\n", pointer_on_last_state, *((uint8_t*)(pointer_on_last_state)));
 
 		/* Установка первого состояния */
 		uint8_t state = 0x00;
@@ -1500,7 +1500,7 @@ static void restore_last_state_of_lighting(void)
 	pointer_on_last_state--;
 	uint8_t state = *((uint8_t*)(pointer_on_last_state));
 
-	printf("[restore_last_state_of_lighting] Pointer: 0x%08lx, state: %x\n", pointer_on_last_state, *((uint8_t*)(pointer_on_last_state)));
+	// printf("[restore_last_state_of_lighting] Pointer: 0x%08lx, state: %x\n", pointer_on_last_state, *((uint8_t*)(pointer_on_last_state)));
 	
 	/* Установка состояния */
 	dag_pwm_set((pwm_set_t*)&state);

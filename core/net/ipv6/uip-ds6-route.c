@@ -1048,7 +1048,7 @@ bool load_routelist(void)
 		crc16 = crc16_add((uint8_t*)&routememb_memb_count[0], sizeof(eeprom_flash->routememb_memb_count), crc16);
 
 		ext_flash_read((uint32_t)&eeprom_flash->crc16, sizeof(eeprom_flash->crc16), (uint8_t*)&crc16_eeprom);
-		printf("crc16_route_table: 0x%04x == 0x%04x\n", crc16, crc16_eeprom);
+		PRINTF("crc16_route_table: 0x%04x == 0x%04x\n", crc16, crc16_eeprom);
 
 		if(crc16 != crc16_eeprom)
 		{
@@ -1083,25 +1083,25 @@ bool save_routelist(void)
 	bool eeprom_access = ext_flash_open();
 	if(eeprom_access)
 	{
-		printf("eeprom_flash addr: 0x%08lx len: 0x%08x\n", (uint32_t)eeprom_flash, sizeof(*eeprom_flash));
-		printf("magic_bytes addr: 0x%08lx len: 0x%08x\n", (uint32_t)&eeprom_flash->magic_bytes, sizeof(eeprom_flash->magic_bytes));
-		printf("crc16 addr: 0x%08lx len: 0x%08x\n", (uint32_t)&eeprom_flash->crc16, sizeof(eeprom_flash->crc16));
-		printf("Copy from 0x%08lx to 0x%08lx len: 0x%08x (defaultroutermemb)\n", (uint32_t)&defaultroutermemb, (uint32_t)&eeprom_flash->defaultroutermemb, sizeof(eeprom_flash->defaultroutermemb));
-		printf("Copy from 0x%08lx to 0x%08lx len: 0x%08x (nbr_routes)\n", (uint32_t)&nbr_routes, (uint32_t)&eeprom_flash->nbr_routes, sizeof(eeprom_flash->nbr_routes));
-		printf("Copy from 0x%08lx to 0x%08lx len: 0x%08x (nbr_routes_struct)\n", (uint32_t)&nbr_routes_struct, (uint32_t)&eeprom_flash->nbr_routes_struct, sizeof(eeprom_flash->nbr_routes_struct));
-		printf("Copy from 0x%08lx to 0x%08lx len: 0x%08x (neighborroutememb)\n", (uint32_t)&neighborroutememb, (uint32_t)&eeprom_flash->neighborroutememb, sizeof(eeprom_flash->neighborroutememb));
-		printf("Copy from 0x%08lx to 0x%08lx len: 0x%08x (routememb)\n", (uint32_t)&routememb, (uint32_t)&eeprom_flash->routememb, sizeof(eeprom_flash->routememb));
-		printf("Copy from 0x%08lx to 0x%08lx len: 0x%08x (defaultrouterlist_list)\n", (uint32_t)&defaultrouterlist_list, (uint32_t)&eeprom_flash->defaultrouterlist_list, sizeof(eeprom_flash->defaultrouterlist_list));
-		printf("Copy from 0x%08lx to 0x%08lx len: 0x%08x (defaultroutermemb_memb_count)\n", (uint32_t)&defaultroutermemb_memb_count[0], (uint32_t)&eeprom_flash->defaultroutermemb_memb_count[0], sizeof(eeprom_flash->defaultroutermemb_memb_count));
-		printf("Copy from 0x%08lx to 0x%08lx len: 0x%08x (notificationlist_list)\n", (uint32_t)&notificationlist_list, (uint32_t)&eeprom_flash->notificationlist_list, sizeof(eeprom_flash->notificationlist_list));
-		printf("Copy from 0x%08lx to 0x%08lx len: 0x%08x (num_routes)\n", (uint32_t)&num_routes, (uint32_t)&eeprom_flash->num_routes, sizeof(eeprom_flash->num_routes));
-		printf("Copy from 0x%08lx to 0x%08lx len: 0x%08x (routelist_list)\n", (uint32_t)&routelist_list, (uint32_t)&eeprom_flash->routelist_list, sizeof(eeprom_flash->routelist_list));
-		printf("Copy from 0x%08lx to 0x%08lx len: 0x%08x (routememb_memb_mem)\n", (uint32_t)&routememb_memb_mem[0], (uint32_t)&eeprom_flash->routememb_memb_mem, sizeof(eeprom_flash->routememb_memb_mem));
-		printf("Copy from 0x%08lx to 0x%08lx len: 0x%08x (_nbr_routes_mem)\n", (uint32_t)&_nbr_routes_mem[0], (uint32_t)&eeprom_flash->_nbr_routes_mem, sizeof(eeprom_flash->_nbr_routes_mem));
-		printf("Copy from 0x%08lx to 0x%08lx len: 0x%08x (defaultroutermemb_memb_mem)\n", (uint32_t)&defaultroutermemb_memb_mem[0], (uint32_t)&eeprom_flash->defaultroutermemb_memb_mem, sizeof(eeprom_flash->defaultroutermemb_memb_mem));
-		printf("Copy from 0x%08lx to 0x%08lx len: 0x%08x (neighborroutememb_memb_count)\n", (uint32_t)&neighborroutememb_memb_count[0], (uint32_t)&eeprom_flash->neighborroutememb_memb_count, sizeof(eeprom_flash->neighborroutememb_memb_count));
-		printf("Copy from 0x%08lx to 0x%08lx len: 0x%08x (neighborroutememb_memb_mem)\n", (uint32_t)&neighborroutememb_memb_mem[0], (uint32_t)&eeprom_flash->neighborroutememb_memb_mem, sizeof(eeprom_flash->neighborroutememb_memb_mem));
-		printf("Copy from 0x%08lx to 0x%08lx len: 0x%08x (routememb_memb_count)\n", (uint32_t)&routememb_memb_count[0], (uint32_t)&eeprom_flash->routememb_memb_count, sizeof(eeprom_flash->routememb_memb_count));
+		PRINTF("eeprom_flash addr: 0x%08lx len: 0x%08x\n", (uint32_t)eeprom_flash, sizeof(*eeprom_flash));
+		PRINTF("magic_bytes addr: 0x%08lx len: 0x%08x\n", (uint32_t)&eeprom_flash->magic_bytes, sizeof(eeprom_flash->magic_bytes));
+		PRINTF("crc16 addr: 0x%08lx len: 0x%08x\n", (uint32_t)&eeprom_flash->crc16, sizeof(eeprom_flash->crc16));
+		PRINTF("Copy from 0x%08lx to 0x%08lx len: 0x%08x (defaultroutermemb)\n", (uint32_t)&defaultroutermemb, (uint32_t)&eeprom_flash->defaultroutermemb, sizeof(eeprom_flash->defaultroutermemb));
+		PRINTF("Copy from 0x%08lx to 0x%08lx len: 0x%08x (nbr_routes)\n", (uint32_t)&nbr_routes, (uint32_t)&eeprom_flash->nbr_routes, sizeof(eeprom_flash->nbr_routes));
+		PRINTF("Copy from 0x%08lx to 0x%08lx len: 0x%08x (nbr_routes_struct)\n", (uint32_t)&nbr_routes_struct, (uint32_t)&eeprom_flash->nbr_routes_struct, sizeof(eeprom_flash->nbr_routes_struct));
+		PRINTF("Copy from 0x%08lx to 0x%08lx len: 0x%08x (neighborroutememb)\n", (uint32_t)&neighborroutememb, (uint32_t)&eeprom_flash->neighborroutememb, sizeof(eeprom_flash->neighborroutememb));
+		PRINTF("Copy from 0x%08lx to 0x%08lx len: 0x%08x (routememb)\n", (uint32_t)&routememb, (uint32_t)&eeprom_flash->routememb, sizeof(eeprom_flash->routememb));
+		PRINTF("Copy from 0x%08lx to 0x%08lx len: 0x%08x (defaultrouterlist_list)\n", (uint32_t)&defaultrouterlist_list, (uint32_t)&eeprom_flash->defaultrouterlist_list, sizeof(eeprom_flash->defaultrouterlist_list));
+		PRINTF("Copy from 0x%08lx to 0x%08lx len: 0x%08x (defaultroutermemb_memb_count)\n", (uint32_t)&defaultroutermemb_memb_count[0], (uint32_t)&eeprom_flash->defaultroutermemb_memb_count[0], sizeof(eeprom_flash->defaultroutermemb_memb_count));
+		PRINTF("Copy from 0x%08lx to 0x%08lx len: 0x%08x (notificationlist_list)\n", (uint32_t)&notificationlist_list, (uint32_t)&eeprom_flash->notificationlist_list, sizeof(eeprom_flash->notificationlist_list));
+		PRINTF("Copy from 0x%08lx to 0x%08lx len: 0x%08x (num_routes)\n", (uint32_t)&num_routes, (uint32_t)&eeprom_flash->num_routes, sizeof(eeprom_flash->num_routes));
+		PRINTF("Copy from 0x%08lx to 0x%08lx len: 0x%08x (routelist_list)\n", (uint32_t)&routelist_list, (uint32_t)&eeprom_flash->routelist_list, sizeof(eeprom_flash->routelist_list));
+		PRINTF("Copy from 0x%08lx to 0x%08lx len: 0x%08x (routememb_memb_mem)\n", (uint32_t)&routememb_memb_mem[0], (uint32_t)&eeprom_flash->routememb_memb_mem, sizeof(eeprom_flash->routememb_memb_mem));
+		PRINTF("Copy from 0x%08lx to 0x%08lx len: 0x%08x (_nbr_routes_mem)\n", (uint32_t)&_nbr_routes_mem[0], (uint32_t)&eeprom_flash->_nbr_routes_mem, sizeof(eeprom_flash->_nbr_routes_mem));
+		PRINTF("Copy from 0x%08lx to 0x%08lx len: 0x%08x (defaultroutermemb_memb_mem)\n", (uint32_t)&defaultroutermemb_memb_mem[0], (uint32_t)&eeprom_flash->defaultroutermemb_memb_mem, sizeof(eeprom_flash->defaultroutermemb_memb_mem));
+		PRINTF("Copy from 0x%08lx to 0x%08lx len: 0x%08x (neighborroutememb_memb_count)\n", (uint32_t)&neighborroutememb_memb_count[0], (uint32_t)&eeprom_flash->neighborroutememb_memb_count, sizeof(eeprom_flash->neighborroutememb_memb_count));
+		PRINTF("Copy from 0x%08lx to 0x%08lx len: 0x%08x (neighborroutememb_memb_mem)\n", (uint32_t)&neighborroutememb_memb_mem[0], (uint32_t)&eeprom_flash->neighborroutememb_memb_mem, sizeof(eeprom_flash->neighborroutememb_memb_mem));
+		PRINTF("Copy from 0x%08lx to 0x%08lx len: 0x%08x (routememb_memb_count)\n", (uint32_t)&routememb_memb_count[0], (uint32_t)&eeprom_flash->routememb_memb_count, sizeof(eeprom_flash->routememb_memb_count));
 
 		/* ERASE FLASH */
 		ext_flash_erase((uint32_t)eeprom_flash, sizeof(*eeprom_flash));
@@ -1146,7 +1146,7 @@ bool save_routelist(void)
 		crc16 = crc16_add((uint8_t*)&routememb_memb_count[0], sizeof(eeprom_flash->routememb_memb_count), crc16);
 
 		ext_flash_write((uint32_t)&eeprom_flash->crc16, sizeof(eeprom_flash->crc16), (uint8_t*)&crc16);
-		printf("crc16_route_table: 0x%04x\n", crc16);
+		PRINTF("crc16_route_table: 0x%04x\n", crc16);
 
 		/* MAGIC BYTES */
 		uint32_t magic_bytes = MAGIC_BYTES;
