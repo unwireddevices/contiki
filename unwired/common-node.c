@@ -366,7 +366,7 @@ void pack_sender(const uip_ip6addr_t *dest_addr,
 	if((crypto_length == 0) || ((crypto_length - HEADER_DOWN_LENGTH) <= 0))
 		return;
 
-	/* Pаполняем пакет, зашифровываем и отправляем его DAG'у. */ 
+	/* Заполняем пакет, зашифровываем и отправляем */ 
 	for(uint16_t i = 0; i < (crypto_length - HEADER_DOWN_LENGTH); i++)
 	{
 		if(i < payload_len)
@@ -636,7 +636,7 @@ void root_udp_data_receiver(struct simple_udp_connection *connection,
 
 /*---------------------------------------------------------------------------*/
 /* Вторая стадия авторизации */
-/* Генерирует сессионный ключ (nonce) и отправляет его зашифрованым AES128-ECB, добавляет маршрут в таблицу */
+/* Генерирует сессионный ключ (nonce) и отправляет его зашифрованным AES128-ECB, добавляет маршрут в таблицу */
 static void join_stage_2_sender(const uip_ip6addr_t *dest_addr, 
 								const uint8_t *data, 
 								const uint16_t length)
@@ -725,11 +725,11 @@ static void join_stage_4_sender(const uip_ip6addr_t *dest_addr,
 		printf("] Authorization error node\n");
 	}
 	
-	/* Если nonce'ы совпадают, то авторизация прошла успешно, шифрование настроенно правильно */ 
+	/* Если nonce'ы совпадают, то авторизация прошла успешно, шифрование настроено правильно */ 
 	else
 	{
 		join_stage_4_pack.status_code = true;		/* Статус код */
-		unlock_addr((uip_ip6addr_t*)dest_addr);		/* Разрешаем обрабатывать пакеты принятые с авторизированного устройства */
+		unlock_addr((uip_ip6addr_t*)dest_addr);		/* Разрешаем обрабатывать пакеты принятые с авторизованного устройства */
 		
 		/* Вывод сообщения об успешной авторизации */
 		printf("[");
@@ -773,7 +773,7 @@ static void pong_sender(const uip_ip6addr_t *dest_addr,
 		
 	/* Отправляем пакет */
 	pack_sender(dest_addr, 							/* Адрес модуля */
-				UNWDS_6LOWPAN_SYSTEM_MODULE_ID, 	/* Индентификатор модуля */
+				UNWDS_6LOWPAN_SYSTEM_MODULE_ID, 	/* Идентификатор модуля */ 
 				PONG, 								/* Команда ответа на PING */
 				PONG_LENGTH, 						/* Размер payload'а */
 				(uint8_t*)&pong_pack);				/* Payload */
@@ -1146,7 +1146,7 @@ static void dag_udp_data_receiver(struct simple_udp_connection *c,
 
 /*---------------------------------------------------------------------------*/
 /* Первая стадия авторизации */
-/* Передаём свой серийный номер */
+/* Передаем метадату текущей прошивки */
 static void join_stage_1_sender(const uip_ipaddr_t *dest_addr)
 {
 	/* Проверка на то что передан существующий адрес */
@@ -1284,7 +1284,7 @@ static void join_stage_4_handler(const uip_ipaddr_t *sender_addr,
 	/* Расшифровываем данные */
 	aes_cbc_decrypt((uint32_t*)aes_key, (uint32_t*)nonce_key, (uint32_t*)&data[HEADER_DOWN_OFFSET], (uint32_t*)&data[HEADER_DOWN_OFFSET], CRYPTO_1_BLOCK_LENGTH);
 	
-	/* Проверяем массив. Если все нули, то авториция прошла успешно */
+	/* Проверяем массив. Если все нули, то авторизация прошла успешно */
 	if(join_stage_4_pack->status_code)
 	{
 		packet_counter_root.u16 = header_pack->counter.u16;				/* Сохраняем счетчик пакетов ROOT'а */ 
@@ -1973,7 +1973,7 @@ PROCESS_THREAD(ota_process, ev, data)
 	if(data == NULL)
 		return 1;
 
-	/* Get OTA metadata */
+	/* Получаем метадату до которой обновляемся */
 	OTAMetadata_t ota_metadata;
 	memcpy(&ota_metadata, &((start_ota_t*)data)->ota_metadata, sizeof(OTAMetadata_t));
 	printf("[OTA] Metadata:\n");
@@ -2051,7 +2051,6 @@ PROCESS_THREAD(ota_process, ev, data)
 			else
 				printf("[OTA] Unknown error!\n");
 
-			/* Вывод информационного сообщения в консоль */
 			process_exit(&ota_process);
 			return 1;
 		}
@@ -2061,10 +2060,6 @@ PROCESS_THREAD(ota_process, ev, data)
 
 		/* Устанавливаем таймер на REQ_DATA_FOR_OTA_INTERVAL */
 		etimer_set(&req_data_for_ota_timer, REQ_DATA_FOR_OTA_INTERVAL);		
-
-
-
-
 
 		/* Засыпаем до любого события */
 		// PROCESS_WAIT_EVENT(); 	

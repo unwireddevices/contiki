@@ -39,11 +39,11 @@
 #include "net/ip/uip.h"
 #include "ota-main.h"
 
-/*Упаковка структуры*/
+/* Упаковка структуры */
 #define pack 		__attribute__((packed))
 
 /*---------------------------------------------------------------------------*/
-/*Типы объединений*/
+/* Типы объединений */
 typedef union u8_u16_t {
 	uint16_t u16;
 	uint8_t u8[2];
@@ -60,7 +60,7 @@ typedef union u8_u32_t {
 } u8_u32_t;
 
 /*---------------------------------------------------------------------------*/
-/*ID устройства*/
+/* ID устройства */
 typedef enum 
 {
 	UNWDS_GPIO_MODULE_ID = 1,
@@ -99,45 +99,45 @@ typedef enum
 } UNWDS_MODULE_IDS_t;
 
 /*---------------------------------------------------------------------------*/
-/*CR->ROOT*/
+/* CR->ROOT */
 typedef struct {		
-	uip_ip6addr_t dest_addr; 	/*Адрес модуля*/
-	uint8_t device_id; 			/*Индентификатор модуля*/
-	uint8_t data_type; 			/*Команда*/
-	uint16_t payload_len;		/*Размер payload'а*/
+	uip_ip6addr_t dest_addr; 	/* Адрес модуля */
+	uint8_t device_id; 			/* Идентификатор модуля */
+	uint8_t data_type; 			/* Команда */
+	uint16_t payload_len;		/* Размер payload'а */
 } pack uart_header_t;
 
 /*---------------------------------------------------------------------------*/
-/*HEADER*/
+/* HEADER */
 typedef struct {
-	uint8_t protocol_version;	/*Текущая версия протокола*/ 
-    uint8_t device_id;			/*ID устройства*/
-	uint8_t data_type;			/*Тип пакета*/ 
-	uint8_t rssi;				/*RSSI*/ 
-	uint8_t temperature;		/*Температура*/ 
-	uint8_t voltage;			/*Напряжение*/ 
+	uint8_t protocol_version;	/* Текущая версия протокола */ 
+    uint8_t device_id;			/* ID устройства */
+	uint8_t data_type;			/* Тип пакета */ 
+	uint8_t rssi;				/* RSSI */ 
+	uint8_t temperature;		/* Температура */ 
+	uint8_t voltage;			/* Напряжение */ 
 } pack header_up_t;
 
 typedef struct {		
-    u8_u16_t counter;			/*Счетчик пакетов*/ 
-	u8_u16_t crc;				/*CRC16*/ 
-	u8_u16_t length;				/*Размер пакета*/
+    u8_u16_t counter;			/* Счетчик пакетов */ 
+	u8_u16_t crc;				/* CRC16 */ 
+	u8_u16_t length;			/* Размер пакета */
 } pack header_down_t;
 
 typedef struct {		
-	uint8_t protocol_version;	/*Текущая версия протокола*/ 
-    uint8_t device_id;			/*ID устройства*/
-	uint8_t data_type;			/*Тип пакета*/ 
-	uint8_t rssi;				/*RSSI*/ 
-	uint8_t temperature;		/*Температура*/ 
-	uint8_t voltage;			/*Напряжение*/ 
-	u8_u16_t counter;			/*Счетчик пакетов*/ 
-	u8_u16_t crc;				/*CRC16*/ 
-	u8_u16_t length;			/*Размер пакета*/
+	uint8_t protocol_version;	/* Текущая версия протокола */ 
+    uint8_t device_id;			/* ID устройства */
+	uint8_t data_type;			/* Тип пакета */ 
+	uint8_t rssi;				/* RSSI */ 
+	uint8_t temperature;		/* Температура */ 
+	uint8_t voltage;			/* Напряжение */ 
+	u8_u16_t counter;			/* Счетчик пакетов */ 
+	u8_u16_t crc;				/* CRC16 */ 
+	u8_u16_t length;			/* Размер пакета */
 } pack header_t; 
 
 /*---------------------------------------------------------------------------*/
-
+/* Структуры для шифрования */
 typedef struct {		
 	uint8_t ciphertext[16];
 } pack crypto_1_block_t;
@@ -211,120 +211,119 @@ typedef struct {
 } pack crypto_18_block_t;
 
 /*---------------------------------------------------------------------------*/
-/*UNWDS-4BTN*/
+/* UNWDS-4BTN */
 
-/*Struct for BUTTON_STATUS*/
+/* Struct for BUTTON_STATUS */
 typedef struct {		
-	uint8_t button_status;	/*Номер нажатой кнопки. Если долгое нажатие: button_status |= (1<<7) */
+	uint8_t button_status;	/* Номер нажатой кнопки. Если долгое нажатие: button_status |= (1<<7) */
 } pack button_status_t;
 
 /*---------------------------------------------------------------------------*/
-/*UNWDS-6FET*/
+/* UNWDS-6FET */
 
-/*Struct for PWM_SETTINGS*/
+/* Struct for PWM_SETTINGS */
 typedef struct {
-	uint32_t frequency;		/*Частота ШИМ'а от 100 Hz до 100 kHz*/
-	uint8_t channel;		/*Номер канала от 0 до 5*/
-	uint8_t duty;			/*Коэффицент заполнения от 0% до 100%*/
+	uint32_t frequency;		/* Частота ШИМ'а от 100 Hz до 100 kHz */
+	uint8_t channel;		/* Номер канала от 0 до 5 */
+	uint8_t duty;			/* Коэффициент заполнения от 0% до 100% */
 } pack pwm_settings_t;
 
-/*Struct for PWM_POWER*/
+/* Struct for PWM_POWER */
 typedef struct {		
-	uint8_t pwm_power;		/*Номер канала от 0 до 5. Для включения: номер канала |= (1<<7)*/
+	uint8_t pwm_power;		/* Номер канала от 0 до 5. Для включения: номер канала |= (1<<7) */
 } pack pwm_power_t;
 
-/*Struct for PWM_SET*/
+/* Struct for PWM_SET */
 typedef struct {
 	uint8_t state;
-	// unsigned pwm_power:1;	/*Включить/выключить*/
-	// unsigned duty:7;		/*Коэффицент заполнения от 0% до 100%*/
+	// unsigned pwm_power:1;	/* Включить/выключить */
+	// unsigned duty:7;			/* Коэффициент заполнения от 0% до 100% */
 } pack pwm_set_t;
 
 /*---------------------------------------------------------------------------*/
-/*UNWDS-LIT*/
+/* UNWDS-LIT */
 
-/*Struct for LIT_MEASURE_STATUS*/
+/* Struct for LIT_MEASURE_STATUS */
 typedef struct {		
-	uint32_t lit_measure_status;	/*Значение освещенности в люксах*/
+	uint32_t lit_measure_status;	/* Значение освещенности в люксах */
 } pack lit_measure_status_t;
 
 /*---------------------------------------------------------------------------*/
-/*UNWDS-GPIO*/
+/* UNWDS-GPIO */
 
-/*Struct for GPIO_CMD*/
+/* Struct for GPIO_CMD */
 typedef struct {		
-	uint8_t pin;				/*Номер ножки порта которую будем переводить в нужное состояние*/
-	uint8_t command;			/*Команда для ножки порта*/
+	uint8_t pin;				/* Номер ножки порта которую будем переводить в нужное состояние */
+	uint8_t command;			/* Команда для ножки порта */
 } pack gpio_command_t;
 
 /*---------------------------------------------------------------------------*/
-/*UNWDS-6LOWPAN_SYSTEM*/
+/* UNWDS-6LOWPAN_SYSTEM */
 
-/*Struct for JOIN_STAGE_1*/
+/* Struct for JOIN_STAGE_1 */
 typedef struct {
-	OTAMetadata_t ota_metadata;
-	// uint8_t module_id;		/*ID устройства: module_id = UNWDS_MODULE_ID*/	
+	OTAMetadata_t ota_metadata;	/* Метадата текущей прошивки */	
 } pack join_stage_1_t;
 
-/*Struct for JOIN_STAGE_2*/
+/* Struct for JOIN_STAGE_2 */
 typedef struct {		
-	u8_u16_t nonce;			/*Генерируем сессионный ключ nonce = random_rand()*/			
+	u8_u16_t nonce;			/* Генерируем сессионный ключ nonce = random_rand() */			
 } pack join_stage_2_t;
 
-/*Struct for JOIN_STAGE_3*/
+/* Struct for JOIN_STAGE_3 */
 typedef struct {		
-	u8_u16_t nonce;			/*Увеличиваем nonce на единицу: nonce += 1*/	
+	u8_u16_t nonce;			/* Увеличиваем nonce на единицу: nonce += 1 */	
 } pack join_stage_3_t;
 
-/*Struct for JOIN_STAGE_4*/
+/* Struct for JOIN_STAGE_4 */
 typedef struct {		
-	uint8_t status_code;	/*status_code = true если авторизация прошла успешно, иначе status_code = false*/	
+	uint8_t status_code;	/* status_code = true если авторизация прошла успешно, иначе status_code = false */	
 } pack join_stage_4_t;
 
-/*Struct for PING*/
+/* Struct for PING */
 typedef struct {		
-	u8_u16_t nonce;			/*Отправляем ROOT'у nonce. Если 3 раза не ответит, то перезагружаемся и переавторизируемся*/
+	u8_u16_t nonce;			/* Отправляем ROOT'у nonce. Если 3 раза не ответит, то перезагружаемся и переавторизируемся */
 } pack ping_t;
 
-/*Struct for PONG*/
+/* Struct for PONG */
 typedef struct {		
-	uint8_t status_code;	/*status_code = true если настройки шифрования совпадают*/
+	uint8_t status_code;	/* status_code = true если настройки шифрования совпадают */
 } pack pong_t;
 
-/*Struct for ACK*/
+/* Struct for ACK */
 typedef struct {		
-	u8_u16_t counter;		/*Номер подтвержденного пакета*/
+	u8_u16_t counter;		/* Номер подтвержденного пакета */
 } pack ack_t;
 
-/*Struct for NACK*/
+/* Struct for NACK */
 typedef struct {		
-	u8_u16_t counter;		/*Номер неподтвержденного пакета*/
+	u8_u16_t counter;		/* Номер неподтвержденного пакета */
 } pack nack_t;
 
-/*Struct for START_OTA*/
+/* Struct for START_OTA */
 typedef struct {		
-	OTAMetadata_t ota_metadata;		/* */
+	OTAMetadata_t ota_metadata;		/* Метадата прошивки до которой будем обновлять устройство */
 } pack start_ota_t;
 
-/*Struct for REQ_DATA_FOR_OTA*/
+/* Struct for REQ_DATA_FOR_OTA */
 typedef struct {
-	uint16_t ota_block;		
+	uint16_t ota_block;		/* Номер блока прошивки который запрашивает нода */
 } pack req_data_for_ota_t;
 
-/*Struct for DATA_FOR_OTA*/
+/* Struct for DATA_FOR_OTA */
 typedef struct {
-	uint16_t ota_block;		
-	crypto_16_block_t data_for_ota;		/* */
+	uint16_t ota_block;					/* Номер блока */
+	crypto_16_block_t data_for_ota;		/* Блок с прошивкой*/
 } pack data_for_ota_t;
 
-/*Struct for FINISH_OTA*/
+/* Struct for FINISH_OTA */
 typedef struct {		
-	int8_t status;			/* */
+	int8_t status;			/* Результат обновления прошивки */
 } pack finish_ota_t;
 
 /*---------------------------------------------------------------------------*/
 /*Основные*/
-#define UDP_DATA_PORT					4004 //‭61616‬ port for compression 6LoWPAN
+#define UDP_DATA_PORT					‭61616‬ /* Этот номер порта используется при сжатии заголовка 6LoWPAN */
 #define UDBP_PROTOCOL_VERSION			1
 
 /*---------------------------------------------------------------------------*/
@@ -375,36 +374,36 @@ typedef struct {
 /*COMMAND*/
 
 /*UNWDS-6LOWPAN_SYSTEM*/
-#define JOIN_STAGE_1				0x00 /*Нода посылает запрос координатору*/
-#define JOIN_STAGE_2				0x01 /*Координатор отправляет ecb_encrypt(nonce=rand())*/
-#define JOIN_STAGE_3				0x02 /*Нода удостоверяет, что она знает ключ отправляя cbc_encrypt(nonce+1)*/
-#define JOIN_STAGE_4				0x03 /*Координатор отвечает ноде что она имеет право быть в сети*/
-#define PING						0x04 /*Ping*/
-#define PONG						0x05 /*Pong*/
-#define ACK							0x06 /*ACK*/
-#define NACK						0x07 /*NACK*/
-#define START_OTA					0x08 /* */
-#define REQ_DATA_FOR_OTA			0x09 /*Команда запроса блока данных для OTA*/
-#define DATA_FOR_OTA				0x0A /* */
-#define FINISH_OTA					0x0B /*Команда отправки сообщения что прошивка обновлена*/
+#define JOIN_STAGE_1				0x00 /* Нода посылает запрос координатору */
+#define JOIN_STAGE_2				0x01 /* Координатор отправляет ecb_encrypt(nonce=rand()) */
+#define JOIN_STAGE_3				0x02 /* Нода удостоверяет, что она знает ключ отправляя cbc_encrypt(nonce+1) */
+#define JOIN_STAGE_4				0x03 /* Координатор отвечает ноде что она имеет право быть в сети */
+#define PING						0x04 /* Ping */
+#define PONG						0x05 /* Pong */
+#define ACK							0x06 /* ACK */
+#define NACK						0x07 /* NACK */
+#define START_OTA					0x08 /* Команда для начала OTA */
+#define REQ_DATA_FOR_OTA			0x09 /* Команда запроса блока данных для OTA */
+#define DATA_FOR_OTA				0x0A /* Команда с данными для OTA */
+#define FINISH_OTA					0x0B /* Команда c данными результата обновления прошивки */
 
 /*UNWDS-4BTN*/
-#define BUTTON_STATUS				0x00 /*Пакет статусом нажатой кнопки*/
+#define BUTTON_STATUS				0x00 /* Пакет статусом нажатой кнопки*/
 
 /*UNWDS-6FET*/
-#define PWM_SETTINGS				0x00 /*Пакет с настройкоами ШИМ канала*/
-#define PWM_POWER					0x01 /*Команда включения/выключения канала ШИМ'а*/
-#define PWM_SET						0x02 /*Команда включения/выключения канала ШИМ'а c заданным duty cycle*/
+#define PWM_SETTINGS				0x00 /* Пакет с настройками ШИМ канала */
+#define PWM_POWER					0x01 /* Команда включения/выключения канала ШИМ'а */
+#define PWM_SET						0x02 /* Команда включения/выключения канала ШИМ'а c заданным duty cycle */
 
 /*UNWDS-LIT*/
-#define LIT_MEASURE					0x00 /*Команда запроса замера освещенности*/
-#define LIT_MEASURE_STATUS			0x01 /*Результаты замера освещенности*/
+#define LIT_MEASURE					0x00 /* Команда запроса замера освещенности */
+#define LIT_MEASURE_STATUS			0x01 /* Результаты замера освещенности */
 
 /*UNWDS-GPIO*/
-#define GPIO_CMD					0x00 /*Отправка команды для ножки порта*/
+#define GPIO_CMD					0x00 /* Отправка команды для ножки порта */
 
 /*UNWDS-UART*/
-#define SEND_BY_UART 				0x00 /*Команда отправки данных по UART'у*/
+#define SEND_BY_UART 				0x00 /* Команда отправки данных по UART'у */
 
 /*---------------------------------------------------------------------------*/
 #endif	/* #ifndef PROTOCOL_H */

@@ -57,39 +57,26 @@
 /*---------------------------------------------------------------------------*/
 #include "ioc.h"
 /*---------------------------------------------------------------------------*/
-/** PINOUT
- * : IOID_0
- * SAFE: IOID_1 (для входа в заводской бутлоадер)
- * UART_SHELL_RX: IOID_2
- * UART_SHELL_TX: IOID_3
- * LED: IOID_4
- * PWM: IOID_5
- * GPIO_RELAY: IOID_6
- * BOOT_PIN: IOID_7 (0 - dag, 1 - root)
- * UART_COORDINATOR_TX: IOID_8
- * UART_COORDINATOR_RX: IOID_9
- * : IOID_10
- * FLASH_CS: IOID_11
- * SPI_MISO: IOID_12
- * SPI_MOSI: IOID_13
- * SPI_CLK_FLASH: IOID_14
+/**
+ * \name Pinout
+ *
  */
 
-// #define BOARD_IOID_BOOT                  IOID_1
-// #define BOARD_IOID_UART_SHELL_RX         IOID_2
-// #define BOARD_IOID_UART_SHELL_TX         IOID_3
-// #define BOARD_IOID_LED                   IOID_4
-// #define BOARD_IOID_PWM                   IOID_5
+// #define BOARD_IOID_UART_COORDINATOR_TX   IOID_0
+// #define BOARD_IOID_UART_COORDINATOR_RX   IOID_1
+// #define BOARD_IOID_UART_SHELL_RX         IOID_UNUSED
+// #define BOARD_IOID_UART_SHELL_TX         IOID_UNUSED
+// #define BOARD_IOID_LED                   IOID_2
+// #define BOARD_IOID_PWM                   IOID_3
+// #define BOARD_IOID_BOOT_BUTTON           IOID_4
 // #define BOARD_IOID_RELAY                 IOID_6
 // #define BOARD_IOID_BOOT_MODE             IOID_7
-// #define BOARD_IOID_UART_COORDINATOR_TX   IOID_8
-// #define BOARD_IOID_UART_COORDINATOR_RX   IOID_9
-// #define BOARD_IOID_FLASH_SPI_CS          IOID_11
-// #define BOARD_IOID_FLASH_SPI_MISO        IOID_12
+// #define BOARD_IOID_FLASH_SPI_CS          IOID_10
+// #define BOARD_IOID_FLASH_SPI_MISO        IOID_11
+// #define BOARD_IOID_FLASH_SPI_CLK         IOID_12
 // #define BOARD_IOID_FLASH_SPI_MOSI        IOID_13
-// #define BOARD_IOID_FLASH_SPI_CLK         IOID_14
 
-#define BOARD_IOID_BOOT                 IOID_1 //+
+#define BOARD_IOID_BOOT_BUTTON          IOID_1 //+
 #define BOARD_IOID_UART_SHELL_RX        IOID_2 //+
 #define BOARD_IOID_UART_SHELL_TX        IOID_3 //+
 #define BOARD_IOID_LED                  IOID_22 //+
@@ -103,6 +90,7 @@
 #define BOARD_IOID_FLASH_SPI_MOSI       IOID_24 //+
 #define BOARD_IOID_FLASH_SPI_CLK        IOID_25 //+
 
+/** @} */
 /*---------------------------------------------------------------------------*/
 /**
  * \name LED configurations
@@ -195,7 +183,7 @@
 #define BOARD_IOID_KEY_B            IOID_5 //on UMDK-BUTTON
 #define BOARD_IOID_KEY_C            IOID_6 //on UMDK-BUTTON
 #define BOARD_IOID_KEY_D            IOID_7 //on UMDK-BUTTON
-#define BOARD_IOID_KEY_E            BOARD_IOID_BOOT //generic connect/prog
+#define BOARD_IOID_KEY_E            BOARD_IOID_BOOT_BUTTON //generic connect/prog
 #define BOARD_KEY_A                 (1 << BOARD_IOID_KEY_A)
 #define BOARD_KEY_B                 (1 << BOARD_IOID_KEY_B)
 #define BOARD_KEY_C                 (1 << BOARD_IOID_KEY_C)
