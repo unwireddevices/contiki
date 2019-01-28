@@ -138,6 +138,12 @@
 								   IOC_INT_DISABLE	| IOC_IOMODE_INV	| \
 								   IOC_NO_WAKE_UP	| IOC_INPUT_DISABLE	)
 
+#define IOC_INPUT_PULL_DOWN (IOC_CURRENT_2MA	| IOC_STRENGTH_AUTO	| \
+                             IOC_IOPULL_DOWN	| IOC_SLEW_DISABLE	| \
+                             IOC_HYST_DISABLE	| IOC_NO_EDGE		| \
+                             IOC_INT_DISABLE	| IOC_IOMODE_NORMAL | \
+                             IOC_NO_WAKE_UP		| IOC_INPUT_ENABLE )
+
 /*---------------------------------------------------------------------------*/
 
 #define UART_DATA_POLL_INTERVAL 5	//in main timer ticks, one tick ~8ms
@@ -1636,6 +1642,17 @@ PROCESS_THREAD(settings_init, ev, data)
 	/* Чтение GPIO и установка режима работы */
 	ti_lib_ioc_pin_type_gpio_input(BOARD_IOID_BOOT_MODE); 
 	mode_node = ti_lib_gpio_read_dio(BOARD_IOID_BOOT_MODE);
+
+	// /* Конфигурируем вход как input pull down */
+	// ti_lib_ioc_port_configure_set(BOARD_IOID_BOOT_MODE, IOC_PORT_GPIO, IOC_INPUT_PULL_DOWN);
+	// ti_lib_gpio_set_output_enable_dio(BOARD_IOID_BOOT_MODE, GPIO_OUTPUT_ENABLE);
+
+	// /* Чтение GPIO и установка режима работы */
+	// mode_node = ti_lib_gpio_read_dio(BOARD_IOID_BOOT_MODE);
+
+	// /* Убираем подтяжку и выключаем GPIO*/
+	// ti_lib_ioc_port_configure_set(BOARD_IOID_BOOT_MODE, IOC_PORT_GPIO, IOC_STD_INPUT); 
+	// ti_lib_gpio_set_output_enable_dio(BOARD_IOID_BOOT_MODE, GPIO_OUTPUT_DISABLE);
 
 	/* Проверяем состояние перемычки и устанавливаем режим работы: ROOT или NODE */
 	if(!node_is_root())
