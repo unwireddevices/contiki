@@ -267,8 +267,9 @@ bool pwm_start(uint8_t channel)
 	{
 		if(settings_pwm_channel[channel].duty_cycle == 0)
 		{
-			ti_lib_ioc_pin_type_gpio_output(settings_pwm_channel[channel].pin);
-			// ti_lib_ioc_port_configure_set(settings_pwm_channel[channel].pin, IOC_PORT_GPIO, IOC_OUTPUT);
+			// ti_lib_ioc_pin_type_gpio_output(settings_pwm_channel[channel].pin);
+			ti_lib_ioc_port_configure_set(settings_pwm_channel[channel].pin, IOC_PORT_GPIO, IOC_OUTPUT);
+			ti_lib_gpio_set_output_enable_dio(settings_pwm_channel[channel].pin, GPIO_OUTPUT_ENABLE);
 			// ti_lib_gpio_clear_dio(settings_pwm_channel[channel].pin);
 			ti_lib_gpio_set_dio(settings_pwm_channel[channel].pin);
 
@@ -279,8 +280,9 @@ bool pwm_start(uint8_t channel)
 		}
 		else if(settings_pwm_channel[channel].duty_cycle == 100)
 		{
-			ti_lib_ioc_pin_type_gpio_output(settings_pwm_channel[channel].pin);
-			// ti_lib_ioc_port_configure_set(settings_pwm_channel[channel].pin, IOC_PORT_GPIO, IOC_OUTPUT);
+			// ti_lib_ioc_pin_type_gpio_output(settings_pwm_channel[channel].pin);
+			ti_lib_ioc_port_configure_set(settings_pwm_channel[channel].pin, IOC_PORT_GPIO, IOC_OUTPUT);
+			ti_lib_gpio_set_output_enable_dio(settings_pwm_channel[channel].pin, GPIO_OUTPUT_ENABLE);
 			// ti_lib_gpio_set_dio(settings_pwm_channel[channel].pin);
 			ti_lib_gpio_clear_dio(settings_pwm_channel[channel].pin);
 

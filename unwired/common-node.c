@@ -1412,11 +1412,8 @@ static bool dag_pwm_set(pwm_set_t *pwm_set_pack)
 	printf("[DAG Node] Relay: %s, PWM duty: %i%%\n", (pwm_set_pack->state >> 7) ? "on" : "off", (pwm_set_pack->state & 0x7F));
 	
 	/* Конфигурируем пин который управляет реле как high-drive выход */
-	ti_lib_ioc_port_configure_set(BOARD_IOID_RELAY, 
-								  IOC_PORT_GPIO,
-								  IOC_OUTPUT_HIGH_DRIVE_INV); 
-	// ti_lib_ioc_pin_type_gpio_output(BOARD_IOID_RELAY);
-	
+	ti_lib_ioc_port_configure_set(BOARD_IOID_RELAY, IOC_PORT_GPIO, IOC_OUTPUT_HIGH_DRIVE_INV);
+	ti_lib_gpio_set_output_enable_dio(BOARD_IOID_RELAY, GPIO_OUTPUT_ENABLE);
 
 	if(pwm_set_pack->state >> 7)
 	{
