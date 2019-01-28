@@ -126,12 +126,17 @@
 									UART_INT_FE | UART_INT_RT | UART_INT_TX | \
 									UART_INT_RX | UART_INT_CTS)
 
-
 #define IOC_OUTPUT_PULL_UP	(IOC_CURRENT_2MA	| IOC_STRENGTH_AUTO	| \
 							IOC_IOPULL_UP		| IOC_SLEW_DISABLE	| \
 							IOC_HYST_DISABLE	| IOC_NO_EDGE		| \
 							IOC_INT_DISABLE		| IOC_IOMODE_NORMAL	| \
 							IOC_NO_WAKE_UP		| IOC_INPUT_DISABLE	)	
+
+#define IOC_OUTPUT_HIGH_DRIVE_INV (IOC_CURRENT_8MA	| IOC_STRENGTH_AUTO	| \
+								   IOC_NO_IOPULL	| IOC_SLEW_DISABLE	| \
+								   IOC_HYST_DISABLE	| IOC_NO_EDGE		| \
+								   IOC_INT_DISABLE	| IOC_IOMODE_INV	| \
+								   IOC_NO_WAKE_UP	| IOC_INPUT_DISABLE	)
 
 /*---------------------------------------------------------------------------*/
 
@@ -264,7 +269,7 @@ static void dag_ota_req_data_sender(uint16_t ota_block);
 /* Команда отправки сообщения что прошивка обновлена */
 static void dag_finish_ota_sender(int8_t status);
 
-/**/
+/* Функция восстановления последнего состояния освещения */
 static void restore_last_state_of_lighting(void);
 
 /**/
@@ -1406,8 +1411,13 @@ static bool dag_pwm_set(pwm_set_t *pwm_set_pack)
 	/* Вывод информационного сообщения в консоль */
 	printf("[DAG Node] Relay: %s, PWM duty: %i%%\n", (pwm_set_pack->state >> 7) ? "on" : "off", (pwm_set_pack->state & 0x7F));
 	
-	/* Конфигурируем пин который управляет реле */
-	ti_lib_ioc_pin_type_gpio_output(BOARD_IOID_RELAY);
+	/* Конфигурируем пин который управляет реле как high-drive выход */
+	ti_lib_ioc_port_configure_set(BOARD_IOID_RELAY, 
+								  IOC_PORT_GPIO,
+								  IOC_OUTPUT_HIGH_DRIVE_INV); 
+	// ti_lib_ioc_pin_type_gpio_output(BOARD_IOID_RELAY);
+	
+
 	if(pwm_set_pack->state >> 7)
 	{
 		/* On */
@@ -1471,7 +1481,7 @@ static void dag_finish_ota_sender(int8_t status)
 }
 
 /*---------------------------------------------------------------------------*/
-/**/
+/* Функция восстановления последнего состояния освещения */
 static void restore_last_state_of_lighting(void)
 {
 	pointer_on_last_state = 0x0001C000;
@@ -1630,9 +1640,9 @@ PROCESS_THREAD(settings_init, ev, data)
 	ti_lib_ioc_pin_type_gpio_input(BOARD_IOID_BOOT_MODE); 
 	mode_node = ti_lib_gpio_read_dio(BOARD_IOID_BOOT_MODE);
 
-	/*  */
+	/* Проверяем состояние перемычки и устанавливаем режим работы: ROOT или NODE */
 	if(!node_is_root())
-		restore_last_state_of_lighting();
+		restore_last_state_of_lighting();	/* Если загрузились в режиме ноды, то устанавливаем последние состояние */
 
 	/* Передаем управление main_process */
 	process_post(&main_process, PROCESS_EVENT_CONTINUE, NULL);

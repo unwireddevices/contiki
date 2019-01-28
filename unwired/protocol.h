@@ -322,18 +322,18 @@ typedef struct {
 } pack finish_ota_t;
 
 /*---------------------------------------------------------------------------*/
-/*Основные*/
-#define UDP_DATA_PORT					‭61616‬ /* Этот номер порта используется при сжатии заголовка 6LoWPAN */
+/* Основные */
+#define UDP_DATA_PORT					61616 /* Этот номер порта используется при сжатии заголовка 6LoWPAN */
 #define UDBP_PROTOCOL_VERSION			1
 
 /*---------------------------------------------------------------------------*/
-/*OFFSET*/
+/* OFFSET */
 #define HEADER_OFFSET 					0
 #define HEADER_DOWN_OFFSET 				HEADER_OFFSET + HEADER_UP_LENGTH
 #define PAYLOAD_OFFSET 					HEADER_OFFSET + HEADER_UP_LENGTH + HEADER_DOWN_LENGTH
 
 /*---------------------------------------------------------------------------*/
-/*LENGTH*/
+/* LENGTH */
 #define HEADER_UP_LENGTH				sizeof(header_up_t)
 #define HEADER_DOWN_LENGTH				sizeof(header_down_t)
 #define HEADER_LENGTH 					HEADER_UP_LENGTH + HEADER_DOWN_LENGTH
@@ -371,9 +371,9 @@ typedef struct {
 #define GPIO_CMD_LENGTH					sizeof(gpio_command_t)
 
 /*---------------------------------------------------------------------------*/
-/*COMMAND*/
+/* COMMAND */
 
-/*UNWDS-6LOWPAN_SYSTEM*/
+/* UNWDS-6LOWPAN_SYSTEM */
 #define JOIN_STAGE_1				0x00 /* Нода посылает запрос координатору */
 #define JOIN_STAGE_2				0x01 /* Координатор отправляет ecb_encrypt(nonce=rand()) */
 #define JOIN_STAGE_3				0x02 /* Нода удостоверяет, что она знает ключ отправляя cbc_encrypt(nonce+1) */
@@ -387,22 +387,22 @@ typedef struct {
 #define DATA_FOR_OTA				0x0A /* Команда с данными для OTA */
 #define FINISH_OTA					0x0B /* Команда c данными результата обновления прошивки */
 
-/*UNWDS-4BTN*/
+/* UNWDS-4BTN */
 #define BUTTON_STATUS				0x00 /* Пакет статусом нажатой кнопки*/
 
-/*UNWDS-6FET*/
+/* UNWDS-6FET */
 #define PWM_SETTINGS				0x00 /* Пакет с настройками ШИМ канала */
 #define PWM_POWER					0x01 /* Команда включения/выключения канала ШИМ'а */
 #define PWM_SET						0x02 /* Команда включения/выключения канала ШИМ'а c заданным duty cycle */
 
-/*UNWDS-LIT*/
+/* UNWDS-LIT */
 #define LIT_MEASURE					0x00 /* Команда запроса замера освещенности */
 #define LIT_MEASURE_STATUS			0x01 /* Результаты замера освещенности */
 
-/*UNWDS-GPIO*/
+/* UNWDS-GPIO */
 #define GPIO_CMD					0x00 /* Отправка команды для ножки порта */
 
-/*UNWDS-UART*/
+/* UNWDS-UART */
 #define SEND_BY_UART 				0x00 /* Команда отправки данных по UART'у */
 
 /*---------------------------------------------------------------------------*/

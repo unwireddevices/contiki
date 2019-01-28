@@ -49,15 +49,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+//IOC_IOMODE_INV NORMAL
 #define IOC_OUTPUT (IOC_CURRENT_8MA    | IOC_STRENGTH_MAX | \
                     IOC_NO_IOPULL      | IOC_SLEW_DISABLE | \
                     IOC_HYST_DISABLE   | IOC_NO_EDGE      | \
-                    IOC_INT_DISABLE    | IOC_IOMODE_INV   | \
+                    IOC_INT_DISABLE    | IOC_IOMODE_NORMAL| \
                     IOC_NO_WAKE_UP     | IOC_INPUT_DISABLE )
+
+typedef struct {		
+	uint8_t pin; 			/* Pin */
+	uint8_t duty_cycle; 	/* Duty cycle */
+} __attribute__((packed)) settings_pwm_t;
 
 /**/										 
 static uint8_t settings_pwm = 0;
 static uint8_t power_pwm = 0; 
+static settings_pwm_t settings_pwm_channel[6]; 
 
 /*---------------------------------------------------------------------------*/
 /**/
@@ -96,16 +103,34 @@ bool pwm_config(uint8_t channel, uint32_t frequency, uint8_t duty, uint32_t pin)
 
 	if(duty == 100)
 	{
-		ti_lib_ioc_pin_type_gpio_output(pin);
-		ti_lib_gpio_set_dio(pin);
+		/*Сохраняем значение номер пина*/
+		settings_pwm_channel[channel].pin = pin;
+
+		/*Сохраняем значение duty cycle*/
+		settings_pwm_channel[channel].duty_cycle = duty;
+
+		/*Отмечаем то что этот канал ШИМ'а настроен*/
+		settings_pwm |= (1 << channel);
+		
+		/*Вывод информационного сообщения в консоль*/
+		printf("[PWM] Channel %i is configured: %lu Hz, duty %i%%, %lu pin\n", channel, frequency, duty, pin);
 
 		return true;
 	}
 
 	if(duty == 0)
 	{
-		ti_lib_ioc_pin_type_gpio_output(pin);
-		ti_lib_gpio_clear_dio(pin);
+		/*Сохраняем значение номер пина*/
+		settings_pwm_channel[channel].pin = pin;
+
+		/*Сохраняем значение duty cycle*/
+		settings_pwm_channel[channel].duty_cycle = duty;
+
+		/*Отмечаем то что этот канал ШИМ'а настроен*/
+		settings_pwm |= (1 << channel);
+		
+		/*Вывод информационного сообщения в консоль*/
+		printf("[PWM] Channel %i is configured: %lu Hz, duty %i%%, %lu pin\n", channel, frequency, duty, pin);
 
 		return true;
 	}
@@ -198,6 +223,9 @@ bool pwm_config(uint8_t channel, uint32_t frequency, uint8_t duty, uint32_t pin)
 	else if(channel == 5)
 		ti_lib_ioc_port_configure_set(pin, IOC_PORT_MCU_PORT_EVENT7, IOC_OUTPUT);
 	
+	/*Сохраняем значение duty cycle*/
+	settings_pwm_channel[channel].duty_cycle = duty;
+
 	/*Отмечаем то что этот канал ШИМ'а настроен*/
 	settings_pwm |= (1 << channel);
 	
@@ -228,12 +256,40 @@ bool pwm_start(uint8_t channel)
 		
 		return false;	
 	}
-	
+
 	if(power_pwm == 0)
 		lpm_register_module(&pwm_module);
-	
+
 	/*Отмечаем то что этот канал ШИМ'а запущен*/
 	power_pwm |= (1 << channel);
+
+	if(((settings_pwm >> channel) & 0x01) == 0x01)
+	{
+		if(settings_pwm_channel[channel].duty_cycle == 0)
+		{
+			ti_lib_ioc_pin_type_gpio_output(settings_pwm_channel[channel].pin);
+			// ti_lib_ioc_port_configure_set(settings_pwm_channel[channel].pin, IOC_PORT_GPIO, IOC_OUTPUT);
+			// ti_lib_gpio_clear_dio(settings_pwm_channel[channel].pin);
+			ti_lib_gpio_set_dio(settings_pwm_channel[channel].pin);
+
+			/*Вывод информационного сообщения в консоль*/
+			printf("[PWM] Channel %i is running\n", channel);
+
+			return true;
+		}
+		else if(settings_pwm_channel[channel].duty_cycle == 100)
+		{
+			ti_lib_ioc_pin_type_gpio_output(settings_pwm_channel[channel].pin);
+			// ti_lib_ioc_port_configure_set(settings_pwm_channel[channel].pin, IOC_PORT_GPIO, IOC_OUTPUT);
+			// ti_lib_gpio_set_dio(settings_pwm_channel[channel].pin);
+			ti_lib_gpio_clear_dio(settings_pwm_channel[channel].pin);
+
+			/*Вывод информационного сообщения в консоль*/
+			printf("[PWM] Channel %i is running\n", channel);
+	
+			return true;
+		}
+	}
 	
 	/*Запускаем канал ШИМ'а*/
 	if(channel == 0)
