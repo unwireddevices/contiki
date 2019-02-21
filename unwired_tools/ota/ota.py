@@ -59,6 +59,35 @@ REQ_DATA_FOR_OTA =  0x09
 DATA_FOR_OTA =      0x0A 
 FINISH_OTA = 	    0x0B 
 
+# uint16_t crc16_arc(uint8_t *data, uint16_t len)
+# {
+#    uint16_t crc = 0x0000;
+#    for (uint16_t j = len; j > 0; j--)
+#    {
+#       crc ^= *data++;
+#       for (uint8_t i = 0; i < 8; i++)
+#       {
+#          if (crc & 1)
+#             crc = (crc >> 1) ^ 0xA001; // 0xA001 is the reflection of 0x8005
+#          else
+#             crc >>= 1;
+#       }
+#    }
+#    return (crc);
+# }
+
+# def crc16_arc(data):
+#     crc = 0
+#     for i in range(0, 256):
+#         if(crc & 1):
+#             crc = (crc >> 1) ^ 0xA001 # 0xA001 is the reflection of 0x8005
+#         else:
+#             crc >>= 1
+#     return crc
+
+
+
+
 def uint16_to_int(uint16_num):
     return ((uint16_num[1] << 8) | uint16_num[0])
 

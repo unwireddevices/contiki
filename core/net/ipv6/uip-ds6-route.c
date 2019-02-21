@@ -58,7 +58,7 @@
 ////////////////////////////////////////////////////////////////////
 #ifdef UNWDS_ROOT 
 /* Define some settings */
-#define ROUTELIST_SAVE_INTERVAL				(60 * CLOCK_SECOND)
+#define ROUTELIST_SAVE_INTERVAL				(60 * 60 * CLOCK_SECOND) // Раз в час
 #define MIN_NUM_ROUTE_SAVE					(20)
 
 #define EEPROM_ADDR							(0x00060000)
@@ -1183,21 +1183,21 @@ PROCESS_THREAD(save_routelist_process, ev, data)
 		/* Засыпаем до срабатывания таймера */
 		PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&save_routelist_timer));
 
-		/* TEST PRINTF */		
-		printf("[DAG Node] Number of routes: %i\n", uip_ds6_route_num_routes());
-		if(save_routelist())
-			printf("[DAG Node] Save route table: ok\n");
-		else
-			printf("[DAG Node] Save route table: error\n");
+		// /* TEST PRINTF */		
+		// printf("[DAG Node] Number of routes: %i\n", uip_ds6_route_num_routes());
+		// if(save_routelist())
+		// 	printf("[DAG Node] Save route table: ok\n");
+		// else
+		// 	printf("[DAG Node] Save route table: error\n");
 		
 		/* Если прошел 1ч и устройств > MIN_NUM_ROUTE_SAVE, то сохраняем таблицу маршрутизации */
-		// if(uip_ds6_route_num_routes() > MIN_NUM_ROUTE_SAVE)								
-		// {
-		// 	if(save_routelist())
-		// 		printf("save_routelist: ok\n");
-		// 	else
-		// 		printf("save_routelist: error\n");
-		// }
+		if(uip_ds6_route_num_routes() > MIN_NUM_ROUTE_SAVE)								
+		{
+			if(save_routelist())
+				printf("save_routelist: ok\n");
+			else
+				printf("save_routelist: error\n");
+		}
 	}
 	
 	PROCESS_END();
