@@ -458,12 +458,11 @@ void root_udp_data_receiver(struct simple_udp_connection *connection,
 	// printf("Recive pack: %x\n", header_up_pack->data_type);
 	
 	/* Вывод информационного сообщения в консоль */
-	// printf("Packet crypto received(%"PRIu8"): ", datalen);
-	// for (uint16_t i = 0; i < datalen; i++)	/* Выводим принятый пакет */ 
-		// printf("%"PRIXX8, data[i]);
-	// printf("\n");
+	printf("Packet crypto received(%"PRIu8"): ", datalen);
+	for (uint16_t i = 0; i < datalen; i++)	/* Выводим принятый пакет */ 
+		printf("%"PRIXX8, data[i]);
+	printf("\n");
 	
-
 	/* Проверяем версию протокола */ 
 	if(header_up_pack->protocol_version == UDBP_PROTOCOL_VERSION)
 	{
@@ -1649,20 +1648,20 @@ PROCESS_THREAD(settings_init, ev, data)
 		}
 	}
 	
-	// /* Чтение GPIO и установка режима работы */
-	// ti_lib_ioc_pin_type_gpio_input(BOARD_IOID_BOOT_MODE); 
-	// mode_node = ti_lib_gpio_read_dio(BOARD_IOID_BOOT_MODE);
-
-	/* Конфигурируем вход как input pull down */
-	ti_lib_ioc_port_configure_set(BOARD_IOID_BOOT_MODE, IOC_PORT_GPIO, IOC_INPUT_PULL_DOWN);
-	ti_lib_gpio_set_output_enable_dio(BOARD_IOID_BOOT_MODE, GPIO_OUTPUT_ENABLE);
-
 	/* Чтение GPIO и установка режима работы */
+	ti_lib_ioc_pin_type_gpio_input(BOARD_IOID_BOOT_MODE); 
 	mode_node = ti_lib_gpio_read_dio(BOARD_IOID_BOOT_MODE);
 
-	/* Убираем подтяжку и выключаем GPIO*/
-	ti_lib_ioc_port_configure_set(BOARD_IOID_BOOT_MODE, IOC_PORT_GPIO, IOC_STD_INPUT); 
-	ti_lib_gpio_set_output_enable_dio(BOARD_IOID_BOOT_MODE, GPIO_OUTPUT_DISABLE);
+	// /* Конфигурируем вход как input pull down */
+	// ti_lib_ioc_port_configure_set(BOARD_IOID_BOOT_MODE, IOC_PORT_GPIO, IOC_INPUT_PULL_DOWN);
+	// ti_lib_gpio_set_output_enable_dio(BOARD_IOID_BOOT_MODE, GPIO_OUTPUT_ENABLE);
+
+	// /* Чтение GPIO и установка режима работы */
+	// mode_node = ti_lib_gpio_read_dio(BOARD_IOID_BOOT_MODE);
+
+	// /* Убираем подтяжку и выключаем GPIO*/
+	// ti_lib_ioc_port_configure_set(BOARD_IOID_BOOT_MODE, IOC_PORT_GPIO, IOC_STD_INPUT); 
+	// ti_lib_gpio_set_output_enable_dio(BOARD_IOID_BOOT_MODE, GPIO_OUTPUT_DISABLE);
 
 	/* Проверяем состояние перемычки и устанавливаем режим работы: ROOT или NODE */
 	if(!node_is_root())
