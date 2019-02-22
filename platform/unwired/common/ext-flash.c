@@ -82,8 +82,8 @@
 #define BLS_DEVICE_ID_NU_MP25P40  0x20
 #define BLS_NU_4MBIT              0x13
 
-#define BLS_PROGRAM_PAGE_SIZE      256
-#define BLS_ERASE_SECTOR_SIZE     4096
+#define BLS_PROGRAM_PAGE_SIZE     256
+#define BLS_ERASE_SECTOR_SIZE     0x10000
 /*---------------------------------------------------------------------------*/
 #define VERIFY_PART_ERROR           -1
 #define VERIFY_PART_POWERED_DOWN     0

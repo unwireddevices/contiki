@@ -1629,7 +1629,17 @@ PROCESS_THREAD(settings_init, ev, data)
 		bool eeprom_access = ext_flash_open();
 		if(eeprom_access)
 		{
+			/* Записываем на флешку GOLDEN IMAGE */
 			backup_golden_image();
+
+			/* Очищаем флешку остальную часть флешки */
+			for (uint8_t page = 2; page < 8; page++)
+			{
+				printf("[Node] Erasing page %i from 0x%08x\n", page, (page * 0x10000));
+				erase_extflash_page(page * 0x10000);
+			}
+			ext_flash_close();
+
 			eeprom_settings.is_backup_golden_image = 0;
 			write_eeprom((uint8_t*)&eeprom_settings, sizeof(eeprom_settings));
 		}
@@ -1639,20 +1649,20 @@ PROCESS_THREAD(settings_init, ev, data)
 		}
 	}
 	
-	/* Чтение GPIO и установка режима работы */
-	ti_lib_ioc_pin_type_gpio_input(BOARD_IOID_BOOT_MODE); 
-	mode_node = ti_lib_gpio_read_dio(BOARD_IOID_BOOT_MODE);
-
-	// /* Конфигурируем вход как input pull down */
-	// ti_lib_ioc_port_configure_set(BOARD_IOID_BOOT_MODE, IOC_PORT_GPIO, IOC_INPUT_PULL_DOWN);
-	// ti_lib_gpio_set_output_enable_dio(BOARD_IOID_BOOT_MODE, GPIO_OUTPUT_ENABLE);
-
 	// /* Чтение GPIO и установка режима работы */
+	// ti_lib_ioc_pin_type_gpio_input(BOARD_IOID_BOOT_MODE); 
 	// mode_node = ti_lib_gpio_read_dio(BOARD_IOID_BOOT_MODE);
 
-	// /* Убираем подтяжку и выключаем GPIO*/
-	// ti_lib_ioc_port_configure_set(BOARD_IOID_BOOT_MODE, IOC_PORT_GPIO, IOC_STD_INPUT); 
-	// ti_lib_gpio_set_output_enable_dio(BOARD_IOID_BOOT_MODE, GPIO_OUTPUT_DISABLE);
+	/* Конфигурируем вход как input pull down */
+	ti_lib_ioc_port_configure_set(BOARD_IOID_BOOT_MODE, IOC_PORT_GPIO, IOC_INPUT_PULL_DOWN);
+	ti_lib_gpio_set_output_enable_dio(BOARD_IOID_BOOT_MODE, GPIO_OUTPUT_ENABLE);
+
+	/* Чтение GPIO и установка режима работы */
+	mode_node = ti_lib_gpio_read_dio(BOARD_IOID_BOOT_MODE);
+
+	/* Убираем подтяжку и выключаем GPIO*/
+	ti_lib_ioc_port_configure_set(BOARD_IOID_BOOT_MODE, IOC_PORT_GPIO, IOC_STD_INPUT); 
+	ti_lib_gpio_set_output_enable_dio(BOARD_IOID_BOOT_MODE, GPIO_OUTPUT_DISABLE);
 
 	/* Проверяем состояние перемычки и устанавливаем режим работы: ROOT или NODE */
 	if(!node_is_root())

@@ -62,19 +62,19 @@
  *
  */
 
-// #define BOARD_IOID_UART_COORDINATOR_TX   IOID_0
-// #define BOARD_IOID_UART_COORDINATOR_RX   IOID_1
-// #define BOARD_IOID_UART_SHELL_RX         IOID_UNUSED
-// #define BOARD_IOID_UART_SHELL_TX         IOID_UNUSED
-// #define BOARD_IOID_LED                   IOID_2
-// #define BOARD_IOID_PWM                   IOID_3
-// #define BOARD_IOID_BOOT_BUTTON           IOID_4
-// #define BOARD_IOID_RELAY                 IOID_6
-// #define BOARD_IOID_BOOT_MODE             IOID_7
-// #define BOARD_IOID_FLASH_SPI_CS          IOID_10
-// #define BOARD_IOID_FLASH_SPI_MISO        IOID_11
-// #define BOARD_IOID_FLASH_SPI_CLK         IOID_12
-// #define BOARD_IOID_FLASH_SPI_MOSI        IOID_13
+#define BOARD_IOID_UART_COORDINATOR_TX   IOID_0
+#define BOARD_IOID_UART_COORDINATOR_RX   IOID_1
+#define BOARD_IOID_UART_SHELL_RX         IOID_UNUSED
+#define BOARD_IOID_UART_SHELL_TX         IOID_UNUSED
+#define BOARD_IOID_LED                   IOID_2
+#define BOARD_IOID_PWM                   IOID_3
+#define BOARD_IOID_BOOT_BUTTON           IOID_4
+#define BOARD_IOID_RELAY                 IOID_6
+#define BOARD_IOID_BOOT_MODE             IOID_7
+#define BOARD_IOID_FLASH_SPI_CS          IOID_10
+#define BOARD_IOID_FLASH_SPI_MISO        IOID_11
+#define BOARD_IOID_FLASH_SPI_CLK         IOID_12
+#define BOARD_IOID_FLASH_SPI_MOSI        IOID_13
 
 // #define BOARD_IOID_UART_COORDINATOR_TX   IOID_UNUSED
 // #define BOARD_IOID_UART_COORDINATOR_RX   IOID_UNUSED
@@ -90,19 +90,19 @@
 // #define BOARD_IOID_FLASH_SPI_CLK         IOID_12
 // #define BOARD_IOID_FLASH_SPI_MOSI        IOID_13
 
-#define BOARD_IOID_BOOT_BUTTON          IOID_1 //+
-#define BOARD_IOID_UART_SHELL_RX        IOID_2 //+
-#define BOARD_IOID_UART_SHELL_TX        IOID_3 //+
-#define BOARD_IOID_LED                  IOID_22 //+
-#define BOARD_IOID_PWM                  IOID_7 //+
-#define BOARD_IOID_RELAY                IOID_6 //+
-#define BOARD_IOID_BOOT_MODE            IOID_23 //+
-#define BOARD_IOID_UART_COORDINATOR_TX  IOID_27 //+
-#define BOARD_IOID_UART_COORDINATOR_RX  IOID_26 //+
-#define BOARD_IOID_FLASH_SPI_CS         IOID_4 //+
-#define BOARD_IOID_FLASH_SPI_MISO       IOID_5 //+
-#define BOARD_IOID_FLASH_SPI_MOSI       IOID_24 //+
-#define BOARD_IOID_FLASH_SPI_CLK        IOID_25 //+
+// #define BOARD_IOID_BOOT_BUTTON          IOID_1 //+
+// #define BOARD_IOID_UART_SHELL_RX        IOID_2 //+
+// #define BOARD_IOID_UART_SHELL_TX        IOID_3 //+
+// #define BOARD_IOID_LED                  IOID_22 //+
+// #define BOARD_IOID_PWM                  IOID_7 //+
+// #define BOARD_IOID_RELAY                IOID_6 //+
+// #define BOARD_IOID_BOOT_MODE            IOID_23 //+
+// #define BOARD_IOID_UART_COORDINATOR_TX  IOID_27 //+
+// #define BOARD_IOID_UART_COORDINATOR_RX  IOID_26 //+
+// #define BOARD_IOID_FLASH_SPI_CS         IOID_4 //+
+// #define BOARD_IOID_FLASH_SPI_MISO       IOID_5 //+
+// #define BOARD_IOID_FLASH_SPI_MOSI       IOID_24 //+
+// #define BOARD_IOID_FLASH_SPI_CLK        IOID_25 //+
 
 /** @} */
 /*---------------------------------------------------------------------------*/

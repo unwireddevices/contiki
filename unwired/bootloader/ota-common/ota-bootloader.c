@@ -438,7 +438,7 @@ erase_extflash_page( uint32_t ext_address )
     return -1;
   }
   //PRINTF("[OTA]: Erasing flash (0x%"PRIX32",0x%"PRIX16")\n", ext_address, FLASH_PAGE_SIZE);
-  eeprom_access = ext_flash_erase( ext_address, FLASH_PAGE_SIZE );
+  eeprom_access = ext_flash_erase( ext_address, 0x10000 );
   //PRINTF("[OTA]: Erased flash at (0x%"PRIX32",0x%"PRIX16")\n", ext_address, FLASH_PAGE_SIZE);
 
   if(eeprom_access == false) {
@@ -474,10 +474,13 @@ erase_ota_image( uint8_t ota_slot )
     ota_image_base_address = GOLDEN_IMAGE;
   }
 
-  //  (2) Erase each page in the OTA download slot!
-  for (uint32_t page=0; page<25; page++) {
-    while( erase_extflash_page( (( ota_image_base_address + page ) << 12) ) );
-  }
+  erase_extflash_page(ota_image_base_address<<12);
+  erase_extflash_page(((ota_image_base_address<<12) + 0x10000));
+
+  // //  (2) Erase each page in the OTA download slot!
+  // for (uint32_t page=0; page<25; page++) {
+    // while( erase_extflash_page( (( ota_image_base_address + page ) << 12) ) );
+  // }
 
   return 0;
 }

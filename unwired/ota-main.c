@@ -638,7 +638,7 @@ erase_extflash_page( uint32_t ext_address )
     return -1;
   }
   //PRINTF("[OTA]: Erasing flash (0x%"PRIX32",0x%"PRIX16")\n", ext_address, FLASH_PAGE_SIZE);
-  eeprom_access = ext_flash_erase( ext_address, FLASH_PAGE_SIZE );
+  eeprom_access = ext_flash_erase( ext_address, 0x10000 );
   //PRINTF("[OTA]: Erased flash at (0x%"PRIX32",0x%"PRIX16")\n", ext_address, FLASH_PAGE_SIZE);
 
   if(eeprom_access == false) {
@@ -685,7 +685,7 @@ erase_ota_image( uint8_t ota_slot )
 {
   ota_slot_for_erase = ota_slot;
 
-  static uint32_t page;
+  // static uint8_t page;
 
   //  (1) Get page address of the ota_slot in ext-flash
   static uint8_t ota_image_base_address;
@@ -694,14 +694,23 @@ erase_ota_image( uint8_t ota_slot )
   } else {
     ota_image_base_address = GOLDEN_IMAGE;
   }
-  PRINTF("[OTA] Erasing OTA slot %u [%#x, %#x)...\n", ota_slot_for_erase, (ota_image_base_address<<12), ((ota_image_base_address+25)<<12));
 
-  //  (2) Erase each page in the OTA download slot!
-  for (page=0; page<25; page++) {
-    PRINTF("[OTA] Erasing page %"PRIu32" at 0x%"PRIX32"..\n", page, (( ota_image_base_address + page ) << 12));
-    while( erase_extflash_page( (( ota_image_base_address + page ) << 12) ) );
-    watchdog_periodic();
-  }
+  PRINTF("[OTA] Erasing OTA slot %u from 0x%08x to 0x%08x\n", ota_slot_for_erase, (ota_image_base_address<<12), (ota_image_base_address<<12) + 0x20000);
+  PRINTF("[OTA] Erasing page from 0x%08x\n", ota_image_base_address<<12);
+  erase_extflash_page(ota_image_base_address<<12);
+  watchdog_periodic();
+  PRINTF("[OTA] Erasing page from 0x%08x\n", ((ota_image_base_address<<12) + 0x10000));
+  erase_extflash_page(((ota_image_base_address<<12) + 0x10000));
+  watchdog_periodic();
+
+  // PRINTF("[OTA] Erasing OTA slot %u [%#x, %#x)...\n", ota_slot_for_erase, (ota_image_base_address<<12), ((ota_image_base_address+25)<<12));
+
+  // //  (2) Erase each page in the OTA download slot!
+  // for (page=0; page<25; page++) {
+  //   PRINTF("[OTA] Erasing page %"PRIu32" at 0x%"PRIX32"..\n", page, (( ota_image_base_address + page ) << 12));
+  //   while( erase_extflash_page( (( ota_image_base_address + page ) << 12) ) );
+  //   watchdog_periodic();
+  // }
   PRINTF("[OTA] OTA slot erased\n");
 
   return 0;
