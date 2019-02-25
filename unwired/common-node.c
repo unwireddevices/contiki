@@ -655,6 +655,11 @@ static void join_stage_2_sender(const uip_ip6addr_t *dest_addr,
 {	
 	/* Вывод принятого пакета микрокомпьютеру */ 
 	print_cr((uip_ip6addr_t*)dest_addr, (uint8_t*)data, (HEADER_LENGTH + JOIN_STAGE_1_LENGTH));
+
+	/* Вывод сообщения об успешной авторизации */
+	printf("[");
+	uip_debug_ipaddr_print((uip_ip6addr_t*)dest_addr);
+	printf("] Join stage 2\n");
 	
 	/* Выделяем память под пакет. Общий размер пакета (header + payload) */
 	uint8_t udp_buffer[HEADER_UP_LENGTH + JOIN_STAGE_2_PAYLOAD_LENGTH];
@@ -863,10 +868,8 @@ static void send_pack_from_cr(uint8_t* data)
 {
 	/* Отражаем структуры на массивы */ 
 	uart_header_t *uart_header_pack = (uart_header_t*)&data[2];
-	// uint16_t *len = (uint16_t*)data;
+	uint16_t *data_uart_len = (uint16_t*)data;
 
-	// printf("len = %i\n", *len);
-	
 	// /* Для отладки. Выводит содержимое пакета */
 	// printf("uart_event_message: ");	
 	// hexraw_print(*len, (uint8_t*)&data[2]);
@@ -878,15 +881,26 @@ static void send_pack_from_cr(uint8_t* data)
 	// printf("uart_header_pack->device_id: %i\n", uart_header_pack->device_id);
 	// printf("uart_header_pack->data_type: %i\n", uart_header_pack->data_type);
 	// printf("uart_header_pack->payload_len: %i\n", uart_header_pack->payload_len);
+
+	// printf("len = %i\n", *data_uart_len);
+	// uint16_t crc16 = crc16_arc(&data[2], *data_uart_len - 2); 
+	// printf("crc = 0x%04x\n", crc16);
+	// printf("crc = 0x%04x\n", *(uint16_t*)(&data[*data_uart_len]));
 	
-	/* Отправляем пакет */ 
-	pack_sender(&(uart_header_pack->dest_addr), 	/* Адрес модуля */
-				uart_header_pack->device_id, 		/* Индентификатор модуля */
+	if ((crc16_arc(&data[2], *data_uart_len - 2)) == (*(uint16_t*)(&data[*data_uart_len]))) {
+		/* Отправляем пакет */ 
+		pack_sender(&(uart_header_pack->dest_addr),	/* Адрес модуля */
+				uart_header_pack->device_id,		/* Индентификатор модуля */
 				uart_header_pack->data_type, 		/* Команда */
 				uart_header_pack->payload_len, 		/* Размер payload'а */
 				(uint8_t*)&data[22] );				/* Payload */
 
-	puts("[ROOT Node] Pack from coordinator sent");
+		puts("[ROOT Node] Pack from coordinator sent");
+	}
+	else
+	{
+		puts("[ROOT Node] Pack from coordinator don't sent. ERROR CRC");
+	}
 }
 
 /*---------------------------------------------------------------------------*/
@@ -903,10 +917,10 @@ static void print_cr(const uip_ip6addr_t *dest_addr,
 	ti_lib_gpio_set_output_enable_dio(BOARD_IOID_UART_SHELL_TX, GPIO_OUTPUT_ENABLE);
 	ti_lib_ioc_port_configure_set(BOARD_IOID_UART_SHELL_TX, IOC_PORT_GPIO, IOC_OUTPUT_PULL_UP);
 
-	/*Присоединяем пин к UART'у*/ 
+	/* Присоединяем пин к UART'у */ 
 	ti_lib_ioc_port_configure_set(BOARD_IOID_ALT_UART_TX, IOC_PORT_MCU_UART0_TX, IOC_STD_OUTPUT);
 
-	/*Небольшая задержка для того что бы UART успел переключиться*/
+	/* Небольшая задержка для того что бы UART успел переключиться */
 	clock_wait(CLOCK_SECOND * 0.0025);
 
 	/* Выводим адрес отправителя */

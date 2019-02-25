@@ -62,10 +62,11 @@
  *
  */
 
+/* Without shell */
 #define BOARD_IOID_UART_COORDINATOR_TX   IOID_0
 #define BOARD_IOID_UART_COORDINATOR_RX   IOID_1
-#define BOARD_IOID_UART_SHELL_RX         IOID_UNUSED
-#define BOARD_IOID_UART_SHELL_TX         IOID_UNUSED
+#define BOARD_IOID_UART_SHELL_RX         IOID_8 // IOID_UNUSED
+#define BOARD_IOID_UART_SHELL_TX         IOID_9 // IOID_UNUSED
 #define BOARD_IOID_LED                   IOID_2
 #define BOARD_IOID_PWM                   IOID_3
 #define BOARD_IOID_BOOT_BUTTON           IOID_4
@@ -76,8 +77,9 @@
 #define BOARD_IOID_FLASH_SPI_CLK         IOID_12
 #define BOARD_IOID_FLASH_SPI_MOSI        IOID_13
 
-// #define BOARD_IOID_UART_COORDINATOR_TX   IOID_UNUSED
-// #define BOARD_IOID_UART_COORDINATOR_RX   IOID_UNUSED
+/* With shell */
+// #define BOARD_IOID_UART_COORDINATOR_TX   IOID_9
+// #define BOARD_IOID_UART_COORDINATOR_RX   IOID_8
 // #define BOARD_IOID_UART_SHELL_RX         IOID_1
 // #define BOARD_IOID_UART_SHELL_TX         IOID_0
 // #define BOARD_IOID_LED                   IOID_2
@@ -90,6 +92,7 @@
 // #define BOARD_IOID_FLASH_SPI_CLK         IOID_12
 // #define BOARD_IOID_FLASH_SPI_MOSI        IOID_13
 
+/* UMDK-RF */
 // #define BOARD_IOID_BOOT_BUTTON          IOID_1 //+
 // #define BOARD_IOID_UART_SHELL_RX        IOID_2 //+
 // #define BOARD_IOID_UART_SHELL_TX        IOID_3 //+

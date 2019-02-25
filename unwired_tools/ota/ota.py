@@ -59,34 +59,17 @@ REQ_DATA_FOR_OTA =  0x09
 DATA_FOR_OTA =      0x0A 
 FINISH_OTA = 	    0x0B 
 
-# uint16_t crc16_arc(uint8_t *data, uint16_t len)
-# {
-#    uint16_t crc = 0x0000;
-#    for (uint16_t j = len; j > 0; j--)
-#    {
-#       crc ^= *data++;
-#       for (uint8_t i = 0; i < 8; i++)
-#       {
-#          if (crc & 1)
-#             crc = (crc >> 1) ^ 0xA001; // 0xA001 is the reflection of 0x8005
-#          else
-#             crc >>= 1;
-#       }
-#    }
-#    return (crc);
-# }
-
-# def crc16_arc(data):
-#     crc = 0
-#     for i in range(0, 256):
-#         if(crc & 1):
-#             crc = (crc >> 1) ^ 0xA001 # 0xA001 is the reflection of 0x8005
-#         else:
-#             crc >>= 1
-#     return crc
-
-
-
+def crc16_arc(data):
+    crc = 0
+    for j in range(len(data)):
+        crc ^= data[j]
+        for i in range(8):
+            if(crc & 1):
+                crc = (crc >> 1) ^ 0xA001 # 0xA001 is the reflection of 0x8005
+            else:
+                crc >>= 1
+        # crc &= 0xFFFF
+    return crc & 0xFFFF
 
 def uint16_to_int(uint16_num):
     return ((uint16_num[1] << 8) | uint16_num[0])
@@ -128,12 +111,15 @@ def send_pack(dest_addr, device_id, data_type, payload_len, payload):
     pack.append(data_type)
     pack.extend(int_to_uint16(payload_len))
     pack.extend(payload)
+    crc16 = crc16_arc(pack)
+    pack.append(crc16 & 0xFF)
+    pack.append((crc16 & 0xFF00)>>8)
     
-    #### print pack ###
-    # pack_str = ''
-    # for i in pack:
-    #     pack_str += '0x{} '.format(chr(i).encode('hex'))
-    # print(pack_str)
+    ### print pack ###
+    pack_str = ''
+    for i in pack:
+        pack_str += '0x{} '.format(chr(i).encode('hex'))
+    print(pack_str)
 
     return ser.write(pack)
 
