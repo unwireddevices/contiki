@@ -230,7 +230,7 @@ bool save_routelist(void);
 /* Struct for route table to EEPROM */
 typedef struct 
 {		
-	uint32_t magic_bytes;
+  uint32_t magic_bytes;
   uint16_t crc16;
   struct memb defaultroutermemb;
   nbr_table_t *nbr_routes;

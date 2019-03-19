@@ -114,13 +114,14 @@
 #include "protocol.h"
 
 /* DAG DEF */
-#define MAINTENANCE_INTERVAL			(10 * 60 * CLOCK_SECOND)
-#define SHORT_STATUS_INTERVAL			(10 * 60 * CLOCK_SECOND)
-#define LONG_STATUS_INTERVAL			(20 * 60 * CLOCK_SECOND)
-#define ROOT_FIND_INTERVAL				(2 * CLOCK_SECOND)
-#define ROOT_FIND_LIMIT_TIME			(2 * 60 * CLOCK_SECOND)
+#define MAINTENANCE_INTERVAL			(CLOCK_SECOND * 60 * 10)
+#define ROOT_FIND_INTERVAL				(CLOCK_SECOND * 2)
+#define ROOT_FIND_LIMIT_TIME			(CLOCK_SECOND * 60 * 2)
 
-#define REQ_DATA_FOR_OTA_INTERVAL		(2 * CLOCK_SECOND)
+#define REQ_DATA_FOR_OTA_INTERVAL		(CLOCK_SECOND * 2)
+
+#define PING_INTERVAL					(CLOCK_SECOND * 10)
+#define PING_MAX_NON_ANSWERED			(3)
 
 #define CC26XX_UART_INTERRUPT_ALL ( UART_INT_OE | UART_INT_BE | UART_INT_PE | \
 									UART_INT_FE | UART_INT_RT | UART_INT_TX | \
@@ -143,12 +144,6 @@
                              IOC_HYST_DISABLE	| IOC_NO_EDGE		| \
                              IOC_INT_DISABLE	| IOC_IOMODE_NORMAL | \
                              IOC_NO_WAKE_UP		| IOC_INPUT_ENABLE )
-
-/*---------------------------------------------------------------------------*/
-
-#define UART_DATA_POLL_INTERVAL 5	//in main timer ticks, one tick ~8ms
-
-#define WAIT_RESPONSE 			3 	//Максимальное время ожидания ответа от счетчика в секундах
 
 /*---------------------------------------------------------------------------*/
 /* ОБЩИЕ ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ */
@@ -1775,9 +1770,9 @@ PROCESS_THREAD(ping_process, ev, data)
 	
 	while (1)
 	{
-		etimer_set(&ping_timer, (CLOCK_SECOND * 10));			/* Устанавливаем таймер на 10 минут */
+		etimer_set(&ping_timer, PING_INTERVAL);					/* Устанавливаем таймер на PING_INTERVAL */
 		
-		if(non_answered_ping > 3)								/* Перезагрузить если больше трех неотвеченных пингов */
+		if(non_answered_ping > PING_MAX_NON_ANSWERED)			/* Перезагрузить если больше PING_MAX_NON_ANSWERED */
 		{
 			printf("[DAG Node] Ping error!\nReboot...");
 			watchdog_reboot();

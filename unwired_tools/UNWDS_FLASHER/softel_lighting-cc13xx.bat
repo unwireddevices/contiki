@@ -10,4 +10,4 @@ set /p com="COM port: "
 	rm softel_lighting_firmware_cc13xx.hex
 	pause
 	cls
-goto start
+	goto start
