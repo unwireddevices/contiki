@@ -1979,11 +1979,9 @@ PROCESS_THREAD(dag_node_process, ev, data)
 	packet_counter_node.u16 = 1;		/* Инициализация счетчика */
 	
 	/* Вывод информационного сообщения в консоль */
-	printf("[DAG Node] Node started, %s mode, %s class, version %"PRIu8".%"PRIu8"\n",
+	printf("[DAG Node] Node started, %s mode, %s class\n",
 			rpl_get_mode() == RPL_MODE_LEAF ? "leaf" : "no-leaf",
-			CLASS == CLASS_B ? "B(sleep)" : "C(non-sleep)",
-			BIG_VERSION, 
-			LITTLE_VERSION);
+			CLASS == CLASS_B ? "B(sleep)" : "C(non-sleep)");
 
 	process_start(&dag_node_button_process, NULL);		/* Запускаем процес который отслеживает нажатие кнопок */
 	process_start(&maintenance_process, NULL);			/* Запускаем процес управления нодой */
